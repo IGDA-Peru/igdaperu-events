@@ -42,10 +42,11 @@ El dominio se asocia primero al proyecto Pages; no basta con crear un CNAME manu
 El contrato de base de datos está en `supabase/migrations/20260903000000_initial_schema.sql` y el seed inicial en `supabase/seed.sql`.
 
 ```sh
-supabase link --project-ref <PROJECT_REF>
-supabase db push
-supabase functions deploy create-invitation
-supabase functions deploy accept-invitation
+pnpm exec supabase login
+pnpm exec supabase link --project-ref <PROJECT_REF>
+pnpm exec supabase db push
+pnpm exec supabase functions deploy create-invitation
+pnpm exec supabase functions deploy accept-invitation
 ```
 
 En el dashboard de Supabase:

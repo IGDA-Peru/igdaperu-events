@@ -16,6 +16,7 @@ dist-ssr
 !.env.example
 .dev.vars
 .supabase
+supabase/.temp
 output/playwright
 .playwright-cli
 
