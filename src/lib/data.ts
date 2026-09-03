@@ -187,7 +187,18 @@ export async function resolveEventReport(reportId: string) {
 export async function syncCommunitiesFromSheet(): Promise<CommunitySyncResult> {
   if (!supabase) throw new Error('Supabase no está configurado.')
   const { data, error } = await supabase.functions.invoke('sync-communities', { body: {} })
-  if (error) throw error
+  if (error) {
+    const context = (error as { context?: Response }).context
+    if (context) {
+      try {
+        const details = await context.json() as { error?: string }
+        if (details.error) throw new Error(details.error)
+      } catch (reason: unknown) {
+        if (reason instanceof Error && reason.message !== error.message) throw reason
+      }
+    }
+    throw error
+  }
   if (!data || typeof data !== 'object' || !data.runId) throw new Error('La sincronización devolvió una respuesta inválida.')
   return data as CommunitySyncResult
 }
