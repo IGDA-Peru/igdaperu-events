@@ -36,31 +36,14 @@ export function LoginPage() {
     else navigate(from, { replace: true })
   }
 
-  return <AuthFrame title="Ingresar" description="Accede a la red de comunidades y gestiona tus eventos.">{!configured && <DemoNotice />}<form className="auth-form" onSubmit={submit}><label>Email<input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label><label>Contraseña<input type="password" required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label><FormMessage error={error} /><button className="primary-button full" disabled={loading}>{loading ? 'Ingresando…' : 'Ingresar'}</button></form><div className="auth-links"><Link to="/registro">Crear una cuenta</Link><Link to="/recuperar">Olvidé mi contraseña</Link></div></AuthFrame>
+  return <AuthFrame title="Ingresar" description="Accede a la red de comunidades y gestiona tus eventos.">{!configured && <DemoNotice />}<form className="auth-form" onSubmit={submit}><label>Email<input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label><label>Contraseña<input type="password" required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label><FormMessage error={error} /><button className="primary-button full" disabled={loading}>{loading ? 'Ingresando…' : 'Ingresar'}</button></form><div className="auth-links"><Link to="/registro">¿Tienes una invitación?</Link><Link to="/recuperar">Olvidé mi contraseña</Link></div></AuthFrame>
 }
 
 export function RegisterPage() {
-  const navigate = useNavigate()
-  const { configured } = useAuth()
-  const [displayName, setDisplayName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault(); setError(''); setSuccess('')
-    if (!supabase) { setError('Supabase aún no está configurado para este entorno.'); return }
-    setLoading(true)
-    const result = await supabase.auth.signUp({ email, password, options: { data: { display_name: displayName }, emailRedirectTo: `${appUrl}/auth/callback` } })
-    setLoading(false)
-    if (result.error) setError(result.error.message)
-    else if (result.data.session) navigate('/app')
-    else setSuccess('Revisa tu correo para confirmar la cuenta antes de ingresar.')
-  }
-
-  return <AuthFrame title="Crear una cuenta" description="Regístrate para consultar los eventos de la red autenticada.">{!configured && <DemoNotice />}<form className="auth-form" onSubmit={submit}><label>Nombre visible<input type="text" required minLength={2} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label><label>Email<input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label><label>Contraseña<input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /><small>Usa al menos 8 caracteres.</small></label><FormMessage error={error} success={success} /><button className="primary-button full" disabled={loading}>{loading ? 'Creando cuenta…' : 'Crear cuenta'}</button></form><div className="auth-links"><Link to="/login">Ya tengo una cuenta</Link></div></AuthFrame>
+  return <AuthFrame title="Acceso por invitación" description="La creación de cuentas está reservada para personas invitadas por una comunidad.">
+    <div className="success-panel"><ShieldCheck size={31} /><p>Para participar en una comunidad, un administrador debe enviarte una invitación por correo.</p><p>Abre ese enlace para confirmar tu correo y definir tu contraseña.</p></div>
+    <div className="auth-links"><Link to="/login">Ya tengo una cuenta</Link><Link to="/">Volver a la agenda</Link></div>
+  </AuthFrame>
 }
 
 export function ForgotPasswordPage() {

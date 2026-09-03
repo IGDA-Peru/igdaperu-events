@@ -1,6 +1,12 @@
 import { render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import App from './App'
+
+vi.mock('./lib/supabase', () => ({
+  appUrl: 'http://localhost:5173',
+  isSupabaseConfigured: false,
+  supabase: null,
+}))
 
 describe('public agenda', () => {
   it('shows the public agenda using the local demo fallback', async () => {

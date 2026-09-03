@@ -54,7 +54,9 @@ En el dashboard de Supabase:
 - Site URL: `https://eventos.igda.pe`.
 - Redirect URLs: `https://eventos.igda.pe/auth/callback`, `https://eventos.igda.pe/restablecer`, `http://localhost:5173/auth/callback` y `http://localhost:5173/restablecer`.
 - Confirmación de email activada.
-- SMTP propio configurado antes de abrir el registro al público.
+- **Registro público desactivado** en Authentication → Settings/General Configuration → **Allow new users to sign up**.
+- Email provider activo. Las cuentas se crean únicamente desde invitaciones de administrador; la persona invitada confirma su correo y define su contraseña desde `/invitaciones/:token`.
+- SMTP propio configurado antes de enviar invitaciones en producción.
 - Secret `APP_URL=https://eventos.igda.pe` para las Edge Functions.
 
 Después de crear el primer usuario de IGDA, asígnale `platform_admin` con su UUID; el ejemplo está comentado en `supabase/seed.sql`.
@@ -64,7 +66,7 @@ La `service_role` key solo se usa como secret de Edge Functions. Nunca se coloca
 ## Alcance del MVP
 
 - Agenda pública, detalle, comunidades y filtros.
-- Registro, login, confirmación y recuperación de contraseña.
+- Agenda pública sin cuentas abiertas; acceso de comunidades mediante invitación, login, confirmación y recuperación de contraseña.
 - Roles `reader`, `community_editor`, `community_admin` y `platform_admin`.
 - Invitaciones de un solo uso con token almacenado como hash.
 - CRUD de eventos, moderación IGDA, reportes y auditoría.
