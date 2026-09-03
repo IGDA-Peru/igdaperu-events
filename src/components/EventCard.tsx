@@ -12,8 +12,8 @@ type EventCardActions = { onArchive: () => void; onDelete: () => void; canDelete
 
 function panelState(event: EventItem, isPast: boolean) {
   if (event.status === 'draft') return { label: 'Borrador', tone: 'draft' }
-  if (event.status === 'archived') return { label: 'Archivado', tone: 'archived' }
   if (isPast) return { label: 'Ya pasó', tone: 'archived' }
+  if (event.status === 'archived') return { label: 'Archivado', tone: 'archived' }
   if (event.visibility === 'network') return { label: 'Privado', tone: 'private' }
   return { label: 'Público', tone: 'public' }
 }
