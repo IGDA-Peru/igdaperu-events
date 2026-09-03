@@ -4,9 +4,14 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { EventCard, EmptyEvents } from '../components/EventCard'
 import { DemoNotice, ErrorState, LoadingState } from '../components/Feedback'
-import { createEventReport, getEventBySlug, listCommunities, listEvents } from '../lib/data'
-import { formatDate, formatTimeRange } from '../lib/format'
+import { EventPreviewDrawer } from '../components/EventPreviewDrawer'
+import { EventResults, EventViewSwitcher } from '../components/EventViews'
+import type { EventViewMode } from '../components/eventViewModes'
+import { getEventBySlug, listCommunities, listEvents } from '../lib/data'
+import { formatDate, formatTimeRange, isEventPast, meetingActionLabel } from '../lib/format'
 import type { Community, EventItem } from '../types'
+
+const notionCommunitiesEmbedUrl = 'https://igdape.notion.site/ebd/3b425d4453e08301bcef018ab661544a?v=12d25d4453e0825883398852a794ef21'
 
 function useEvents(options: { communitySlug?: string; search?: string; network?: boolean } = {}) {
   const [events, setEvents] = useState<EventItem[]>([])
@@ -64,11 +69,13 @@ const timeFilters = [
   { value: 'year', label: 'Este año' },
 ] as const
 
-const peruDepartments = [
-  'Todos', 'Amazonas', 'Áncash', 'Apurímac', 'Arequipa', 'Ayacucho', 'Cajamarca', 'Callao',
-  'Cusco', 'Huancavelica', 'Huánuco', 'Ica', 'Junín', 'La Libertad', 'Lambayeque', 'Lima', 'Loreto',
-  'Madre de Dios', 'Moquegua', 'Pasco', 'Piura', 'Puno', 'San Martín', 'Tacna', 'Tumbes', 'Ucayali', 'Internacional',
+const peruDepartmentNames = [
+  'Amazonas', 'Áncash', 'Apurímac', 'Arequipa', 'Ayacucho', 'Cajamarca', 'Callao', 'Cusco',
+  'Huancavelica', 'Huánuco', 'Ica', 'Junín', 'La Libertad', 'Lambayeque', 'Lima', 'Loreto',
+  'Madre de Dios', 'Moquegua', 'Pasco', 'Piura', 'Puno', 'San Martín', 'Tacna', 'Tumbes', 'Ucayali',
 ] as const
+
+const locationFilters = ['Todos', 'Internacional'] as const
 
 function normalizeLocation(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -105,7 +112,7 @@ function matchesLocationFilter(event: EventItem, filter: string) {
   if (filter === 'all') return true
   const location = normalizeLocation(`${event.venueName || ''} ${event.address || ''}`)
   if (filter === 'Internacional') {
-    return Boolean(location) && !peruDepartments.slice(1, -1).some((department) => location.includes(normalizeLocation(department)))
+    return Boolean(location) && !peruDepartmentNames.some((department) => location.includes(normalizeLocation(department)))
   }
   return location.includes(normalizeLocation(filter))
 }
@@ -128,6 +135,8 @@ export function PublicAgendaPage() {
   const [timeFilter, setTimeFilter] = useState<typeof timeFilters[number]['value']>('all')
   const [locationFilter, setLocationFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [viewMode, setViewMode] = useState<EventViewMode>('cards')
+  const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const { events, loading, error } = useEvents({ network: Boolean(user) })
 
   const visibleEvents = useMemo(() => {
@@ -146,20 +155,21 @@ export function PublicAgendaPage() {
       {user && <div className="events-network-label"><span className="network-label">Público y privado</span></div>}
       <div className="content-grid">
         <section className="events-section" aria-labelledby="upcoming-title">
-          <div className="section-heading-row"><h2 id="upcoming-title">Próximos eventos</h2></div>
+          <div className="section-heading-row"><h2 id="upcoming-title">Próximos eventos</h2><EventViewSwitcher value={viewMode} onChange={setViewMode} /></div>
           <div className="events-toolbar">
             <div className="filter-controls" aria-label="Filtrar eventos">
               <label className="filter-control"><span className="filter-control-label"><CalendarDays size={14} aria-hidden="true" /> Tiempo</span><select aria-label="Tiempo" value={timeFilter} onChange={(event) => setTimeFilter(event.target.value as typeof timeFilter)}>{timeFilters.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}</select></label>
-              <label className="filter-control"><span className="filter-control-label"><MapPin size={14} aria-hidden="true" /> Lugar</span><select aria-label="Lugar" value={locationFilter} onChange={(event) => setLocationFilter(event.target.value)}>{peruDepartments.map((department) => <option value={department === 'Todos' ? 'all' : department} key={department}>{department}</option>)}</select></label>
+              <label className="filter-control"><span className="filter-control-label"><MapPin size={14} aria-hidden="true" /> Lugar</span><select aria-label="Lugar" value={locationFilter} onChange={(event) => setLocationFilter(event.target.value)}>{locationFilters.map((location) => <option value={location === 'Todos' ? 'all' : location} key={location}>{location}</option>)}</select></label>
             </div>
             <label className="search-field"><Search size={17} /><span className="sr-only">Buscar eventos</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar" /></label>
           </div>
           {loading && <LoadingState />}
           {error && <ErrorState message={error} />}
-          {!loading && !error && (visibleEvents.length ? <div className="event-list">{visibleEvents.map((event) => <EventCard event={event} showVisibility={Boolean(user)} key={event.id} />)}</div> : <EmptyEvents authenticated={Boolean(user)} />)}
+          {!loading && !error && <EventResults events={visibleEvents} viewMode={viewMode} showVisibility={Boolean(user)} onEventOpen={setSelectedEvent} />}
         </section>
         <CommunityRail communities={recentCommunities} />
       </div>
+      <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} />
     </div>
   )
 }
@@ -170,8 +180,6 @@ export function EventDetailPage() {
   const [event, setEvent] = useState<EventItem | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [reportReason, setReportReason] = useState('')
-  const [reportMessage, setReportMessage] = useState('')
 
   useEffect(() => {
     void getEventBySlug(slug, Boolean(user)).then(setEvent).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'No pudimos cargar el evento.')).finally(() => setLoading(false))
@@ -184,19 +192,19 @@ export function EventDetailPage() {
   return (
     <div className="detail-page">
       <Link className="back-link" to="/"><ChevronRight size={18} className="back-icon" /> Volver a eventos</Link>
-      <article className="event-detail-card">
+      <article className={`event-detail-card ${isEventPast(event) ? 'past-event' : ''}`}>
         <div className={`detail-color-bar ${event.type === 'TALLER' ? 'yellow' : 'red'}`} />
         <div className="detail-content">
           <span className={`event-type ${event.type === 'TALLER' ? 'yellow' : 'red'}`}>{event.type}</span>
+          {isEventPast(event) && <span className="event-past-label">Evento realizado</span>}
           <h1>{event.title}</h1>
           <p className="detail-description">{event.description}</p>
           <div className="detail-meta">
             <div><CalendarDays size={19} /><span><strong>Fecha y hora</strong>{formatDate(event.startsAt)} · {formatTimeRange(event.startsAt, event.endsAt)}</span></div>
-            <div><MapPin size={19} /><span><strong>Ubicación</strong>{event.locationType === 'online' ? 'Online' : event.venueName || event.address || 'Por confirmar'}</span></div>
+            <div><MapPin size={19} /><span><strong>Ubicación</strong>{event.locationType === 'online' ? 'Online' : event.venueName || event.address || 'Por confirmar'}{event.mapUrl && <a href={event.mapUrl} target="_blank" rel="noreferrer">Ver en Google Maps <ExternalLink size={14} /></a>}</span></div>
             <div><Users size={19} /><span><strong>Organiza</strong><Link to={`/comunidades/${event.communitySlug}`}>{event.communityName}</Link></span></div>
           </div>
-          {event.meetingUrl && <a className="primary-button" href={event.meetingUrl} target="_blank" rel="noreferrer">Ver enlace del evento <ExternalLink size={17} /></a>}
-          {user && <details className="report-box"><summary>Reportar este evento</summary><form onSubmit={(submitEvent) => { submitEvent.preventDefault(); void createEventReport(event.id, reportReason).then(() => { setReportMessage('Gracias. Revisaremos este reporte.'); setReportReason('') }).catch((reason: unknown) => setReportMessage(reason instanceof Error ? reason.message : 'No pudimos enviar el reporte.')) }}><label>Motivo<textarea required minLength={5} rows={3} value={reportReason} onChange={(inputEvent) => setReportReason(inputEvent.target.value)} placeholder="Cuéntanos qué debemos revisar" /></label><button className="secondary-button">Enviar reporte</button>{reportMessage && <p className="form-message success">{reportMessage}</p>}</form></details>}
+          {event.meetingUrl && !isEventPast(event) && <a className="primary-button" href={event.meetingUrl} target="_blank" rel="noreferrer">{meetingActionLabel(event.meetingProvider)} <ExternalLink size={17} /></a>}
         </div>
       </article>
     </div>
@@ -204,10 +212,7 @@ export function EventDetailPage() {
 }
 
 export function CommunitiesPage() {
-  const [communities, setCommunities] = useState<Community[]>([])
-  const [loading, setLoading] = useState(true)
-  useEffect(() => { void listCommunities().then(setCommunities).finally(() => setLoading(false)) }, [])
-  return <div className="page-wrap"><div className="intro"><h1>Comunidades</h1><p>Encuentra los grupos, colectivos y organizaciones que mueven el desarrollo de videojuegos en Perú.</p></div>{loading ? <LoadingState label="Cargando comunidades" /> : <div className="community-directory">{communities.map((community, index) => <Link className="directory-item" to={`/comunidades/${community.slug}`} key={community.id}><CommunityIcon index={index} /><span><strong>{community.name}</strong><small>{community.description}</small></span><ChevronRight size={23} /></Link>)}</div>}</div>
+  return <div className="page-wrap page-wrap--communities"><section className="notion-communities-embed" aria-label="Directorio de comunidades IGDA Perú"><iframe src={notionCommunitiesEmbedUrl} title="Directorio de comunidades IGDA Perú" /><p className="notion-embed-fallback">¿No carga el directorio? <a href={notionCommunitiesEmbedUrl} target="_blank" rel="noreferrer">Abrirlo en Notion <ExternalLink size={15} /></a></p></section></div>
 }
 
 export function CommunityDetailPage() {

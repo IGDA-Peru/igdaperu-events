@@ -78,6 +78,29 @@ export function ResetPasswordPage() {
   return <AuthFrame title="Nueva contraseña" description="Elige una contraseña nueva para proteger tu cuenta.">{success ? <div className="success-panel"><CheckCircle2 size={31} /><p>Tu contraseña fue actualizada.</p><button className="primary-button full" type="button" onClick={() => navigate('/app')}>Ir al panel</button></div> : <form className="auth-form" onSubmit={submit}><label>Nueva contraseña<input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label><FormMessage error={error} /><button className="primary-button full">Guardar contraseña</button></form>}</AuthFrame>
 }
 
+export function ChangePasswordPage() {
+  const [password, setPassword] = useState('')
+  const [confirmation, setConfirmation] = useState('')
+  const [success, setSuccess] = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const navigate = useNavigate()
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault(); setError('')
+    if (!supabase) { setError('Supabase aún no está configurado para este entorno.'); return }
+    if (password.length < 8) { setError('La contraseña debe tener al menos 8 caracteres.'); return }
+    if (password !== confirmation) { setError('Las contraseñas no coinciden.'); return }
+    setLoading(true)
+    const result = await supabase.auth.updateUser({ password })
+    setLoading(false)
+    if (result.error) setError(result.error.message)
+    else setSuccess(true)
+  }
+
+  return <AuthFrame title="Cambiar contraseña" description="Actualiza la contraseña de tu cuenta.">{success ? <div className="success-panel"><CheckCircle2 size={31} /><p>Tu contraseña fue actualizada.</p><button className="primary-button full" type="button" onClick={() => navigate('/app')}>Volver al panel</button></div> : <form className="auth-form" onSubmit={submit}><label>Nueva contraseña<input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label><label>Confirmar contraseña<input type="password" required minLength={8} autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label><FormMessage error={error} /><button className="primary-button full" disabled={loading}>{loading ? 'Guardando…' : 'Guardar contraseña'}</button></form>}<div className="auth-links"><Link to="/app"><ArrowLeft size={15} /> Volver al panel</Link></div></AuthFrame>
+}
+
 export function AcceptInvitationPage() {
   const { token = '' } = useParams()
   const { user, configured, refreshUserData } = useAuth()

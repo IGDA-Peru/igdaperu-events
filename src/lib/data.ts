@@ -1,6 +1,7 @@
 import { demoCommunities, demoEvents } from './demo-data'
 import { isSupabaseConfigured, supabase } from './supabase'
 import type { Community, CommunitySyncResult, EventInput, EventItem, EventReport, Membership, Profile, Role } from '../types'
+import { isEventPast } from './format'
 
 type EventQueryOptions = { communitySlug?: string; search?: string; network?: boolean }
 
@@ -32,7 +33,9 @@ const mapEvent = (row: any): EventItem => {
     locationType: row.location_type,
     venueName: row.venue_name,
     address: row.address,
+    mapUrl: row.map_url,
     meetingUrl: row.meeting_url,
+    meetingProvider: row.meeting_provider || 'other',
     coverPath: row.cover_path,
     visibility: row.visibility,
     status: row.status,
@@ -62,8 +65,7 @@ export async function listEvents(options: EventQueryOptions = {}): Promise<Event
   let query = supabase
     .from('events')
     .select('*, community:communities!inner(name,slug,status)')
-    .eq('status', 'published')
-    .gte('starts_at', new Date().toISOString())
+    .in('status', ['published', 'archived'])
     .order('starts_at', { ascending: true })
     .limit(50)
 
@@ -73,13 +75,20 @@ export async function listEvents(options: EventQueryOptions = {}): Promise<Event
 
   const { data, error } = await query
   if (error) throw error
-  return (data || []).map(mapEvent)
+  return (data || []).map(mapEvent).sort((first, second) => {
+    const firstPast = isEventPast(first)
+    const secondPast = isEventPast(second)
+    if (firstPast !== secondPast) return firstPast ? 1 : -1
+    const difference = new Date(first.startsAt).getTime() - new Date(second.startsAt).getTime()
+    return firstPast ? -difference : difference
+  })
 }
 
 export async function getEventBySlug(slug: string, network = false): Promise<EventItem | null> {
   if (!isSupabaseConfigured || !supabase) return demoEvents.find((event) => event.slug === slug) || null
   let query = supabase.from('events').select('*, community:communities!inner(name,slug,status)').eq('slug', slug)
-  if (!network) query = query.eq('visibility', 'public').eq('status', 'published')
+  if (!network) query = query.eq('visibility', 'public')
+  query = query.in('status', ['published', 'archived'])
   const singleQuery = query.maybeSingle()
   const { data, error } = await singleQuery
   if (error) throw error
@@ -126,7 +135,9 @@ export async function saveEvent(input: EventInput, eventId?: string): Promise<Ev
     location_type: input.locationType,
     venue_name: input.venueName || null,
     address: input.address || null,
+    map_url: input.mapUrl || null,
     meeting_url: input.meetingUrl || null,
+    meeting_provider: input.meetingProvider,
     visibility: input.visibility,
     status: input.status,
   }
@@ -139,6 +150,12 @@ export async function saveEvent(input: EventInput, eventId?: string): Promise<Ev
 export async function archiveEvent(eventId: string) {
   if (!supabase) throw new Error('Supabase no está configurado.')
   const { error } = await supabase.from('events').update({ status: 'archived' }).eq('id', eventId)
+  if (error) throw error
+}
+
+export async function deleteEvent(eventId: string) {
+  if (!supabase) throw new Error('Supabase no está configurado.')
+  const { error } = await supabase.from('events').delete().eq('id', eventId)
   if (error) throw error
 }
 

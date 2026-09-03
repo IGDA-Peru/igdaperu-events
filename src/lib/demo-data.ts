@@ -14,21 +14,21 @@ export const demoEvents: EventItem[] = [
   {
     id: 'demo-design-levels', slug: 'diseno-de-niveles', communityId: 'igda-peru', communityName: 'IGDA Perú', communitySlug: 'igda-peru',
     title: 'Diseño de niveles: del papel a la experiencia', description: 'Técnicas prácticas para diseñar niveles memorables e iterar con playtests.', type: 'CHARLA',
-    startsAt: demoDate('2026-09-19', '19:00'), endsAt: demoDate('2026-09-19', '21:00'), timezone: 'America/Lima', locationType: 'venue', venueName: 'Lima, Perú', address: '', meetingUrl: '', visibility: 'public', status: 'published',
+    startsAt: demoDate('2026-09-19', '19:00'), endsAt: demoDate('2026-09-19', '21:00'), timezone: 'America/Lima', locationType: 'venue', venueName: 'Lima, Perú', address: '', mapUrl: '', meetingUrl: '', meetingProvider: 'other', visibility: 'public', status: 'published',
   },
   {
     id: 'demo-godot', slug: 'introduccion-godot-engine', communityId: 'godot-lima', communityName: 'Comunidad Godot Lima', communitySlug: 'godot-lima',
     title: 'Introducción a Godot Engine', description: 'Una sesión práctica para dar tus primeros pasos y crear un juego 2D.', type: 'TALLER',
-    startsAt: demoDate('2026-09-26', '15:00'), endsAt: demoDate('2026-09-26', '18:00'), timezone: 'America/Lima', locationType: 'venue', venueName: 'Lima, Perú', address: '', meetingUrl: '', visibility: 'public', status: 'published',
+    startsAt: demoDate('2026-09-26', '15:00'), endsAt: demoDate('2026-09-26', '18:00'), timezone: 'America/Lima', locationType: 'venue', venueName: 'Lima, Perú', address: '', mapUrl: '', meetingUrl: '', meetingProvider: 'other', visibility: 'public', status: 'published',
   },
   {
     id: 'demo-devlog', slug: 'devlog-comparte-tu-proyecto', communityId: 'indie-devs-peru', communityName: 'Indie Devs Perú', communitySlug: 'indie-devs-peru',
     title: 'DevLog: comparte tu proyecto', description: 'Encuentro para mostrar avances, recibir feedback y conectar con desarrolladores.', type: 'MEETUP',
-    startsAt: demoDate('2026-10-03', '17:00'), endsAt: demoDate('2026-10-03', '20:00'), timezone: 'America/Lima', locationType: 'venue', venueName: 'Lima, Perú', address: '', meetingUrl: '', visibility: 'public', status: 'published',
+    startsAt: demoDate('2026-10-03', '17:00'), endsAt: demoDate('2026-10-03', '20:00'), timezone: 'America/Lima', locationType: 'venue', venueName: 'Lima, Perú', address: '', mapUrl: '', meetingUrl: '', meetingProvider: 'other', visibility: 'public', status: 'published',
   },
   {
     id: 'demo-leadership', slug: 'de-artista-a-lider-de-equipo', communityId: 'women-games-peru', communityName: 'Women in Games Perú', communitySlug: 'women-games-peru',
     title: 'De artista a líder de equipo', description: 'Conversación sobre liderazgo, comunicación y procesos creativos en equipos de juego.', type: 'CHARLA',
-    startsAt: demoDate('2026-10-10', '19:00'), endsAt: demoDate('2026-10-10', '21:00'), timezone: 'America/Lima', locationType: 'venue', venueName: 'Lima, Perú', address: '', meetingUrl: '', visibility: 'public', status: 'published',
+    startsAt: demoDate('2026-10-10', '19:00'), endsAt: demoDate('2026-10-10', '21:00'), timezone: 'America/Lima', locationType: 'venue', venueName: 'Lima, Perú', address: '', mapUrl: '', meetingUrl: '', meetingProvider: 'other', visibility: 'public', status: 'published',
   },
 ]

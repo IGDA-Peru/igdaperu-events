@@ -1,15 +1,35 @@
-import { LogIn, Menu, Plus, X } from 'lucide-react'
-import { useState } from 'react'
+import { LayoutDashboard, LockKeyhole, LogIn, LogOut, Menu, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 
 export function SiteHeader({ embed = false }: { embed?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const { user, memberships, signOut } = useAuth()
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
+  const accountMenuRef = useRef<HTMLDivElement>(null)
+  const { user, signOut } = useAuth()
   const location = useLocation()
+
+  useEffect(() => {
+    if (!accountMenuOpen) return
+    const handlePointerDown = (event: PointerEvent) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) setAccountMenuOpen(false)
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setAccountMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [accountMenuOpen])
+
   if (embed) return null
 
   const isApp = location.pathname.startsWith('/app')
+  const closeAccountMenu = () => setAccountMenuOpen(false)
 
   return (
     <header className={`site-header ${menuOpen ? 'menu-open' : ''}`}>
@@ -24,16 +44,19 @@ export function SiteHeader({ embed = false }: { embed?: boolean }) {
         <nav className={`main-nav ${menuOpen ? 'open' : ''}`} aria-label="Navegación principal">
           <Link className={!isApp && location.pathname !== '/comunidades' ? 'active' : ''} to="/">Eventos</Link>
           <Link className={location.pathname.startsWith('/comunidades') ? 'active' : ''} to="/comunidades">Comunidades</Link>
-          {user && memberships.length > 0 && <Link className={isApp ? 'active' : ''} to="/app">Panel</Link>}
         </nav>
         <div className="header-actions">
-          <Link className="publish-button" to={user && memberships.length > 0 ? '/app/eventos/nuevo' : '/login'}>
-            <Plus size={20} aria-hidden="true" /> Publicar evento
-          </Link>
+          {user && <Link className="publish-button" to="/app" onClick={closeAccountMenu}><LayoutDashboard size={19} aria-hidden="true" /> Panel</Link>}
           {user ? (
-            <button className="account-button" type="button" onClick={() => void signOut()} title="Cerrar sesión">
-              <span>{(user.email || 'U').slice(0, 1).toUpperCase()}</span>
-            </button>
+            <div className="account-menu" ref={accountMenuRef}>
+              <button className="account-button" type="button" onClick={() => setAccountMenuOpen(!accountMenuOpen)} title="Menú de perfil" aria-label="Abrir menú de perfil" aria-haspopup="menu" aria-expanded={accountMenuOpen} aria-controls="account-menu">
+                <span>{(user.email || 'U').slice(0, 1).toUpperCase()}</span>
+              </button>
+              {accountMenuOpen && <div className="account-dropdown" id="account-menu" role="menu" aria-label="Opciones de perfil">
+                <Link role="menuitem" to="/app/cambiar-contrasena" onClick={closeAccountMenu}><LockKeyhole size={16} aria-hidden="true" /> Cambiar contraseña</Link>
+                <button role="menuitem" type="button" onClick={() => { closeAccountMenu(); void signOut() }}><LogOut size={16} aria-hidden="true" /> Cerrar sesión</button>
+              </div>}
+            </div>
           ) : (
             <Link className="login-link" to="/login"><LogIn size={17} /> Ingresar</Link>
           )}

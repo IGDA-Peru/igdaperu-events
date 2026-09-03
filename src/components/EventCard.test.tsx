@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { EventCard } from './EventCard'
 import type { EventItem } from '../types'
 
@@ -28,12 +28,54 @@ describe('EventCard visibility', () => {
   it('distinguishes public and private events when requested', () => {
     const { container, rerender } = render(<MemoryRouter><EventCard event={event} showVisibility /></MemoryRouter>)
 
-    expect(screen.getByText('Público')).toBeInTheDocument()
+    expect(screen.queryByText('Público')).not.toBeInTheDocument()
     expect(container.querySelector('.public-event')).toBeInTheDocument()
 
     rerender(<MemoryRouter><EventCard event={{ ...event, visibility: 'network' }} showVisibility /></MemoryRouter>)
 
     expect(screen.getByText('Privado')).toBeInTheDocument()
     expect(container.querySelector('.private-event')).toBeInTheDocument()
+  })
+
+  it('uses panel state and management actions instead of event navigation', () => {
+    const onArchive = vi.fn()
+    const onDelete = vi.fn()
+    render(<MemoryRouter><EventCard event={{ ...event, status: 'draft' }} compact panelActions={{ onArchive, onDelete }} /></MemoryRouter>)
+
+    expect(screen.getByRole('link', { name: 'Editar Evento de prueba' })).toHaveAttribute('href', '/app/eventos/event-1')
+    expect(screen.getByText('Borrador')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Archivar Evento de prueba' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Eliminar Evento de prueba' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Ver Evento de prueba' })).not.toBeInTheDocument()
+  })
+
+  it('shows the effective audience for published panel events', () => {
+    const { rerender } = render(<MemoryRouter><EventCard event={event} compact panelActions={{ onArchive: vi.fn(), onDelete: vi.fn() }} /></MemoryRouter>)
+
+    expect(screen.getByText('Público')).toBeInTheDocument()
+    expect(screen.queryByText('CHARLA')).not.toBeInTheDocument()
+
+    rerender(<MemoryRouter><EventCard event={{ ...event, visibility: 'network' }} compact panelActions={{ onArchive: vi.fn(), onDelete: vi.fn() }} /></MemoryRouter>)
+
+    expect(screen.getByText('Privado')).toBeInTheDocument()
+  })
+
+  it('calls archive and delete actions from the panel card', () => {
+    const onArchive = vi.fn()
+    const onDelete = vi.fn()
+    render(<MemoryRouter><EventCard event={event} compact panelActions={{ onArchive, onDelete }} /></MemoryRouter>)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Archivar Evento de prueba' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Eliminar Evento de prueba' }))
+
+    expect(onArchive).toHaveBeenCalledOnce()
+    expect(onDelete).toHaveBeenCalledOnce()
+  })
+
+  it('marks completed events without hiding them', () => {
+    render(<MemoryRouter><EventCard event={{ ...event, startsAt: '2026-08-19T19:00:00-05:00', endsAt: '2026-08-19T21:00:00-05:00' }} /></MemoryRouter>)
+
+    expect(screen.getByText('Ya pasó')).toBeInTheDocument()
+    expect(document.querySelector('.past-event')).toBeInTheDocument()
   })
 })

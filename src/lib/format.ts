@@ -31,6 +31,17 @@ export function formatTimeRange(startsAt: string, endsAt: string) {
   return `${timeFormatter.format(new Date(startsAt))} – ${timeFormatter.format(new Date(endsAt))}`
 }
 
+export function isEventPast(eventOrEndsAt: { endsAt: string } | string) {
+  const endsAt = typeof eventOrEndsAt === 'string' ? eventOrEndsAt : eventOrEndsAt.endsAt
+  return new Date(endsAt).getTime() <= Date.now()
+}
+
+export function meetingActionLabel(provider?: string | null) {
+  if (provider === 'google_meet') return 'Unirme por Google Meet'
+  if (provider === 'zoom') return 'Unirme por Zoom'
+  return 'Abrir enlace para unirse'
+}
+
 export function slugify(value: string) {
   return value
     .normalize('NFD')

@@ -3,6 +3,7 @@ export type CommunityStatus = 'pending' | 'approved' | 'suspended'
 export type EventStatus = 'draft' | 'published' | 'archived'
 export type EventVisibility = 'public' | 'network'
 export type LocationType = 'venue' | 'online' | 'hybrid'
+export type MeetingProvider = 'zoom' | 'google_meet' | 'other'
 
 export type Community = {
   id: string
@@ -30,7 +31,9 @@ export type EventItem = {
   locationType: LocationType
   venueName?: string | null
   address?: string | null
+  mapUrl?: string | null
   meetingUrl?: string | null
+  meetingProvider?: MeetingProvider | null
   coverPath?: string | null
   visibility: EventVisibility
   status: EventStatus
@@ -47,7 +50,9 @@ export type EventInput = {
   locationType: LocationType
   venueName: string
   address: string
+  mapUrl: string
   meetingUrl: string
+  meetingProvider: MeetingProvider
   visibility: EventVisibility
   status: EventStatus
 }
