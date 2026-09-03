@@ -1,6 +1,6 @@
 # Agenda IGDA Perú
 
-Servicio independiente para descubrir y administrar eventos de múltiples comunidades en `agenda.igda.pe`, con IGDA Perú como primera organización.
+Servicio independiente para descubrir y administrar eventos de múltiples comunidades en `eventos.igda.pe`, con IGDA Perú como primera organización.
 
 ## Desarrollo local
 
@@ -32,8 +32,8 @@ Esta configuración debe hacerse en la cuenta de Cloudflare que administra la zo
 2. Selecciona GitHub y el repositorio `IGDA-Peru/igdaperu-events`.
 3. Usa `main` como rama de producción.
 4. Configura Node.js `22`, comando `pnpm build` y directorio de salida `dist`.
-5. En **Custom domains**, agrega `agenda.igda.pe` desde el propio proyecto Pages.
-6. Agrega las variables `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` y `VITE_APP_URL=https://agenda.igda.pe` en producción.
+5. En **Custom domains**, agrega `eventos.igda.pe` desde el propio proyecto Pages.
+6. Agrega las variables `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` y `VITE_APP_URL=https://eventos.igda.pe` en producción.
 
 El dominio se asocia primero al proyecto Pages; no basta con crear un CNAME manual. Los previews de ramas y los despliegues de `main` quedarán vinculados a GitHub.
 
@@ -51,11 +51,11 @@ pnpm exec supabase functions deploy accept-invitation
 
 En el dashboard de Supabase:
 
-- Site URL: `https://agenda.igda.pe`.
-- Redirect URLs: `https://agenda.igda.pe/auth/callback`, `https://agenda.igda.pe/restablecer`, `http://localhost:5173/auth/callback` y `http://localhost:5173/restablecer`.
+- Site URL: `https://eventos.igda.pe`.
+- Redirect URLs: `https://eventos.igda.pe/auth/callback`, `https://eventos.igda.pe/restablecer`, `http://localhost:5173/auth/callback` y `http://localhost:5173/restablecer`.
 - Confirmación de email activada.
 - SMTP propio configurado antes de abrir el registro al público.
-- Secret `APP_URL=https://agenda.igda.pe` para las Edge Functions.
+- Secret `APP_URL=https://eventos.igda.pe` para las Edge Functions.
 
 Después de crear el primer usuario de IGDA, asígnale `platform_admin` con su UUID; el ejemplo está comentado en `supabase/seed.sql`.
 
