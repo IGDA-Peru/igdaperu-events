@@ -2,7 +2,7 @@ import { ArrowLeft, CheckCircle2, LockKeyhole, Mail, ShieldCheck } from 'lucide-
 import type { FormEvent, ReactNode } from 'react'
 import { useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { useAuth } from '../auth/AuthProvider'
+import { useAuth } from '../auth/useAuth'
 import { DemoNotice } from '../components/Feedback'
 import { appUrl, supabase } from '../lib/supabase'
 

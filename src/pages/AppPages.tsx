@@ -2,7 +2,7 @@ import { Check, ChevronRight, Clipboard, Edit3, Mail, Plus, Shield, Users, X } f
 import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { useAuth } from '../auth/AuthProvider'
+import { useAuth } from '../auth/useAuth'
 import { EmptyEvents, EventCard } from '../components/EventCard'
 import { LoadingState } from '../components/Feedback'
 import { archiveEvent, createCommunity, listCommunities, listEventReports, listManagedEvents, resolveEventReport, saveEvent, updateCommunity, updateCommunityStatus } from '../lib/data'

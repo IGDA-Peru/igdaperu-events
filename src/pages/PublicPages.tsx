@@ -1,7 +1,7 @@
 import { CalendarDays, ChevronRight, Code2, ExternalLink, Gamepad2, MapPin, Search, Users } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { useAuth } from '../auth/AuthProvider'
+import { useAuth } from '../auth/useAuth'
 import { EventCard, EmptyEvents } from '../components/EventCard'
 import { DemoNotice, ErrorState, LoadingState } from '../components/Feedback'
 import { createEventReport, getEventBySlug, listCommunities, listEvents } from '../lib/data'

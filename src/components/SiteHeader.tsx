@@ -1,7 +1,7 @@
 import { CalendarDays, LogIn, Menu, Plus, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { useAuth } from '../auth/AuthProvider'
+import { useAuth } from '../auth/useAuth'
 
 export function SiteHeader({ embed = false }: { embed?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false)
