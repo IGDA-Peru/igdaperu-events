@@ -5,3 +5,6 @@
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+/embed
+  Content-Security-Policy: frame-ancestors https://igdaperu.org https://www.igdaperu.org;

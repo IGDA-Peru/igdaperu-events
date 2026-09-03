@@ -1,6 +1,6 @@
 # Agenda IGDA Perú
 
-Primera base de la agenda de eventos del ecosistema peruano de videojuegos. La aplicación se prepara como un servicio independiente para desplegarse en `agenda.igda.pe` y recibir a IGDA Perú como su primera comunidad.
+Servicio independiente para descubrir y administrar eventos de múltiples comunidades en `agenda.igda.pe`, con IGDA Perú como primera organización.
 
 ## Desarrollo local
 
@@ -11,31 +11,61 @@ pnpm install
 pnpm dev
 ```
 
-## Validación y build
+Sin variables de Supabase, la aplicación funciona con datos de demostración para revisar el flujo visual. Para conectar un proyecto real, copia `.env.example` como `.env.local` y completa `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` y `VITE_APP_URL`.
+
+## Validación
 
 ```sh
 pnpm lint
+pnpm test
 pnpm build
 pnpm preview
 ```
 
-El build genera `dist/`, listo para Cloudflare Pages.
+El build genera `dist/`, que es el directorio de salida de Cloudflare Pages.
 
-## Despliegue inicial en Cloudflare Pages
+## Cloudflare Pages: configuración manual
+
+Esta configuración debe hacerse en la cuenta de Cloudflare que administra la zona `igda.pe`:
+
+1. En **Workers & Pages**, crea un proyecto Pages mediante **Connect to Git**.
+2. Selecciona GitHub y el repositorio `IGDA-Peru/igdaperu-events`.
+3. Usa `main` como rama de producción.
+4. Configura Node.js `22`, comando `pnpm build` y directorio de salida `dist`.
+5. En **Custom domains**, agrega `agenda.igda.pe` desde el propio proyecto Pages.
+6. Agrega las variables `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` y `VITE_APP_URL=https://agenda.igda.pe` en producción.
+
+El dominio se asocia primero al proyecto Pages; no basta con crear un CNAME manual. Los previews de ramas y los despliegues de `main` quedarán vinculados a GitHub.
+
+## Supabase
+
+El contrato de base de datos está en `supabase/migrations/20260903000000_initial_schema.sql` y el seed inicial en `supabase/seed.sql`.
 
 ```sh
-npx wrangler@latest pages project create igdaperu-events --production-branch main
-pnpm build
-npx wrangler@latest pages deploy dist --project-name igdaperu-events --branch main
+supabase link --project-ref <PROJECT_REF>
+supabase db push
+supabase functions deploy create-invitation
+supabase functions deploy accept-invitation
 ```
 
-Luego, en el proyecto de Cloudflare Pages, agregar el dominio personalizado `agenda.igda.pe`. Cloudflare pedirá asociarlo y configurará el CNAME correspondiente.
+En el dashboard de Supabase:
 
-## MVP previsto
+- Site URL: `https://agenda.igda.pe`.
+- Redirect URLs: `https://agenda.igda.pe/auth/callback`, `https://agenda.igda.pe/restablecer`, `http://localhost:5173/auth/callback` y `http://localhost:5173/restablecer`.
+- Confirmación de email activada.
+- SMTP propio configurado antes de abrir el registro al público.
+- Secret `APP_URL=https://agenda.igda.pe` para las Edge Functions.
 
-- Agenda pública con filtros.
-- Comunidades y organizaciones.
-- Registro de eventos mediante invitación.
-- Roles por comunidad.
-- Moderación central de IGDA Perú.
-- Feeds iCal/RSS y embed para `igdaperu.org`.
+Después de crear el primer usuario de IGDA, asígnale `platform_admin` con su UUID; el ejemplo está comentado en `supabase/seed.sql`.
+
+La `service_role` key solo se usa como secret de Edge Functions. Nunca se coloca en variables `VITE_*` ni en el navegador.
+
+## Alcance del MVP
+
+- Agenda pública, detalle, comunidades y filtros.
+- Registro, login, confirmación y recuperación de contraseña.
+- Roles `reader`, `community_editor`, `community_admin` y `platform_admin`.
+- Invitaciones de un solo uso con token almacenado como hash.
+- CRUD de eventos, moderación IGDA, reportes y auditoría.
+- Embed público en `/embed?community=igda-peru`.
+- Feeds iCal/RSS e integración dentro de `igdaperu-site` como siguiente iteración.
