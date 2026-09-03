@@ -1,1 +1,12 @@
-/*    /index.html   200
+/eventos/* /index.html 200
+/comunidades/* /index.html 200
+/invitaciones/* /index.html 200
+/login /index.html 200
+/registro /index.html 200
+/recuperar /index.html 200
+/restablecer /index.html 200
+/auth/callback /index.html 200
+/privacidad /index.html 200
+/embed /index.html 200
+/app /index.html 200
+/app/* /index.html 200
