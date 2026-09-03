@@ -313,18 +313,35 @@ async function updateRun(runId: string, values: Record<string, unknown>) {
   await admin.from('community_sync_runs').update(values).eq('id', runId)
 }
 
+function errorMessage(error: unknown) {
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error === 'object' && error !== null) {
+    const details = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown }
+    if (typeof details.message === 'string' && details.message) return details.message
+    try {
+      const serialized = JSON.stringify(error)
+      if (serialized && serialized !== '{}') return serialized
+    } catch {
+      // Fall through to the generic string conversion below.
+    }
+  }
+  return String(error || 'Unexpected error')
+}
+
 Deno.serve(async (request) => {
   const preflight = options(request)
   if (preflight) return preflight
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
   let runId: string | null = null
+  let stage = 'authentication'
   try {
     const accessToken = bearerToken(request)
     if (!accessToken) return json({ error: 'Authentication required' }, 401)
     const { data: authData, error: authError } = await admin.auth.getUser(accessToken)
     if (authError || !authData.user) return json({ error: 'Invalid session' }, 401)
 
+    stage = 'validating-platform-admin'
     const { data: platformMembership, error: membershipError } = await admin
       .from('memberships')
       .select('role')
@@ -336,6 +353,7 @@ Deno.serve(async (request) => {
     if (membershipError) throw membershipError
     if (!platformMembership) return json({ error: 'Solo un administrador de IGDA puede sincronizar comunidades' }, 403)
 
+    stage = 'creating-sync-run'
     const { data: run, error: runError } = await admin
       .from('community_sync_runs')
       .insert({ requested_by: authData.user.id, status: 'running' })
@@ -344,13 +362,17 @@ Deno.serve(async (request) => {
     if (runError || !run) throw runError || new Error('No pudimos iniciar el registro de sincronización')
     runId = run.id
 
+    stage = 'reading-google-sheet'
     const values = await getGoogleRows()
+    stage = 'loading-existing-communities'
     const { data: existing, error: existingError } = await admin.from('communities').select('id,slug,source_id,name')
     if (existingError) throw existingError
     const syncedAt = new Date().toISOString()
+    stage = 'mapping-sheet'
     const { syncRows, skippedRows } = mapRows(values, existing || [], syncedAt)
     if (!syncRows.length) throw new Error('No hay comunidades validadas para importar')
 
+    stage = 'syncing-database'
     const { data: resultRows, error: syncError } = await admin.rpc('sync_community_rows', { p_rows: syncRows })
     if (syncError) throw syncError
     const rows = (resultRows || []) as Array<{ source_id: string; community_id: string | null; action: string; message: string | null }>
@@ -360,6 +382,7 @@ Deno.serve(async (request) => {
     const skipped = skippedRows.length + rpcSkipped.length
     const details = { skippedRows: [...skippedRows, ...rpcSkipped] }
 
+    stage = 'finalizing-sync-run'
     await updateRun(runId, {
       finished_at: new Date().toISOString(),
       status: 'succeeded',
@@ -389,7 +412,9 @@ Deno.serve(async (request) => {
       skippedRows: details.skippedRows,
     })
   } catch (error) {
-    if (runId) await updateRun(runId, { finished_at: new Date().toISOString(), status: 'failed', error_count: 1, details: { error: error instanceof Error ? error.message : 'Unexpected error' } })
-    return json({ error: error instanceof Error ? error.message : 'Unexpected error', runId }, 500)
+    const message = errorMessage(error)
+    console.error('sync-communities failed', { stage, message })
+    if (runId) await updateRun(runId, { finished_at: new Date().toISOString(), status: 'failed', error_count: 1, details: { stage, error: message } })
+    return json({ error: message, stage, runId }, 500)
   }
 })

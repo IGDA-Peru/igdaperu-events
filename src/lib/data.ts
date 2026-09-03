@@ -191,8 +191,8 @@ export async function syncCommunitiesFromSheet(): Promise<CommunitySyncResult> {
     const context = (error as { context?: Response }).context
     if (context) {
       try {
-        const details = await context.json() as { error?: string }
-        if (details.error) throw new Error(details.error)
+        const details = await context.json() as { error?: string; stage?: string }
+        if (details.error) throw new Error(details.stage ? `${details.error} (etapa: ${details.stage})` : details.error)
       } catch (reason: unknown) {
         if (reason instanceof Error && reason.message !== error.message) throw reason
       }
