@@ -88,8 +88,11 @@ function FormError({ message }: { message: string }) { return message ? <p class
 
 export function CommunitySettingsPage() {
   const { memberships, roles } = useAuth()
+  const isPlatformAdmin = roles.includes('platform_admin')
   const manageable = memberships.filter((membership) => membership.role === 'community_admin' || membership.role === 'platform_admin')
-  const canInviteAdmins = roles.includes('platform_admin')
+  const manageableIds = manageable.map((membership) => membership.communityId).join(',')
+  const [communities, setCommunities] = useState<Community[]>([])
+  const [communityId, setCommunityId] = useState('')
   const [community, setCommunity] = useState<Community | null>(null)
   const [description, setDescription] = useState('')
   const [email, setEmail] = useState('')
@@ -97,12 +100,29 @@ export function CommunitySettingsPage() {
   const [inviteUrl, setInviteUrl] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-  useEffect(() => { if (manageable[0]) void listCommunities(true).then((items) => { const item = items.find((communityItem) => communityItem.id === manageable[0].communityId); if (item) { setCommunity(item); setDescription(item.description) } }) }, [memberships])
+  useEffect(() => {
+    if (!isPlatformAdmin && !manageableIds) { setCommunities([]); return }
+    void listCommunities(isPlatformAdmin).then((items) => {
+      const allowedIds = new Set(manageableIds ? manageableIds.split(',') : [])
+      const next = isPlatformAdmin ? items.filter((item) => item.status === 'approved') : items.filter((item) => allowedIds.has(item.id))
+      setCommunities(next)
+      setCommunityId((current) => current && next.some((item) => item.id === current) ? current : next[0]?.id || '')
+    })
+  }, [isPlatformAdmin, manageableIds])
+  useEffect(() => {
+    const selected = communities.find((item) => item.id === communityId) || null
+    setCommunity(selected)
+    setDescription(selected?.description || '')
+    setInviteUrl('')
+    setMessage('')
+    setError('')
+  }, [communityId, communities])
   const save = async (event: FormEvent) => { event.preventDefault(); if (!community) return; setError(''); try { await updateCommunity(community.id, { description }); setMessage('Comunidad actualizada.') } catch (reason: unknown) { setError(reason instanceof Error ? reason.message : 'No pudimos guardar la comunidad.') } }
   const invite = async (event: FormEvent) => { event.preventDefault(); setError(''); setInviteUrl(''); if (!supabase || !community) { setError('Supabase no está configurado.'); return } const result = await supabase.functions.invoke('create-invitation', { body: { email, communityId: community.id, role } }); if (result.error) setError(result.error.message); else { setInviteUrl(result.data?.inviteUrl || ''); setMessage('Invitación creada.'); setEmail('') } }
   const copy = async () => { if (inviteUrl) await navigator.clipboard.writeText(inviteUrl) }
-  if (!community) return <div className="dashboard-page"><PanelTitle title="Comunidades" description="Aún no tienes una comunidad administrable." /></div>
-  return <div className="dashboard-page narrow-page"><PanelTitle title={community.name} description="Gestiona la información pública y las personas con permisos." /><section className="settings-section"><h2>Información pública</h2><form className="editor-form" onSubmit={save}><label>Descripción<textarea rows={4} value={description} onChange={(event) => setDescription(event.target.value)} /></label><FormError message={error} />{message && <p className="form-message success">{message}</p>}<button className="primary-button">Guardar cambios</button></form></section><section className="settings-section"><h2>Invitar a una persona</h2><p className="muted-copy">La persona recibirá un enlace de un solo uso para activar su acceso.</p><form className="invite-form" onSubmit={invite}><label>Email<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label><label>Rol<select value={role} onChange={(event) => setRole(event.target.value as typeof role)}><option value="community_editor">Editor de comunidad</option>{canInviteAdmins && <option value="community_admin">Administrador de comunidad</option>}</select></label><button className="primary-button"><Mail size={16} /> Crear invitación</button></form>{inviteUrl && <div className="invite-result"><input readOnly value={inviteUrl} /><button className="icon-button" type="button" onClick={() => void copy()} aria-label="Copiar invitación"><Clipboard size={17} /></button></div>}</section></div>
+  if (!communities.length) return <div className="dashboard-page"><PanelTitle title="Comunidades" description={isPlatformAdmin ? 'Aprueba una comunidad antes de invitar a su primer administrador.' : 'Aún no tienes una comunidad administrable.'} /></div>
+  if (!community) return <LoadingState label="Cargando comunidad" />
+  return <div className="dashboard-page narrow-page"><PanelTitle title={community.name} description="Gestiona la información pública y las personas con permisos." />{isPlatformAdmin && <label className="community-selector">Comunidad<select value={communityId} onChange={(event) => setCommunityId(event.target.value)}>{communities.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>}<section className="settings-section"><h2>Información pública</h2><form className="editor-form" onSubmit={save}><label>Descripción<textarea rows={4} value={description} onChange={(event) => setDescription(event.target.value)} /></label><FormError message={error} />{message && <p className="form-message success">{message}</p>}<button className="primary-button">Guardar cambios</button></form></section><section className="settings-section"><h2>Invitar a una persona</h2><p className="muted-copy">La persona recibirá un enlace de un solo uso para activar su acceso.</p><form className="invite-form" onSubmit={invite}><label>Email<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label><label>Rol<select value={role} onChange={(event) => setRole(event.target.value as typeof role)}><option value="community_editor">Editor de comunidad</option>{isPlatformAdmin && <option value="community_admin">Administrador de comunidad</option>}</select></label><button className="primary-button"><Mail size={16} /> Crear invitación</button></form>{inviteUrl && <div className="invite-result"><input readOnly value={inviteUrl} /><button className="icon-button" type="button" onClick={() => void copy()} aria-label="Copiar invitación"><Clipboard size={17} /></button></div>}</section></div>
 }
 
 export function PlatformAdminPage() {
