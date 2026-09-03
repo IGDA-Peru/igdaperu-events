@@ -1,6 +1,6 @@
 import { demoCommunities, demoEvents } from './demo-data'
 import { isSupabaseConfigured, supabase } from './supabase'
-import type { Community, CommunitySyncResult, EventInput, EventItem, EventReport, Membership, Profile, Role } from '../types'
+import type { Community, CommunityMemberEmail, CommunitySyncResult, EventInput, EventItem, EventReport, Membership, Profile, Role } from '../types'
 import { isEventPast } from './format'
 
 type EventQueryOptions = { communitySlug?: string; search?: string; network?: boolean }
@@ -24,6 +24,7 @@ const mapEvent = (row: any): EventItem => {
     communityId: row.community_id,
     communityName: community?.name || 'Comunidad',
     communitySlug: community?.slug || '',
+    communityLogoPath: community?.logo_path,
     title: row.title,
     description: row.description || '',
     type: row.type,
@@ -34,6 +35,10 @@ const mapEvent = (row: any): EventItem => {
     venueName: row.venue_name,
     address: row.address,
     mapUrl: row.map_url,
+    placeId: row.place_id,
+    formattedAddress: row.formatted_address,
+    latitude: row.latitude,
+    longitude: row.longitude,
     meetingUrl: row.meeting_url,
     meetingProvider: row.meeting_provider || 'other',
     coverPath: row.cover_path,
@@ -51,6 +56,30 @@ export async function listCommunities(includeUnapproved = false): Promise<Commun
   return (data || []).map(mapCommunity)
 }
 
+export function getCommunityLogoUrl(path?: string | null) {
+  if (!path) return null
+  if (path.startsWith('/') || /^https?:\/\//i.test(path) || path.startsWith('blob:')) return path
+  return supabase?.storage.from('community-assets').getPublicUrl(path).data.publicUrl || null
+}
+
+export async function uploadCommunityLogo(communityId: string, file: File, previousPath?: string | null) {
+  if (!supabase) throw new Error('Supabase no está configurado.')
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('El logo debe estar en formato JPG, PNG o WebP.')
+  if (file.size > 5 * 1024 * 1024) throw new Error('El logo no puede superar los 5 MB.')
+  const extension = file.type === 'image/jpeg' ? 'jpg' : file.type === 'image/webp' ? 'webp' : 'png'
+  const path = `${communityId}/logo-${crypto.randomUUID()}.${extension}`
+  const storage = supabase.storage.from('community-assets')
+  const { error: uploadError } = await storage.upload(path, file, { cacheControl: '3600', contentType: file.type, upsert: false })
+  if (uploadError) throw uploadError
+  const { error: updateError } = await supabase.from('communities').update({ logo_path: path }).eq('id', communityId)
+  if (updateError) {
+    await storage.remove([path])
+    throw updateError
+  }
+  if (previousPath && !previousPath.startsWith('/') && !/^https?:\/\//i.test(previousPath)) await storage.remove([previousPath])
+  return path
+}
+
 export async function listEvents(options: EventQueryOptions = {}): Promise<EventItem[]> {
   if (!isSupabaseConfigured || !supabase) {
     const query = options.search?.trim().toLowerCase()
@@ -64,7 +93,7 @@ export async function listEvents(options: EventQueryOptions = {}): Promise<Event
 
   let query = supabase
     .from('events')
-    .select('*, community:communities!inner(name,slug,status)')
+    .select('*, community:communities!inner(name,slug,status,logo_path)')
     .in('status', ['published', 'archived'])
     .order('starts_at', { ascending: true })
     .limit(50)
@@ -76,6 +105,9 @@ export async function listEvents(options: EventQueryOptions = {}): Promise<Event
   const { data, error } = await query
   if (error) throw error
   return (data || []).map(mapEvent).sort((first, second) => {
+    if (!first.startsAt && !second.startsAt) return 0
+    if (!first.startsAt) return 1
+    if (!second.startsAt) return -1
     const firstPast = isEventPast(first)
     const secondPast = isEventPast(second)
     if (firstPast !== secondPast) return firstPast ? 1 : -1
@@ -86,7 +118,7 @@ export async function listEvents(options: EventQueryOptions = {}): Promise<Event
 
 export async function getEventBySlug(slug: string, network = false): Promise<EventItem | null> {
   if (!isSupabaseConfigured || !supabase) return demoEvents.find((event) => event.slug === slug) || null
-  let query = supabase.from('events').select('*, community:communities!inner(name,slug,status)').eq('slug', slug)
+  let query = supabase.from('events').select('*, community:communities!inner(name,slug,status,logo_path)').eq('slug', slug)
   if (!network) query = query.eq('visibility', 'public')
   query = query.in('status', ['published', 'archived'])
   const singleQuery = query.maybeSingle()
@@ -112,9 +144,16 @@ export async function getMemberships(userId: string): Promise<Membership[]> {
   })
 }
 
+export async function listCommunityMemberEmails(communityId: string): Promise<string[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase.rpc('list_community_member_emails', { p_community_id: communityId })
+  if (error) throw error
+  return (data || []).map((row: CommunityMemberEmail) => row.email).filter(Boolean)
+}
+
 export async function listManagedEvents(communityIds: string[], allCommunities = false): Promise<EventItem[]> {
   if (!supabase || (!communityIds.length && !allCommunities)) return []
-  let query = supabase.from('events').select('*, community:communities!inner(name,slug,status)').order('starts_at', { ascending: true }).limit(100)
+  let query = supabase.from('events').select('*, community:communities!inner(name,slug,status,logo_path)').order('starts_at', { ascending: true }).limit(100)
   if (communityIds.length) query = query.in('community_id', communityIds)
   const { data, error } = await query
   if (error) throw error
@@ -129,20 +168,24 @@ export async function saveEvent(input: EventInput, eventId?: string): Promise<Ev
     title: input.title,
     description: input.description,
     type: input.type,
-    starts_at: input.startsAt,
-    ends_at: input.endsAt,
+    starts_at: input.startsAt || null,
+    ends_at: input.endsAt || null,
     timezone: 'America/Lima',
     location_type: input.locationType,
     venue_name: input.venueName || null,
     address: input.address || null,
     map_url: input.mapUrl || null,
+    place_id: input.placeId || null,
+    formatted_address: input.formattedAddress || null,
+    latitude: input.latitude,
+    longitude: input.longitude,
     meeting_url: input.meetingUrl || null,
     meeting_provider: input.meetingProvider,
     visibility: input.visibility,
     status: input.status,
   }
   const request = eventId ? supabase.from('events').update(payload).eq('id', eventId) : supabase.from('events').insert(payload)
-  const { data, error } = await request.select('*, community:communities!inner(name,slug,status)').single()
+  const { data, error } = await request.select('*, community:communities!inner(name,slug,status,logo_path)').single()
   if (error) throw error
   return mapEvent(data)
 }

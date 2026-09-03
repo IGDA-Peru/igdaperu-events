@@ -22,16 +22,21 @@ export type EventItem = {
   communityId: string
   communityName: string
   communitySlug: string
+  communityLogoPath?: string | null
   title: string
   description: string
   type: string
-  startsAt: string
-  endsAt: string
+  startsAt: string | null
+  endsAt: string | null
   timezone: string
   locationType: LocationType
   venueName?: string | null
   address?: string | null
   mapUrl?: string | null
+  placeId?: string | null
+  formattedAddress?: string | null
+  latitude?: number | null
+  longitude?: number | null
   meetingUrl?: string | null
   meetingProvider?: MeetingProvider | null
   coverPath?: string | null
@@ -51,6 +56,10 @@ export type EventInput = {
   venueName: string
   address: string
   mapUrl: string
+  placeId: string
+  formattedAddress: string
+  latitude: number | null
+  longitude: number | null
   meetingUrl: string
   meetingProvider: MeetingProvider
   visibility: EventVisibility
@@ -63,6 +72,10 @@ export type Membership = {
   communitySlug: string
   role: Role
   status: 'active' | 'invited' | 'revoked'
+}
+
+export type CommunityMemberEmail = {
+  email: string
 }
 
 export type Profile = {

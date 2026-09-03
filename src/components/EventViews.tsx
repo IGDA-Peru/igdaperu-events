@@ -1,9 +1,10 @@
-import { ChevronLeft, ChevronRight, MapPin, Users } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MapPin } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { formatDate, formatTimeRange, isEventPast } from '../lib/format'
 import type { EventItem } from '../types'
 import { EmptyEvents, EventCard, VisibilityBadge } from './EventCard'
+import { CommunityLogo } from './CommunityLogo'
 import { eventViewModes, type EventViewMode } from './eventViewModes'
 
 export function EventViewSwitcher({ value, onChange }: { value: EventViewMode; onChange: (mode: EventViewMode) => void }) {
@@ -40,20 +41,21 @@ function capitalize(value: string) {
 }
 
 function CalendarView({ events }: { events: EventItem[] }) {
+  const scheduledEvents = events.filter((event) => event.startsAt)
   const [visibleMonth, setVisibleMonth] = useState(() => {
-    const reference = events[0] ? new Date(events[0].startsAt) : new Date()
+    const reference = scheduledEvents[0] ? new Date(scheduledEvents[0].startsAt as string) : new Date()
     return new Date(reference.getFullYear(), reference.getMonth(), 1)
   })
   const monthLabel = capitalize(new Intl.DateTimeFormat('es-PE', { month: 'long', year: 'numeric' }).format(visibleMonth))
   const days = useMemo(() => calendarDays(visibleMonth.getFullYear(), visibleMonth.getMonth()), [visibleMonth])
   const eventsByDate = useMemo(() => {
     const grouped = new Map<string, EventItem[]>()
-    events.forEach((event) => {
-      const key = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(event.startsAt))
+    scheduledEvents.forEach((event) => {
+      const key = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(event.startsAt as string))
       grouped.set(key, [...(grouped.get(key) || []), event])
     })
     return grouped
-  }, [events])
+  }, [scheduledEvents])
 
   return (
     <section className="calendar-view" aria-label={`Calendario de ${monthLabel}`}>
@@ -74,7 +76,7 @@ function CalendarView({ events }: { events: EventItem[] }) {
               <div className={`calendar-cell ${inMonth ? '' : 'other-month'} ${isToday ? 'today' : ''}`} key={key}>
                 <span className="calendar-day-number">{date.getDate()}</span>
                 <div className="calendar-cell-events">
-                  {dayEvents.slice(0, 3).map((event) => <Link className={`calendar-event ${event.visibility === 'network' ? 'private' : 'public'} ${isEventPast(event) ? 'past' : ''}`} title={event.title} to={`/eventos/${event.slug}`} key={event.id}><span className="calendar-event-dot" aria-hidden="true" /><span>{event.title}</span></Link>)}
+                  {dayEvents.slice(0, 3).map((event) => <Link className={`calendar-event ${event.visibility === 'network' ? 'private' : 'public'} ${isEventPast(event) ? 'past' : ''}`} title={event.title} to={`/eventos/${event.slug}`} key={event.id}><CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative /><span className="calendar-event-dot" aria-hidden="true" /><span>{event.title}</span></Link>)}
                   {dayEvents.length > 3 && <span className="calendar-more">+{dayEvents.length - 3} más</span>}
                 </div>
               </div>
@@ -106,7 +108,7 @@ function TimelineView({ events, showVisibility }: { events: EventItem[]; showVis
               <p>{event.description}</p>
               <div className="event-meta">
                 <span><MapPin size={15} aria-hidden="true" />{event.locationType === 'online' ? 'Online' : event.venueName || 'Perú'}</span>
-                <span><Users size={15} aria-hidden="true" />{event.communityName}</span>
+                <span><CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative />{event.communityName}</span>
               </div>
             </div>
           </article>

@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { AuthContext, type AuthContextValue } from './auth/auth-context'
 import App from './App'
 import { SiteHeader } from './components/SiteHeader'
-import { DashboardPage, EventEditorPage } from './pages/AppPages'
+import { CommunitySettingsPage, DashboardPage, EventEditorPage } from './pages/AppPages'
 
 vi.mock('./lib/supabase', () => ({
   appUrl: 'http://localhost:5173',
@@ -72,15 +72,83 @@ describe('public events', () => {
     expect(screen.getByText('Tus comunidades')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Tus eventos' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Nuevo evento/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Ver todos/ })).not.toBeInTheDocument()
     expect(screen.queryByText('Este es tu espacio para consultar y administrar tus eventos.')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Panel/ })).toHaveAttribute('href', '/app')
     expect(screen.queryByRole('link', { name: /Publicar evento/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Invitar editor' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Gestionar comunidad' })).toHaveAttribute('href', '/app/comunidad')
+    expect(screen.queryByRole('link', { name: 'Gestionar comunidades' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Invitar editor' }))
+    expect(screen.getByRole('dialog', { name: 'Invitar editor' })).toBeInTheDocument()
+    expect(screen.getByText('Editor de comunidad')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cerrar' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar' }))
+    expect(screen.queryByRole('dialog', { name: 'Invitar editor' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Abrir menú de perfil' }))
     expect(screen.getByRole('menu', { name: 'Opciones de perfil' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /Cambiar contraseña/ })).toHaveAttribute('href', '/app/cambiar-contrasena')
     fireEvent.click(screen.getByRole('menuitem', { name: /Cerrar sesión/ }))
     expect(authValue.signOut).toHaveBeenCalled()
+  })
+
+  it('makes community information read-only and separates registered emails from invitations', async () => {
+    const authValue = {
+      configured: false,
+      loading: false,
+      session: null,
+      user: { id: 'user-1', email: 'comunidad@igda.pe' } as NonNullable<AuthContextValue['user']>,
+      profile: { id: 'profile-1', displayName: 'Comunidad' },
+      memberships: [{ communityId: 'igda-peru', communityName: 'IGDA Perú', communitySlug: 'igda-peru', role: 'community_admin', status: 'active' }],
+      roles: ['community_admin'],
+      signOut: vi.fn().mockResolvedValue(undefined),
+      refreshUserData: vi.fn().mockResolvedValue(undefined),
+    } as AuthContextValue
+
+    render(<AuthContext.Provider value={authValue}><MemoryRouter initialEntries={['/app/comunidad']}><CommunitySettingsPage /></MemoryRouter></AuthContext.Provider>)
+    expect(await screen.findByRole('combobox', { name: 'Comunidad' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Correos registrados' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Información pública' })).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByRole('heading', { name: 'Correos registrados' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Invitar editor' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Enviar invitación' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Información pública' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Información pública' }))
+    expect(screen.getByRole('heading', { name: 'Información pública' })).toBeInTheDocument()
+    expect(screen.getByText(/heredados desde Google Sheets/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Logo de la comunidad' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Logo de IGDA Perú' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Actualizar logo' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Invitar persona' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Descripción' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Guardar cambios' })).not.toBeInTheDocument()
+  })
+
+  it('gives platform administrators the selectable invite flow and plural management link', async () => {
+    const authValue = {
+      configured: false,
+      loading: false,
+      session: null,
+      user: { id: 'admin-1', email: 'admin@igda.pe' } as NonNullable<AuthContextValue['user']>,
+      profile: { id: 'profile-1', displayName: 'Admin' },
+      memberships: [],
+      roles: ['platform_admin'],
+      signOut: vi.fn().mockResolvedValue(undefined),
+      refreshUserData: vi.fn().mockResolvedValue(undefined),
+    } as AuthContextValue
+
+    render(<AuthContext.Provider value={authValue}><MemoryRouter initialEntries={['/app']}><DashboardPage /></MemoryRouter></AuthContext.Provider>)
+    expect(screen.getByRole('button', { name: 'Invitar persona' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Gestionar comunidades' })).toHaveAttribute('href', '/app/comunidad')
+    fireEvent.click(screen.getByRole('button', { name: 'Invitar persona' }))
+    expect(screen.getByRole('dialog', { name: 'Invitar persona' })).toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: 'IGDA Perú' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Rol' })).toHaveValue('community_admin')
+    fireEvent.change(screen.getByRole('combobox', { name: 'Rol' }), { target: { value: 'community_editor' } })
+    expect(screen.getByText('Administrador de comunidad')).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Editor de comunidad', selected: true })).toBeInTheDocument()
   })
 
   it('renders the event editor with clear field requirements', async () => {
@@ -98,7 +166,7 @@ describe('public events', () => {
 
     render(<AuthContext.Provider value={authValue}><MemoryRouter initialEntries={['/app/eventos/nuevo']}><EventEditorPage /></MemoryRouter></AuthContext.Provider>)
 
-    expect(await screen.findByRole('heading', { name: 'Crear nuevo evento' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Crear evento' })).toBeInTheDocument()
     expect(screen.getByText('Información principal')).toBeInTheDocument()
     expect(screen.getByText('Enlace para unirse')).toBeInTheDocument()
     expect(screen.getAllByText('Obligatorio').length).toBeGreaterThan(0)

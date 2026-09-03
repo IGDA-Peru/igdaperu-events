@@ -5,6 +5,7 @@ import { useAuth } from '../auth/useAuth'
 import { EventCard, EmptyEvents } from '../components/EventCard'
 import { DemoNotice, ErrorState, LoadingState } from '../components/Feedback'
 import { EventPreviewDrawer } from '../components/EventPreviewDrawer'
+import { CommunityLogo } from '../components/CommunityLogo'
 import { EventResults, EventViewSwitcher } from '../components/EventViews'
 import type { EventViewMode } from '../components/eventViewModes'
 import { getEventBySlug, listCommunities, listEvents } from '../lib/data'
@@ -36,12 +37,13 @@ function useEvents(options: { communitySlug?: string; search?: string; network?:
   return { events, loading, error }
 }
 
-function CommunityIcon({ index }: { index: number }) {
+function CommunityIcon({ index, logoPath, name }: { index: number; logoPath?: string | null; name?: string }) {
+  if (logoPath && name) return <CommunityLogo path={logoPath} name={name} size="medium" decorative />
   const Icon = [Users, Gamepad2, Code2, Gamepad2, Users][index % 5]
   return <span className={`community-icon icon-${index % 2 ? 'yellow' : 'red'}`}><Icon size={24} strokeWidth={2.2} aria-hidden="true" /></span>
 }
 
-function CommunityRail({ communities }: { communities: Pick<Community, 'id' | 'slug' | 'name'>[] }) {
+function CommunityRail({ communities }: { communities: Pick<Community, 'id' | 'slug' | 'name' | 'logoPath'>[] }) {
   return (
     <aside className="communities-panel" aria-labelledby="communities-title">
       <h2 id="communities-title">Comunidades</h2>
@@ -49,7 +51,7 @@ function CommunityRail({ communities }: { communities: Pick<Community, 'id' | 's
       <div className="community-list">
         {communities.slice(0, 5).map((community, index) => (
           <Link className="community-item" to={`/comunidades/${community.slug}`} key={community.id}>
-            <CommunityIcon index={index} />
+            <CommunityIcon index={index} logoPath={community.logoPath} name={community.name} />
             <strong>{community.name}</strong>
             <ChevronRight className="community-arrow" size={21} aria-hidden="true" />
           </Link>
@@ -81,12 +83,14 @@ function normalizeLocation(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 }
 
-function limaDateKey(value: string | Date) {
+function limaDateKey(value: string | Date | null | undefined) {
+  if (!value) return ''
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value))
 }
 
 function matchesTimeFilter(event: EventItem, filter: typeof timeFilters[number]['value']) {
   if (filter === 'all') return true
+  if (!event.startsAt) return false
   const todayKey = limaDateKey(new Date())
   const eventKey = limaDateKey(event.startsAt)
   if (filter === 'today') return eventKey === todayKey
@@ -118,11 +122,12 @@ function matchesLocationFilter(event: EventItem, filter: string) {
 }
 
 function getRecentCommunities(events: EventItem[]) {
-  const latestByCommunity = new Map<string, { id: string; slug: string; name: string; latestAt: string }>()
+  const latestByCommunity = new Map<string, { id: string; slug: string; name: string; logoPath?: string | null; latestAt: string }>()
   events.forEach((event) => {
+    if (!event.startsAt) return
     const current = latestByCommunity.get(event.communityId)
     if (!current || new Date(event.startsAt) > new Date(current.latestAt)) {
-      latestByCommunity.set(event.communityId, { id: event.communityId, slug: event.communitySlug, name: event.communityName, latestAt: event.startsAt })
+      latestByCommunity.set(event.communityId, { id: event.communityId, slug: event.communitySlug, name: event.communityName, logoPath: event.communityLogoPath, latestAt: event.startsAt })
     }
   })
   return [...latestByCommunity.values()]
@@ -202,7 +207,7 @@ export function EventDetailPage() {
           <div className="detail-meta">
             <div><CalendarDays size={19} /><span><strong>Fecha y hora</strong>{formatDate(event.startsAt)} · {formatTimeRange(event.startsAt, event.endsAt)}</span></div>
             <div><MapPin size={19} /><span><strong>Ubicación</strong>{event.locationType === 'online' ? 'Online' : event.venueName || event.address || 'Por confirmar'}{event.mapUrl && <a href={event.mapUrl} target="_blank" rel="noreferrer">Ver en Google Maps <ExternalLink size={14} /></a>}</span></div>
-            <div><Users size={19} /><span><strong>Organiza</strong><Link to={`/comunidades/${event.communitySlug}`}>{event.communityName}</Link></span></div>
+            <div><CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative /><Users size={19} /><span><strong>Organiza</strong><Link to={`/comunidades/${event.communitySlug}`}>{event.communityName}</Link></span></div>
           </div>
           {event.meetingUrl && !isEventPast(event) && <a className="primary-button" href={event.meetingUrl} target="_blank" rel="noreferrer">{meetingActionLabel(event.meetingProvider)} <ExternalLink size={17} /></a>}
         </div>
@@ -221,7 +226,7 @@ export function CommunityDetailPage() {
   const { events, loading, error } = useEvents({ communitySlug: slug })
   useEffect(() => { void listCommunities().then((items) => setCommunity(items.find((item) => item.slug === slug) || null)) }, [slug])
   if (!community) return <LoadingState label="Cargando comunidad" />
-  return <div className="page-wrap"><Link className="back-link" to="/comunidades"><ChevronRight size={18} className="back-icon" /> Todas las comunidades</Link><section className="community-hero"><CommunityIcon index={0} /><div><h1>{community.name}</h1><p>{community.description}</p></div></section><div className="community-events"><h2>Eventos de {community.name}</h2>{loading ? <LoadingState /> : error ? <ErrorState message={error} /> : events.length ? <div className="event-list">{events.map((event) => <EventCard event={event} key={event.id} />)}</div> : <EmptyEvents />}</div></div>
+  return <div className="page-wrap"><Link className="back-link" to="/comunidades"><ChevronRight size={18} className="back-icon" /> Todas las comunidades</Link><section className="community-hero"><CommunityIcon index={0} logoPath={community.logoPath} name={community.name} /><div><h1>{community.name}</h1><p>{community.description}</p></div></section><div className="community-events"><h2>Eventos de {community.name}</h2>{loading ? <LoadingState /> : error ? <ErrorState message={error} /> : events.length ? <div className="event-list">{events.map((event) => <EventCard event={event} key={event.id} />)}</div> : <EmptyEvents />}</div></div>
 }
 
 export function EmbedPage() {

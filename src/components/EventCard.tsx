@@ -1,11 +1,12 @@
-import { Archive, CalendarDays, ChevronRight, Clock3, Edit3, Globe2, LockKeyhole, MapPin, Trash2, Users } from 'lucide-react'
+import { Archive, CalendarDays, ChevronRight, Clock3, Edit3, Globe2, LockKeyhole, MapPin, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { EventItem, EventVisibility } from '../types'
 import { formatDateParts, formatTimeRange, isEventPast } from '../lib/format'
+import { CommunityLogo } from './CommunityLogo'
 
 export function VisibilityBadge({ visibility }: { visibility: EventVisibility }) {
   const isPrivate = visibility === 'network'
-  return <span className={`visibility-badge ${isPrivate ? 'private' : 'public'}`}>{isPrivate ? <LockKeyhole size={13} aria-hidden="true" /> : <Globe2 size={13} aria-hidden="true" />}{isPrivate ? 'Privado' : 'Público'}</span>
+  return <span className={`visibility-badge ${isPrivate ? 'private' : 'public'}`}>{isPrivate ? <LockKeyhole size={13} aria-hidden="true" /> : <Globe2 size={13} aria-hidden="true" />}{isPrivate ? 'Solo la red' : 'Público'}</span>
 }
 
 type EventCardActions = { onArchive: () => void; onDelete: () => void; canDelete?: boolean }
@@ -14,7 +15,7 @@ function panelState(event: EventItem, isPast: boolean) {
   if (event.status === 'draft') return { label: 'Borrador', tone: 'draft' }
   if (isPast) return { label: 'Ya pasó', tone: 'archived' }
   if (event.status === 'archived') return { label: 'Archivado', tone: 'archived' }
-  if (event.visibility === 'network') return { label: 'Privado', tone: 'private' }
+  if (event.visibility === 'network') return { label: 'Solo la red', tone: 'private' }
   return { label: 'Público', tone: 'public' }
 }
 
@@ -45,7 +46,7 @@ export function EventCard({ event, compact = false, showVisibility = false, pane
         {!compact && <p>{event.description}</p>}
         <div className="event-meta">
           <span><MapPin size={15} aria-hidden="true" />{event.locationType === 'online' ? 'Online' : event.venueName || 'Perú'}</span>
-          <span><Users size={15} aria-hidden="true" />{event.communityName}</span>
+          <span><CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative />{event.communityName}</span>
           <span><Clock3 size={15} aria-hidden="true" />{formatTimeRange(event.startsAt, event.endsAt)}</span>
         </div>
       </div>

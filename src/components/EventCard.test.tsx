@@ -33,7 +33,7 @@ describe('EventCard visibility', () => {
 
     rerender(<MemoryRouter><EventCard event={{ ...event, visibility: 'network' }} showVisibility /></MemoryRouter>)
 
-    expect(screen.getByText('Privado')).toBeInTheDocument()
+    expect(screen.getByText('Solo la red')).toBeInTheDocument()
     expect(container.querySelector('.private-event')).toBeInTheDocument()
   })
 
@@ -57,7 +57,7 @@ describe('EventCard visibility', () => {
 
     rerender(<MemoryRouter><EventCard event={{ ...event, visibility: 'network' }} compact panelActions={{ onArchive: vi.fn(), onDelete: vi.fn() }} /></MemoryRouter>)
 
-    expect(screen.getByText('Privado')).toBeInTheDocument()
+    expect(screen.getByText('Solo la red')).toBeInTheDocument()
   })
 
   it('calls archive and delete actions from the panel card', () => {

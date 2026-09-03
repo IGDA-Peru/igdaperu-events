@@ -16,23 +16,29 @@ const timeFormatter = new Intl.DateTimeFormat('es-PE', {
   minute: '2-digit',
 })
 
-export function formatDateParts(date: string) {
+export function formatDateParts(date: string | null | undefined) {
+  if (!date) return { month: '—', date: '—', weekday: 'Por definir' }
   const parsed = new Date(date)
   const month = monthFormatter.format(parsed).replace('.', '').toUpperCase()
   const weekday = new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', weekday: 'short' }).format(parsed).replace('.', '').toUpperCase()
   return { month, date: new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', day: '2-digit' }).format(parsed), weekday }
 }
 
-export function formatDate(date: string) {
+export function formatDate(date: string | null | undefined) {
+  if (!date) return 'Fecha por definir'
   return limaFormatter.format(new Date(date)).replace('.', '')
 }
 
-export function formatTimeRange(startsAt: string, endsAt: string) {
+export function formatTimeRange(startsAt: string | null | undefined, endsAt: string | null | undefined) {
+  if (!startsAt && !endsAt) return 'Hora por definir'
+  if (!startsAt) return `Desde ${timeFormatter.format(new Date(endsAt as string))}`
+  if (!endsAt) return `Desde ${timeFormatter.format(new Date(startsAt))}`
   return `${timeFormatter.format(new Date(startsAt))} – ${timeFormatter.format(new Date(endsAt))}`
 }
 
-export function isEventPast(eventOrEndsAt: { endsAt: string } | string) {
-  const endsAt = typeof eventOrEndsAt === 'string' ? eventOrEndsAt : eventOrEndsAt.endsAt
+export function isEventPast(eventOrEndsAt: { endsAt: string | null } | string | null | undefined) {
+  const endsAt = typeof eventOrEndsAt === 'string' ? eventOrEndsAt : eventOrEndsAt?.endsAt
+  if (!endsAt) return false
   return new Date(endsAt).getTime() <= Date.now()
 }
 
