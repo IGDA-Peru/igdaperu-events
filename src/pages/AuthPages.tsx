@@ -7,7 +7,7 @@ import { DemoNotice } from '../components/Feedback'
 import { appUrl, supabase } from '../lib/supabase'
 
 function AuthFrame({ title, description, children }: { title: string; description: string; children: ReactNode }) {
-  return <div className="auth-page"><div className="auth-card"><Link className="auth-brand" to="/"><span className="brand-mark" aria-hidden="true"><span /></span><span className="brand-name">igda<small>Perú</small></span></Link><h1>{title}</h1><p className="auth-description">{description}</p>{children}</div></div>
+  return <div className="auth-page"><div className="auth-card"><Link className="auth-brand" to="/"><img className="auth-logo" src="/brand/logo-igda-peru.png" alt="" width="42" height="39" /><span className="brand-copy"><span className="brand-name">IGDA Peru</span><small>Eventos</small></span></Link><h1>{title}</h1><p className="auth-description">{description}</p>{children}</div></div>
 }
 
 function FormMessage({ error, success }: { error?: string; success?: string }) {
@@ -42,7 +42,7 @@ export function LoginPage() {
 export function RegisterPage() {
   return <AuthFrame title="Acceso por invitación" description="La creación de cuentas está reservada para personas invitadas por una comunidad.">
     <div className="success-panel"><ShieldCheck size={31} /><p>Para participar en una comunidad, un administrador debe enviarte una invitación por correo.</p><p>Abre ese enlace para confirmar tu correo y definir tu contraseña.</p></div>
-    <div className="auth-links"><Link to="/login">Ya tengo una cuenta</Link><Link to="/">Volver a la agenda</Link></div>
+    <div className="auth-links"><Link to="/login">Ya tengo una cuenta</Link><Link to="/">Volver a eventos</Link></div>
   </AuthFrame>
 }
 
@@ -103,5 +103,5 @@ export function AcceptInvitationPage() {
 }
 
 export function AuthCallbackPage() {
-  return <AuthFrame title="Cuenta confirmada" description="Tu sesión está lista. Ya puedes volver a la agenda."><div className="success-panel"><Mail size={31} /><p>La confirmación de correo terminó correctamente.</p><Link className="primary-button full" to="/app"><LockKeyhole size={17} /> Ir al panel</Link></div></AuthFrame>
+  return <AuthFrame title="Cuenta confirmada" description="Tu sesión está lista. Ya puedes volver a Eventos IGDA Perú."><div className="success-panel"><Mail size={31} /><p>La confirmación de correo terminó correctamente.</p><Link className="primary-button full" to="/app"><LockKeyhole size={17} /> Ir al panel</Link></div></AuthFrame>
 }

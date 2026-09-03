@@ -8,10 +8,17 @@ vi.mock('./lib/supabase', () => ({
   supabase: null,
 }))
 
-describe('public agenda', () => {
-  it('shows the public agenda using the local demo fallback', async () => {
+describe('public events', () => {
+  it('shows public events using the local demo fallback', async () => {
     render(<App />)
-    expect(screen.getByRole('heading', { name: 'Agenda IGDA Perú' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Próximos eventos' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Agenda IGDA Perú' })).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Tiempo' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Lugar' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Lugar' })).toHaveValue('all')
+    expect(screen.queryByRole('option', { name: 'Todos los departamentos del Perú' })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Internacional' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Lima' })).not.toBeInTheDocument()
     await waitFor(() => expect(screen.getAllByRole('link', { name: /Diseño de niveles/ }).length).toBeGreaterThan(0))
     expect(screen.getByText(/Vista de demostración/)).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: /Comunidades/ }).length).toBeGreaterThan(0)

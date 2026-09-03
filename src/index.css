@@ -1,18 +1,93 @@
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+@font-face {
+  font-family: 'Museo Sans Rounded';
+  src: url('/fonts/museo-sans-rounded/MuseoSansRounded100.otf') format('opentype');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Museo Sans Rounded';
+  src: url('/fonts/museo-sans-rounded/MuseoSansRounded300.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Museo Sans Rounded';
+  src: url('/fonts/museo-sans-rounded/MuseoSansRounded500.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Museo Sans Rounded';
+  src: url('/fonts/museo-sans-rounded/MuseoSansRounded700.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Museo Sans Rounded';
+  src: url('/fonts/museo-sans-rounded/MuseoSansRounded900.otf') format('opentype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Museo Sans Rounded';
+  src: url('/fonts/museo-sans-rounded/MuseoSansRounded1000.otf') format('opentype');
+  font-weight: 1000;
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
-  font-family: 'Nunito', ui-rounded, system-ui, sans-serif;
-  color: #090909;
-  background: #fff4dc;
+  color-scheme: light;
+  --color-ink: #090909;
+  --color-muted: #554d44;
+  --color-hueso: #fff4dc;
+  --color-surface: #ffffff;
+  --color-surface-strong: #fff9ec;
+  --color-line: #e8d8b6;
+  --color-igda-red: #d82028;
+  --color-igda-yellow: #f8b830;
+  --color-igda-yellow-soft: #ffe0a0;
+  --color-igda-black: #090909;
+  --color-igda-white: #ffffff;
+  --gradient-igda: linear-gradient(135deg, var(--color-igda-yellow) 0%, #ffc95d 42%, var(--color-igda-red) 100%);
+  --shadow-soft: 0 20px 60px rgb(9 9 9 / 12%);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 18px;
+  --font-sans: 'Baloo 2', Nunito, 'Arial Rounded MT Bold', ui-rounded, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --container: 1120px;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body { margin: 0; min-width: 320px; }
+html { background: var(--color-hueso); font-family: var(--font-sans); scroll-behavior: smooth; }
+body {
+  min-width: 320px;
+  margin: 0;
+  color: var(--color-ink);
+  background:
+    radial-gradient(circle at 11% 0%, rgb(248 184 48 / 24%), transparent 26rem),
+    radial-gradient(circle at 92% 16%, rgb(216 32 40 / 13%), transparent 24rem),
+    linear-gradient(180deg, #fff9ec 0%, #fff4dc 48%, #ffffff 100%);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+img, svg { display: block; max-width: 100%; }
 button, input, textarea, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
 a { color: inherit; }
+:focus-visible { outline: 3px solid var(--color-igda-yellow); outline-offset: 3px; }

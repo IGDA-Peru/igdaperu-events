@@ -1,6 +1,6 @@
 import { AlertCircle, LoaderCircle } from 'lucide-react'
 
-export function LoadingState({ label = 'Cargando agenda' }: { label?: string }) {
+export function LoadingState({ label = 'Cargando eventos' }: { label?: string }) {
   return <div className="loading-state"><LoaderCircle className="spin" size={26} aria-hidden="true" /><span>{label}</span></div>
 }
 

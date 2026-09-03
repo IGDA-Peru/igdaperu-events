@@ -17,7 +17,7 @@ function AppLayout() {
 }
 
 function PrivacyPage() {
-  return <div className="legal-page"><h1>Privacidad</h1><p>La agenda utiliza una cuenta de email solo para autenticarte y permitirte consultar eventos de la red o administrar una comunidad mediante invitación.</p><p>Los eventos públicos pueden aparecer en la agenda y en integraciones externas. Los eventos de red solo están disponibles para usuarios autenticados.</p><p>Antes del lanzamiento público completaremos la información legal de la organización responsable y los canales para ejercer derechos.</p></div>
+  return <div className="legal-page"><h1>Privacidad</h1><p>El servicio utiliza una cuenta de email solo para autenticarte y permitirte consultar eventos de la red o administrar una comunidad mediante invitación.</p><p>Los eventos públicos pueden aparecer en Eventos IGDA Perú y en integraciones externas. Los eventos de red solo están disponibles para usuarios autenticados.</p><p>Antes del lanzamiento público completaremos la información legal de la organización responsable y los canales para ejercer derechos.</p></div>
 }
 
 function App() {

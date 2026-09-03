@@ -1,6 +1,6 @@
 import { demoCommunities, demoEvents } from './demo-data'
 import { isSupabaseConfigured, supabase } from './supabase'
-import type { Community, EventInput, EventItem, EventReport, Membership, Profile, Role } from '../types'
+import type { Community, CommunitySyncResult, EventInput, EventItem, EventReport, Membership, Profile, Role } from '../types'
 
 type EventQueryOptions = { communitySlug?: string; search?: string; network?: boolean }
 
@@ -182,4 +182,12 @@ export async function resolveEventReport(reportId: string) {
   if (!supabase) throw new Error('Supabase no está configurado.')
   const { error } = await supabase.from('event_reports').update({ resolved_at: new Date().toISOString() }).eq('id', reportId)
   if (error) throw error
+}
+
+export async function syncCommunitiesFromSheet(): Promise<CommunitySyncResult> {
+  if (!supabase) throw new Error('Supabase no está configurado.')
+  const { data, error } = await supabase.functions.invoke('sync-communities', { body: {} })
+  if (error) throw error
+  if (!data || typeof data !== 'object' || !data.runId) throw new Error('La sincronización devolvió una respuesta inválida.')
+  return data as CommunitySyncResult
 }

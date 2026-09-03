@@ -75,3 +75,22 @@ export type EventReport = {
   createdAt: string
   resolvedAt?: string | null
 }
+
+export type CommunitySyncSkippedRow = {
+  row: number
+  name?: string
+  sourceId?: string
+  reason: string
+}
+
+export type CommunitySyncResult = {
+  runId: string
+  sheetName: string
+  fetchedRows: number
+  eligibleRows: number
+  created: number
+  updated: number
+  skipped: number
+  errors: number
+  skippedRows: CommunitySyncSkippedRow[]
+}
