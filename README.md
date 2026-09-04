@@ -48,6 +48,7 @@ pnpm exec supabase db push
 pnpm exec supabase functions deploy create-invitation
 pnpm exec supabase functions deploy accept-invitation
 pnpm exec supabase functions deploy sync-communities
+pnpm exec supabase functions deploy sync-google-calendar
 ```
 
 En el dashboard de Supabase:
@@ -73,6 +74,7 @@ GOOGLE_SHEET_ID=1NFQu-Ipeihep-YO1oqWOoq6Ul-6IoWosjaR2SG62qGc
 GOOGLE_SHEET_NAME=TO NOTION
 GOOGLE_SHEET_RANGE=A1:V1000
 GOOGLE_SERVICE_ACCOUNT_JSON=<contenido completo del JSON de la cuenta de servicio>
+GOOGLE_CALENDAR_ID=c_39e00d3f9d676c015640ba3dabd1527a8ee3b0a0603e8368c92366ed37f74bd5@group.calendar.google.com
 ```
 
 Desde PowerShell, después de guardar temporalmente el JSON fuera del repositorio, puedes cargar los secrets así:
@@ -83,8 +85,10 @@ pnpm exec supabase secrets set `
   GOOGLE_SHEET_ID=1NFQu-Ipeihep-YO1oqWOoq6Ul-6IoWosjaR2SG62qGc `
   GOOGLE_SHEET_NAME="TO NOTION" `
   GOOGLE_SHEET_RANGE="A1:V1000" `
+  GOOGLE_CALENDAR_ID="c_39e00d3f9d676c015640ba3dabd1527a8ee3b0a0603e8368c92366ed37f74bd5@group.calendar.google.com" `
   "GOOGLE_SERVICE_ACCOUNT_JSON=$googleServiceAccount"
 pnpm exec supabase functions deploy sync-communities
+pnpm exec supabase functions deploy sync-google-calendar
 ```
 
 Después borra el archivo temporal de credenciales de tu equipo y verifica que no haya quedado dentro del repositorio. La sincronización:
@@ -103,6 +107,14 @@ La columna `VALIDACIÓN` y los estados internos de la agenda cumplen funciones d
 Después de crear el primer usuario de IGDA, asígnale `platform_admin` con su UUID; el ejemplo está comentado en `supabase/seed.sql`.
 
 La `service_role` key solo se usa como secret de Edge Functions. Nunca se coloca en variables `VITE_*` ni en el navegador.
+
+### Sincronización manual con Google Calendar
+
+El botón **Sincronizar calendario** de `/app/admin` ejecuta `sync-google-calendar`. Solo publica eventos
+`published` y `public` de comunidades `approved`. Cada evento usa un identificador determinista y una
+propiedad privada para que las actualizaciones sean idempotentes; los eventos que dejan de cumplir esos
+criterios se retiran del calendario oficial. La cuenta de servicio debe tener permiso **Realizar cambios en
+los eventos** sobre el calendario y el proyecto de Google debe tener habilitada la Google Calendar API.
 
 ## Alcance del MVP
 

@@ -1,10 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthContext, type AuthContextValue } from './auth/auth-context'
 import App from './App'
 import { SiteHeader } from './components/SiteHeader'
 import { CommunitySettingsPage, DashboardPage, EventEditorPage } from './pages/AppPages'
+import { CommunityDetailPage } from './pages/PublicPages'
 
 vi.mock('./lib/supabase', () => ({
   appUrl: 'http://localhost:5173',
@@ -27,6 +28,7 @@ describe('public events', () => {
     await waitFor(() => expect(screen.getAllByRole('button', { name: /Ver Diseño de niveles/ }).length).toBeGreaterThan(0))
     expect(screen.getByText(/Vista de demostración/)).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: /Comunidades/ }).length).toBeGreaterThan(0)
+    expect(document.querySelector('.community-arrow')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getAllByRole('button', { name: /Ver Diseño de niveles/ })[0])
     expect(screen.getByRole('dialog', { name: /Diseño de niveles/ })).toBeInTheDocument()
@@ -51,6 +53,24 @@ describe('public events', () => {
     expect(screen.getByRole('link', { name: /Abrirlo en Notion/ })).toHaveAttribute('href', 'https://igdape.notion.site/ebd/3b425d4453e08301bcef018ab661544a?v=12d25d4453e0825883398852a794ef21')
   })
 
+  it('centers event details, shows the complete location and links to the map', async () => {
+    window.history.pushState({}, '', '/eventos/diseno-de-niveles')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Diseño de niveles: del papel a la experiencia' })).toBeInTheDocument()
+    expect(document.querySelector('.detail-page')).toBeInTheDocument()
+    expect(screen.getByText('Lima, Perú')).toBeInTheDocument()
+    expect(screen.getByText('Ubicación')).toBeInTheDocument()
+  })
+
+  it('shows the community logo and main website in the community header', async () => {
+    render(<AuthContext.Provider value={{ configured: false, loading: false, session: null, user: null, profile: null, memberships: [], roles: [], signOut: vi.fn().mockResolvedValue(undefined), refreshUserData: vi.fn().mockResolvedValue(undefined) }}><MemoryRouter initialEntries={['/comunidades/igda-peru']}><Routes><Route path="/comunidades/:slug" element={<CommunityDetailPage />} /></Routes></MemoryRouter></AuthContext.Provider>)
+
+    expect(await screen.findByRole('heading', { name: 'IGDA Perú' })).toBeInTheDocument()
+    expect(document.querySelector('.community-hero img')).toHaveAttribute('src', '/brand/logo-igda-peru.png')
+    expect(screen.getByRole('link', { name: /Visitar sitio principal/ })).toHaveAttribute('href', 'https://igda.pe')
+  })
+
   it('organizes the manager dashboard around communities and events', () => {
     const authValue = {
       configured: false,
@@ -58,7 +78,7 @@ describe('public events', () => {
       session: null,
       user: { id: 'user-1', email: 'comunidad@igda.pe' } as NonNullable<AuthContextValue['user']>,
       profile: { id: 'profile-1', displayName: 'Comunidad' },
-      memberships: [{ communityId: 'community-1', communityName: 'IGDA Perú', communitySlug: 'igda-peru', role: 'community_admin', status: 'active' }],
+      memberships: [{ communityId: 'community-1', communityName: 'IGDA Perú', communitySlug: 'igda-peru', communityLogoPath: '/brand/logo-igda-peru.png', role: 'community_admin', status: 'active' }],
       roles: ['community_admin'],
       signOut: vi.fn().mockResolvedValue(undefined),
       refreshUserData: vi.fn().mockResolvedValue(undefined),
@@ -71,6 +91,7 @@ describe('public events', () => {
     expect(screen.getByRole('heading', { name: 'Hola, Comunidad' })).toBeInTheDocument()
     expect(screen.getByText('Tus comunidades')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Tus eventos' })).toBeInTheDocument()
+    expect(document.querySelector('.account-button img')).toHaveAttribute('src', '/brand/logo-igda-peru.png')
     expect(screen.getByRole('link', { name: /Nuevo evento/ })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Ver todos/ })).not.toBeInTheDocument()
     expect(screen.queryByText('Este es tu espacio para consultar y administrar tus eventos.')).not.toBeInTheDocument()

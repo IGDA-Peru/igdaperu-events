@@ -2,7 +2,7 @@ import { CalendarDays, Clock3, ExternalLink, MapPin, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { formatDate, formatTimeRange, isEventPast, meetingActionLabel } from '../lib/format'
+import { formatDate, formatEventLocation, formatTimeRange, isEventPast, meetingActionLabel } from '../lib/format'
 import type { EventItem } from '../types'
 import { VisibilityBadge } from './EventCard'
 import { CommunityLogo } from './CommunityLogo'
@@ -47,7 +47,7 @@ export function EventPreviewDrawer({ event, onClose }: { event: EventItem | null
         <div className="event-preview-meta">
           <div><CalendarDays size={19} aria-hidden="true" /><span><strong>Fecha</strong>{formatDate(event.startsAt)}</span></div>
           <div><Clock3 size={19} aria-hidden="true" /><span><strong>Hora</strong>{formatTimeRange(event.startsAt, event.endsAt)}</span></div>
-          <div><MapPin size={19} aria-hidden="true" /><span><strong>Ubicación</strong>{event.locationType === 'online' ? 'Online' : event.venueName || event.address || 'Por confirmar'}{event.mapUrl && <a href={event.mapUrl} target="_blank" rel="noreferrer">Ver en Google Maps <ExternalLink size={14} /></a>}</span></div>
+          <div><MapPin size={19} aria-hidden="true" /><span><strong>Ubicación</strong>{formatEventLocation(event)}{event.mapUrl && <a href={event.mapUrl} target="_blank" rel="noreferrer">Ver en Google Maps <ExternalLink size={14} /></a>}</span></div>
           <div><CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative /><span><strong>Organiza</strong><Link to={`/comunidades/${event.communitySlug}`} onClick={onClose}>{event.communityName}</Link></span></div>
         </div>
         {event.meetingUrl && !isPast && <a className="primary-button event-preview-link" href={event.meetingUrl} target="_blank" rel="noreferrer">{meetingActionLabel(event.meetingProvider)} <ExternalLink size={17} /></a>}

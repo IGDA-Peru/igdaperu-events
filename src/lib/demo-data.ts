@@ -1,7 +1,7 @@
 import type { Community, EventItem } from '../types'
 
 export const demoCommunities: Community[] = [
-  { id: 'igda-peru', slug: 'igda-peru', name: 'IGDA Perú', description: 'Desarrollo profesional y comunidad.', logoPath: '/brand/logo-igda-peru.png', status: 'approved' },
+  { id: 'igda-peru', slug: 'igda-peru', name: 'IGDA Perú', description: 'Desarrollo profesional y comunidad.', logoPath: '/brand/logo-igda-peru.png', websiteUrl: 'https://igda.pe', status: 'approved' },
   { id: 'game-jam-peru', slug: 'game-jam-peru', name: 'Game Jam Perú', description: 'Jams y retos creativos.', status: 'approved' },
   { id: 'indie-devs-peru', slug: 'indie-devs-peru', name: 'Indie Devs Perú', description: 'Desarrolladores independientes.', status: 'approved' },
   { id: 'godot-lima', slug: 'godot-lima', name: 'Comunidad Godot Lima', description: 'Usuarios de Godot Engine.', status: 'approved' },

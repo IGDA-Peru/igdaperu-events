@@ -1,7 +1,7 @@
 import { ChevronLeft, ChevronRight, MapPin } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { formatDate, formatTimeRange, isEventPast } from '../lib/format'
+import { formatDate, formatEventLocation, formatTimeRange, isEventPast } from '../lib/format'
 import type { EventItem } from '../types'
 import { EmptyEvents, EventCard, VisibilityBadge } from './EventCard'
 import { CommunityLogo } from './CommunityLogo'
@@ -107,7 +107,7 @@ function TimelineView({ events, showVisibility }: { events: EventItem[]; showVis
               <h3><Link to={`/eventos/${event.slug}`}>{event.title}</Link></h3>
               <p>{event.description}</p>
               <div className="event-meta">
-                <span><MapPin size={15} aria-hidden="true" />{event.locationType === 'online' ? 'Online' : event.venueName || 'Perú'}</span>
+                <span><MapPin size={15} aria-hidden="true" />{formatEventLocation(event)}</span>
                 <span><CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative />{event.communityName}</span>
               </div>
             </div>

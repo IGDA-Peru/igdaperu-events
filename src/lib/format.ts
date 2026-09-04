@@ -36,6 +36,16 @@ export function formatTimeRange(startsAt: string | null | undefined, endsAt: str
   return `${timeFormatter.format(new Date(startsAt))} – ${timeFormatter.format(new Date(endsAt))}`
 }
 
+export function formatEventLocation(event: { locationType: 'venue' | 'online' | 'hybrid'; venueName?: string | null; address?: string | null; formattedAddress?: string | null }) {
+  if (event.locationType === 'online') return 'Online'
+
+  const placeName = event.venueName?.trim() || ''
+  const address = event.formattedAddress?.trim() || event.address?.trim() || ''
+  const locationParts = [placeName, address].filter((part, index, parts) => part && parts.indexOf(part) === index)
+  if (!locationParts.length) return event.locationType === 'hybrid' ? 'Híbrido' : 'Por confirmar'
+  return event.locationType === 'hybrid' ? `Híbrido · ${locationParts.join(' · ')}` : locationParts.join(' · ')
+}
+
 export function isEventPast(eventOrEndsAt: { endsAt: string | null } | string | null | undefined) {
   const endsAt = typeof eventOrEndsAt === 'string' ? eventOrEndsAt : eventOrEndsAt?.endsAt
   if (!endsAt) return false

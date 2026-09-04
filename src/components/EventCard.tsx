@@ -1,7 +1,7 @@
 import { Archive, CalendarDays, ChevronRight, Clock3, Edit3, Globe2, LockKeyhole, MapPin, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { EventItem, EventVisibility } from '../types'
-import { formatDateParts, formatTimeRange, isEventPast } from '../lib/format'
+import { formatDateParts, formatEventLocation, formatTimeRange, isEventPast } from '../lib/format'
 import { CommunityLogo } from './CommunityLogo'
 
 export function VisibilityBadge({ visibility }: { visibility: EventVisibility }) {
@@ -45,7 +45,7 @@ export function EventCard({ event, compact = false, showVisibility = false, pane
         <h3>{previewable ? <button className="event-card-title" type="button" onClick={openPreview}>{event.title}</button> : <Link to={`/eventos/${event.slug}`}>{event.title}</Link>}</h3>
         {!compact && <p>{event.description}</p>}
         <div className="event-meta">
-          <span><MapPin size={15} aria-hidden="true" />{event.locationType === 'online' ? 'Online' : event.venueName || 'Perú'}</span>
+          <span><MapPin size={15} aria-hidden="true" />{formatEventLocation(event)}</span>
           <span><CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative />{event.communityName}</span>
           <span><Clock3 size={15} aria-hidden="true" />{formatTimeRange(event.startsAt, event.endsAt)}</span>
         </div>

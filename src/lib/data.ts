@@ -1,6 +1,6 @@
 import { demoCommunities, demoEvents } from './demo-data'
 import { isSupabaseConfigured, supabase } from './supabase'
-import type { Community, CommunityMemberEmail, CommunitySyncResult, EventInput, EventItem, EventReport, Membership, Profile, Role } from '../types'
+import type { Community, CommunityMemberEmail, CommunitySyncResult, EventInput, EventItem, EventReport, GoogleCalendarSyncResult, Membership, Profile, Role } from '../types'
 import { isEventPast } from './format'
 
 type EventQueryOptions = { communitySlug?: string; search?: string; network?: boolean }
@@ -136,11 +136,11 @@ export async function getProfile(userId: string): Promise<Profile | null> {
 
 export async function getMemberships(userId: string): Promise<Membership[]> {
   if (!supabase) return []
-  const { data, error } = await supabase.from('memberships').select('community_id,role,status,community:communities(name,slug)').eq('user_id', userId).eq('status', 'active')
+  const { data, error } = await supabase.from('memberships').select('community_id,role,status,community:communities(name,slug,logo_path)').eq('user_id', userId).eq('status', 'active')
   if (error) throw error
   return (data || []).map((row: any) => {
     const community = Array.isArray(row.community) ? row.community[0] : row.community
-    return { communityId: row.community_id, communityName: community?.name || '', communitySlug: community?.slug || '', role: row.role as Role, status: row.status }
+    return { communityId: row.community_id, communityName: community?.name || '', communitySlug: community?.slug || '', communityLogoPath: community?.logo_path, role: row.role as Role, status: row.status }
   })
 }
 
@@ -261,4 +261,29 @@ export async function syncCommunitiesFromSheet(): Promise<CommunitySyncResult> {
   }
   if (!data || typeof data !== 'object' || !data.runId) throw new Error('La sincronización devolvió una respuesta inválida.')
   return data as CommunitySyncResult
+}
+
+export async function syncEventsToGoogleCalendar(): Promise<GoogleCalendarSyncResult> {
+  if (!supabase) throw new Error('Supabase no está configurado.')
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+  if (sessionError) throw sessionError
+  if (!sessionData.session) throw new Error('Tu sesión no está activa. Vuelve a ingresar como administrador de IGDA e inténtalo nuevamente.')
+  const { data, error } = await supabase.functions.invoke('sync-google-calendar', {
+    body: {},
+    headers: { Authorization: `Bearer ${sessionData.session.access_token}` },
+  })
+  if (error) {
+    const context = (error as { context?: Response }).context
+    if (context) {
+      try {
+        const details = await context.json() as { error?: string; stage?: string }
+        if (details.error) throw new Error(details.stage ? `${details.error} (etapa: ${details.stage})` : details.error)
+      } catch (reason: unknown) {
+        if (reason instanceof Error && reason.message !== error.message) throw reason
+      }
+    }
+    throw error
+  }
+  if (!data || typeof data !== 'object' || typeof data.calendarId !== 'string') throw new Error('La sincronización de Google Calendar devolvió una respuesta inválida.')
+  return data as GoogleCalendarSyncResult
 }

@@ -70,6 +70,7 @@ export type Membership = {
   communityId: string
   communityName: string
   communitySlug: string
+  communityLogoPath?: string | null
   role: Role
   status: 'active' | 'invited' | 'revoked'
 }
@@ -111,4 +112,14 @@ export type CommunitySyncResult = {
   skipped: number
   errors: number
   skippedRows: CommunitySyncSkippedRow[]
+}
+
+export type GoogleCalendarSyncResult = {
+  calendarId: string
+  sourceEvents: number
+  created: number
+  updated: number
+  removed: number
+  errors: number
+  errorItems: Array<{ eventId?: string; message: string }>
 }

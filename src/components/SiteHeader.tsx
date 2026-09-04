@@ -2,12 +2,13 @@ import { LayoutDashboard, LockKeyhole, LogIn, LogOut, Menu, X } from 'lucide-rea
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
+import { getCommunityLogoUrl } from '../lib/data'
 
 export function SiteHeader({ embed = false }: { embed?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const accountMenuRef = useRef<HTMLDivElement>(null)
-  const { user, signOut } = useAuth()
+  const { user, memberships, signOut } = useAuth()
   const location = useLocation()
 
   useEffect(() => {
@@ -30,6 +31,8 @@ export function SiteHeader({ embed = false }: { embed?: boolean }) {
 
   const isApp = location.pathname.startsWith('/app')
   const closeAccountMenu = () => setAccountMenuOpen(false)
+  const accountCommunity = memberships.find((membership) => membership.communityLogoPath) || memberships[0]
+  const accountCommunityLogoUrl = getCommunityLogoUrl(accountCommunity?.communityLogoPath)
 
   return (
     <header className={`site-header ${menuOpen ? 'menu-open' : ''}`}>
@@ -50,7 +53,7 @@ export function SiteHeader({ embed = false }: { embed?: boolean }) {
           {user ? (
             <div className="account-menu" ref={accountMenuRef}>
               <button className="account-button" type="button" onClick={() => setAccountMenuOpen(!accountMenuOpen)} title="Menú de perfil" aria-label="Abrir menú de perfil" aria-haspopup="menu" aria-expanded={accountMenuOpen} aria-controls="account-menu">
-                <span>{(user.email || 'U').slice(0, 1).toUpperCase()}</span>
+                {accountCommunityLogoUrl ? <img src={accountCommunityLogoUrl} alt="" /> : <span>{(user.email || 'U').slice(0, 1).toUpperCase()}</span>}
               </button>
               {accountMenuOpen && <div className="account-dropdown" id="account-menu" role="menu" aria-label="Opciones de perfil">
                 <Link role="menuitem" to="/app/cambiar-contrasena" onClick={closeAccountMenu}><LockKeyhole size={16} aria-hidden="true" /> Cambiar contraseña</Link>
