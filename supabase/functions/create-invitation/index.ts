@@ -35,6 +35,18 @@ Deno.serve(async (request) => {
     if (!isPlatformAdmin && !isCommunityAdmin) return json({ error: 'No tienes permisos para invitar en esta comunidad' }, 403)
     if (!isPlatformAdmin && role !== 'community_editor') return json({ error: 'Un administrador de comunidad solo puede invitar editores' }, 403)
 
+    const { data: pendingInvitation, error: pendingInvitationError } = await admin
+      .from('invitations')
+      .select('id')
+      .eq('community_id', communityId)
+      .eq('email', email)
+      .is('accepted_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .limit(1)
+      .maybeSingle()
+    if (pendingInvitationError) return json({ error: `No pudimos comprobar las invitaciones existentes: ${pendingInvitationError.message}` }, 500)
+    if (pendingInvitation) return json({ error: 'Ya existe una invitación pendiente para ese correo en esta comunidad. Revisa el correo enviado o cancela la invitación anterior antes de crear otra.' }, 409)
+
     const rawToken = randomToken()
     const tokenHash = await sha256(rawToken)
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -53,7 +65,7 @@ Deno.serve(async (request) => {
     })
     if (inviteError) {
       await admin.from('invitations').delete().eq('id', invitation.id)
-      return json({ error: inviteError.message }, 400)
+      return json({ error: `No pudimos enviar el correo de invitación: ${inviteError.message}` }, 400)
     }
 
     await admin.from('audit_log').insert({ actor_id: authData.user.id, action: 'invitation.created', entity_type: 'invitation', entity_id: invitation.id, metadata: { community_id: communityId, role } })

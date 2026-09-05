@@ -323,6 +323,18 @@ export async function cancelCommunityInvitation(invitationId: string): Promise<v
   if (error) throw error
 }
 
+export async function createInvitation(email: string, communityId: string, role: 'community_editor' | 'community_admin'): Promise<{ inviteUrl: string; expiresAt: string }> {
+  if (!supabase) throw new Error('Supabase no está configurado.')
+  const { data, error } = await supabase.functions.invoke('create-invitation', {
+    body: { email, communityId, role },
+  })
+  if (error) throw await invokeFunctionError(error)
+  if (!data || typeof data !== 'object' || typeof (data as { inviteUrl?: unknown }).inviteUrl !== 'string') {
+    throw new Error('La invitación devolvió una respuesta inválida.')
+  }
+  return data as { inviteUrl: string; expiresAt: string }
+}
+
 export async function listManagedEvents(communityIds: string[], allCommunities = false): Promise<EventItem[]> {
   if (!supabase || (!communityIds.length && !allCommunities)) return []
   let query = supabase.from('events').select('*, community:communities!inner(name,slug,status,logo_path)').order('starts_at', { ascending: true }).limit(100)

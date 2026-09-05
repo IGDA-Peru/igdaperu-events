@@ -12,7 +12,7 @@ import { EventResults, EventViewSwitcher } from '../components/EventViews'
 import { LoadingState } from '../components/Feedback'
 import { GooglePlacePicker } from '../components/GooglePlacePicker'
 import { ConversationSummary } from './ChatPage'
-import { archiveEvent, cancelCommunityInvitation, createCommunity, createGoogleMeetLink, deleteEvent, getEventCoverUrl, getGoogleMeetConnection, listCommunities, listCommunityEvents, listCommunityMembers, listEventConflicts, listEventReports, listManagedEvents, resolveEventReport, revokeCommunityMember, saveEvent, startGoogleMeetConnection, syncCommunitiesFromSheet, syncEventsToGoogleCalendar, updateCommunityStatus, uploadCommunityLogo, uploadEventBanner } from '../lib/data'
+import { archiveEvent, cancelCommunityInvitation, createCommunity, createGoogleMeetLink, createInvitation, deleteEvent, getEventCoverUrl, getGoogleMeetConnection, listCommunities, listCommunityEvents, listCommunityMembers, listEventConflicts, listEventReports, listManagedEvents, resolveEventReport, revokeCommunityMember, saveEvent, startGoogleMeetConnection, syncCommunitiesFromSheet, syncEventsToGoogleCalendar, updateCommunityStatus, uploadCommunityLogo, uploadEventBanner } from '../lib/data'
 import { eventFieldLabels, validateEvent, type EventField } from '../lib/eventValidation'
 import { filterEvents, type TimeFilter } from '../lib/eventFilters'
 import { eventSlug, formatEventDateRange, formatEventLocation, formatTimeRange, isEventPast, meetingActionLabel, slugify } from '../lib/format'
@@ -603,6 +603,7 @@ function InviteMemberDialog({ open, inviteRole, isPlatformAdmin, communityOption
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [communityLoading, setCommunityLoading] = useState(false)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -611,6 +612,7 @@ function InviteMemberDialog({ open, inviteRole, isPlatformAdmin, communityOption
     setInviteUrl('')
     setMessage('')
     setError('')
+    setLoading(false)
     setCommunities(communityOptions)
     setCommunityId(communityOptions[0]?.id || '')
     if (!isPlatformAdmin) return
@@ -643,11 +645,19 @@ function InviteMemberDialog({ open, inviteRole, isPlatformAdmin, communityOption
     event.preventDefault()
     setError('')
     setInviteUrl('')
-    if (!supabase) { setError('Supabase no está configurado.'); return }
+    setMessage('')
     if (!communityId) { setError('Selecciona una comunidad.'); return }
-    const result = await supabase.functions.invoke('create-invitation', { body: { email, communityId, role: selectedRole } })
-    if (result.error) setError(result.error.message)
-    else { setInviteUrl(result.data?.inviteUrl || ''); setMessage('Invitación creada.'); setEmail('') }
+    setLoading(true)
+    try {
+      const result = await createInvitation(email, communityId, selectedRole)
+      setInviteUrl(result.inviteUrl)
+      setMessage('Invitación creada. Revisa el correo o comparte el enlace de un solo uso.')
+      setEmail('')
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'No pudimos enviar la invitación.')
+    } finally {
+      setLoading(false)
+    }
   }
   const copy = async () => { if (inviteUrl) await navigator.clipboard.writeText(inviteUrl) }
 
@@ -662,7 +672,7 @@ function InviteMemberDialog({ open, inviteRole, isPlatformAdmin, communityOption
         {error && <FormError message={error} />}
         {message && <p className="form-message success">{message}</p>}
         {inviteUrl && <div className="invite-result"><input readOnly value={inviteUrl} aria-label="Enlace de invitación" /><button className="icon-button" type="button" onClick={() => void copy()} aria-label="Copiar invitación"><Clipboard size={17} /></button></div>}
-        <div className="invite-actions"><button className="secondary-button" type="button" onClick={onClose}>Cancelar</button><button className="primary-button" type="submit">Enviar invitación</button></div>
+        <div className="invite-actions"><button className="secondary-button" type="button" onClick={onClose}>Cancelar</button><button className="primary-button" type="submit" disabled={loading}>{loading ? 'Enviando…' : 'Enviar invitación'}</button></div>
       </form>
     </section>
   </div>
@@ -673,21 +683,29 @@ function CommunityInviteForm({ community }: { community: Community }) {
   const [inviteUrl, setInviteUrl] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const invite = async (event: FormEvent) => {
     event.preventDefault()
     setError('')
     setInviteUrl('')
     setMessage('')
-    if (!supabase) { setError('Supabase no está configurado.'); return }
-    const result = await supabase.functions.invoke('create-invitation', { body: { email, communityId: community.id, role: 'community_editor' } })
-    if (result.error) setError(result.error.message)
-    else { setInviteUrl(result.data?.inviteUrl || ''); setMessage('Invitación creada.'); setEmail('') }
+    setLoading(true)
+    try {
+      const result = await createInvitation(email, community.id, 'community_editor')
+      setInviteUrl(result.inviteUrl)
+      setMessage('Invitación creada. Revisa el correo o comparte el enlace de un solo uso.')
+      setEmail('')
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'No pudimos enviar la invitación.')
+    } finally {
+      setLoading(false)
+    }
   }
   const copy = async () => { if (inviteUrl) await navigator.clipboard.writeText(inviteUrl) }
   return <section className="settings-section community-inline-invite-section">
     <h2>Invitar editor</h2>
     <p className="muted-copy">Ingresa el correo de la persona que tendrá permisos para crear y actualizar eventos de {community.name}.</p>
-    <form className="invite-form community-inline-invite-form" onSubmit={(event) => void invite(event)}><label>Correo electrónico<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="persona@ejemplo.com" /></label><button className="primary-button" type="submit"><Mail size={16} /> Enviar invitación</button></form>
+    <form className="invite-form community-inline-invite-form" onSubmit={(event) => void invite(event)}><label>Correo electrónico<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="persona@ejemplo.com" /></label><button className="primary-button" type="submit" disabled={loading}><Mail size={16} /> {loading ? 'Enviando…' : 'Enviar invitación'}</button></form>
     {error && <FormError message={error} />}
     {message && <p className="form-message success">{message}</p>}
     {inviteUrl && <div className="invite-result"><input readOnly value={inviteUrl} aria-label="Enlace de invitación" /><button className="icon-button" type="button" onClick={() => void copy()} aria-label="Copiar invitación"><Clipboard size={17} /></button></div>}
