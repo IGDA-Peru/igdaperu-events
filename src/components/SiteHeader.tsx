@@ -1,4 +1,4 @@
-import { LayoutDashboard, LockKeyhole, LogIn, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, LockKeyhole, LogIn, LogOut, Menu, User, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
@@ -56,6 +56,7 @@ export function SiteHeader({ embed = false }: { embed?: boolean }) {
                 {accountCommunityLogoUrl ? <img src={accountCommunityLogoUrl} alt="" /> : <span>{(user.email || 'U').slice(0, 1).toUpperCase()}</span>}
               </button>
               {accountMenuOpen && <div className="account-dropdown" id="account-menu" role="menu" aria-label="Opciones de perfil">
+                <Link role="menuitem" to="/app/editar-perfil" onClick={closeAccountMenu}><User size={16} aria-hidden="true" /> Editar perfil</Link>
                 <Link role="menuitem" to="/app/cambiar-contrasena" onClick={closeAccountMenu}><LockKeyhole size={16} aria-hidden="true" /> Cambiar contraseña</Link>
                 <button role="menuitem" type="button" onClick={() => { closeAccountMenu(); void signOut() }}><LogOut size={16} aria-hidden="true" /> Cerrar sesión</button>
               </div>}

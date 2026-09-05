@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { DemoNotice } from '../components/Feedback'
+import { updateProfileIdentity } from '../lib/data'
 import { appUrl, supabase } from '../lib/supabase'
 
 function AuthFrame({ title, description, children }: { title: string; description: string; children: ReactNode }) {
@@ -101,11 +102,46 @@ export function ChangePasswordPage() {
   return <AuthFrame title="Cambiar contraseña" description="Actualiza la contraseña de tu cuenta.">{success ? <div className="success-panel"><CheckCircle2 size={31} /><p>Tu contraseña fue actualizada.</p><button className="primary-button full" type="button" onClick={() => navigate('/app')}>Volver al panel</button></div> : <form className="auth-form" onSubmit={submit}><label>Nueva contraseña<input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label><label>Confirmar contraseña<input type="password" required minLength={8} autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label><FormMessage error={error} /><button className="primary-button full" disabled={loading}>{loading ? 'Guardando…' : 'Guardar contraseña'}</button></form>}<div className="auth-links"><Link to="/app"><ArrowLeft size={15} /> Volver al panel</Link></div></AuthFrame>
 }
 
+export function EditProfilePage() {
+  const { user, profile, refreshUserData } = useAuth()
+  const [firstName, setFirstName] = useState(() => profile?.firstName || profile?.displayName?.split(' ')[0] || '')
+  const [lastName, setLastName] = useState(() => profile?.lastName || profile?.displayName?.split(' ').slice(1).join(' ') || '')
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    setError('')
+    setSuccess(false)
+    if (!supabase || !user) { setError('No pudimos identificar tu cuenta.'); return }
+    const normalizedFirstName = firstName.trim()
+    const normalizedLastName = lastName.trim()
+    if (normalizedFirstName.length < 2) { setError('Ingresa tus nombres.'); return }
+    setLoading(true)
+    const displayName = [normalizedFirstName, normalizedLastName].filter(Boolean).join(' ')
+    const authUpdate = await supabase.auth.updateUser({ data: { first_name: normalizedFirstName, last_name: normalizedLastName, display_name: displayName } })
+    if (authUpdate.error) { setLoading(false); setError(authUpdate.error.message); return }
+    try {
+      await updateProfileIdentity(user.id, normalizedFirstName, normalizedLastName)
+      await refreshUserData()
+      setSuccess(true)
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'No pudimos guardar tu perfil.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return <AuthFrame title="Editar perfil" description="Actualiza el nombre con el que aparecerás en la red de comunidades.">{success ? <div className="success-panel"><CheckCircle2 size={31} /><p>Tu perfil fue actualizado.</p><Link className="primary-button full" to="/app">Volver al panel</Link></div> : <form className="auth-form" onSubmit={submit}><div className="identity-form-grid"><label>Nombres<input type="text" required minLength={2} autoComplete="given-name" value={firstName} onChange={(event) => setFirstName(event.target.value)} /></label><label>Apellidos<input type="text" autoComplete="family-name" value={lastName} onChange={(event) => setLastName(event.target.value)} /></label></div><FormMessage error={error} /><button className="primary-button full" disabled={loading}>{loading ? 'Guardando…' : 'Guardar cambios'}</button></form>}<div className="auth-links"><Link to="/app"><ArrowLeft size={15} /> Volver al panel</Link></div></AuthFrame>
+}
+
 export function AcceptInvitationPage() {
   const { token = '' } = useParams()
   const { user, configured, refreshUserData } = useAuth()
   const [password, setPassword] = useState('')
-  const [displayName, setDisplayName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -114,15 +150,26 @@ export function AcceptInvitationPage() {
     event.preventDefault(); setError('')
     if (!supabase || !user) { setError('Abre el enlace desde el correo de invitación para continuar.'); return }
     setLoading(true)
-    const update = await supabase.auth.updateUser({ password, data: { display_name: displayName } })
+    const normalizedFirstName = firstName.trim()
+    const normalizedLastName = lastName.trim()
+    if (normalizedFirstName.length < 2) { setLoading(false); setError('Ingresa tus nombres.'); return }
+    const displayName = [normalizedFirstName, normalizedLastName].filter(Boolean).join(' ')
+    const update = await supabase.auth.updateUser({ password, data: { first_name: normalizedFirstName, last_name: normalizedLastName, display_name: displayName } })
     if (update.error) { setLoading(false); setError(update.error.message); return }
+    try {
+      await updateProfileIdentity(user.id, normalizedFirstName, normalizedLastName)
+    } catch (reason: unknown) {
+      setLoading(false)
+      setError(reason instanceof Error ? reason.message : 'No pudimos guardar tu identidad.')
+      return
+    }
     const result = await supabase.functions.invoke('accept-invitation', { body: { token } })
     setLoading(false)
     if (result.error) setError(result.error.message)
     else { await refreshUserData(); setSuccess(true) }
   }
 
-  return <AuthFrame title="Aceptar invitación" description="Completa tu perfil para administrar eventos de una comunidad.">{!configured && <DemoNotice />}{!user ? <div className="invite-login"><ShieldCheck size={32} /><p>Confirma primero tu cuenta desde el enlace que recibiste por correo.</p><Link className="primary-button full" to={`/login?next=${encodeURIComponent(`/invitaciones/${token}`)}`}>Ingresar</Link></div> : success ? <div className="success-panel"><CheckCircle2 size={31} /><p>Invitación aceptada. Ya puedes gestionar eventos.</p><Link className="primary-button full" to="/app">Ir al panel</Link></div> : <form className="auth-form" onSubmit={submit}><label>Nombre visible<input type="text" required minLength={2} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label><label>Contraseña<input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label><FormMessage error={error} /><button className="primary-button full" disabled={loading}>{loading ? 'Activando acceso…' : 'Aceptar invitación'}</button></form>}</AuthFrame>
+  return <AuthFrame title="Aceptar invitación" description="Completa tu perfil para administrar eventos de una comunidad.">{!configured && <DemoNotice />}{!user ? <div className="invite-login"><ShieldCheck size={32} /><p>Confirma primero tu cuenta desde el enlace que recibiste por correo.</p><Link className="primary-button full" to={`/login?next=${encodeURIComponent(`/invitaciones/${token}`)}`}>Ingresar</Link></div> : success ? <div className="success-panel"><CheckCircle2 size={31} /><p>Invitación aceptada. Ya puedes gestionar eventos.</p><Link className="primary-button full" to="/app">Ir al panel</Link></div> : <form className="auth-form" onSubmit={submit}><div className="identity-form-grid"><label>Nombres<input type="text" required minLength={2} autoComplete="given-name" value={firstName} onChange={(event) => setFirstName(event.target.value)} /></label><label>Apellidos<input type="text" autoComplete="family-name" value={lastName} onChange={(event) => setLastName(event.target.value)} /></label></div><label>Contraseña<input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label><FormMessage error={error} /><button className="primary-button full" disabled={loading}>{loading ? 'Activando acceso…' : 'Aceptar invitación'}</button></form>}</AuthFrame>
 }
 
 export function AuthCallbackPage() {

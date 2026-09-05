@@ -1,7 +1,8 @@
-import { Archive, CalendarDays, ChevronRight, Clock3, Edit3, Globe2, LockKeyhole, MapPin, Trash2 } from 'lucide-react'
+import { Archive, CalendarDays, ChevronRight, Clock3, Edit3, Globe2, LockKeyhole, Mail, MapPin, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { EventItem, EventVisibility } from '../types'
-import { formatDateParts, formatEventLocation, formatTimeRange, isEventPast } from '../lib/format'
+import { getEventCoverUrl } from '../lib/data'
+import { formatDateParts, formatEventLocation, formatEventSchedule, isEventPast } from '../lib/format'
 import { CommunityLogo } from './CommunityLogo'
 
 export function VisibilityBadge({ visibility }: { visibility: EventVisibility }) {
@@ -26,12 +27,14 @@ export function EventCard({ event, compact = false, showVisibility = false, pane
   const previewable = Boolean(onOpen)
   const managed = Boolean(panelActions)
   const state = panelState(event, isPast)
+  const coverUrl = getEventCoverUrl(event.coverPath)
+  const hasCover = !compact && Boolean(coverUrl)
   const openPreview = (clickEvent: React.MouseEvent) => {
     clickEvent.stopPropagation()
     onOpen?.()
   }
   return (
-    <article className={`event-row ${compact ? 'compact' : ''} ${managed ? 'managed-event-card' : ''} ${previewable ? 'previewable-event' : ''} ${isPast ? 'past-event' : ''} ${showVisibility ? (isPrivate ? 'private-event' : 'public-event') : ''}`} onClick={previewable ? onOpen : undefined}>
+    <article className={`event-row ${compact ? 'compact' : ''} ${hasCover ? 'has-cover' : ''} ${managed ? 'managed-event-card' : ''} ${previewable ? 'previewable-event' : ''} ${isPast ? 'past-event' : ''} ${showVisibility ? (isPrivate ? 'private-event' : 'public-event') : ''}`} data-event-focus-id={event.id} tabIndex={previewable ? -1 : undefined} onClick={previewable ? onOpen : undefined}>
       <div className="event-date">
         <span>{parts.month}</span>
         <strong>{parts.date}</strong>
@@ -42,19 +45,21 @@ export function EventCard({ event, compact = false, showVisibility = false, pane
         <div className="event-flags">
           {managed ? <span className={`panel-event-label ${state.tone}`}>{state.label}</span> : <><span className={`event-type ${event.type === 'TALLER' ? 'yellow' : 'red'}`}>{event.type}</span>{isPast && <span className="event-past-label">Ya pasó</span>}{showVisibility && isPrivate && <VisibilityBadge visibility={event.visibility} />}</>}
         </div>
-        <h3>{previewable ? <button className="event-card-title" type="button" onClick={openPreview}>{event.title}</button> : <Link to={`/eventos/${event.slug}`}>{event.title}</Link>}</h3>
+        <h3>{previewable ? <button className="event-card-title" type="button" onClick={openPreview}>{event.title}</button> : <span className="event-card-title">{event.title}</span>}</h3>
         {!compact && <p>{event.description}</p>}
         <div className="event-meta">
           <span><MapPin size={15} aria-hidden="true" />{formatEventLocation(event)}</span>
           <span><CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative />{event.communityName}</span>
-          <span><Clock3 size={15} aria-hidden="true" />{formatTimeRange(event.startsAt, event.endsAt)}</span>
+          <span><Clock3 size={15} aria-hidden="true" />{formatEventSchedule(event.startsAt, event.endsAt, event.isAllDay)}</span>
+          {managed && event.creatorEmail && <span className="event-creator-meta" title="Correo de la persona que creó el evento"><Mail size={15} aria-hidden="true" />Creado por {event.creatorEmail}</span>}
         </div>
       </div>
+      {hasCover && <img className="event-card-cover" src={coverUrl || undefined} alt="" />}
       {panelActions ? <div className="event-card-actions" role="group" aria-label={`Acciones para ${event.title}`}>
         <Link className="event-card-action" to={`/app/eventos/${event.id}`} aria-label={`Editar ${event.title}`} title="Editar evento"><Edit3 size={15} aria-hidden="true" /><span>Editar</span></Link>
         <button className="event-card-action" type="button" disabled={event.status === 'archived'} onClick={(clickEvent) => { clickEvent.stopPropagation(); panelActions.onArchive() }} aria-label={event.status === 'archived' ? `${event.title} ya está archivado` : `Archivar ${event.title}`} title={event.status === 'archived' ? 'Ya archivado' : 'Archivar evento'}><Archive size={15} aria-hidden="true" /><span>Archivar</span></button>
         {panelActions.canDelete !== false && <button className="event-card-action danger" type="button" onClick={(clickEvent) => { clickEvent.stopPropagation(); panelActions.onDelete() }} aria-label={`Eliminar ${event.title}`} title="Eliminar evento"><Trash2 size={15} aria-hidden="true" /><span>Eliminar</span></button>}
-      </div> : previewable ? <button className="event-arrow" type="button" aria-label={`Ver ${event.title}`} onClick={openPreview}><ChevronRight size={28} /></button> : <Link className="event-arrow" to={`/eventos/${event.slug}`} aria-label={`Ver ${event.title}`}><ChevronRight size={28} /></Link>}
+      </div> : previewable ? <button className="event-arrow" type="button" aria-label={`Ver ${event.title}`} onClick={openPreview}><ChevronRight size={28} /></button> : null}
     </article>
   )
 }

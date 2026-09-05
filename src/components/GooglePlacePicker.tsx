@@ -1,5 +1,5 @@
 import { importLibrary, setOptions } from '@googlemaps/js-api-loader'
-import { LocateFixed, MapPin, RotateCcw } from 'lucide-react'
+import { CircleAlert, LocateFixed, MapPin, RotateCcw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 export type PlaceSelection = {
@@ -18,9 +18,10 @@ type GooglePlacePickerProps = {
   longitude: number | null
   venueName: string
   onChange: (selection: PlaceSelection) => void
+  onManualAddressChange?: (address: string) => void
 }
 
-let mapsLoaderConfigured = false
+const googleMapsLoaderState = globalThis as typeof globalThis & { __igdaperuMapsLoaderConfigured?: boolean }
 
 function mapUrlFor(selection: Pick<PlaceSelection, 'placeId' | 'venueName' | 'address' | 'latitude' | 'longitude'>) {
   const query = selection.address || selection.venueName || `${selection.latitude},${selection.longitude}`
@@ -35,14 +36,17 @@ function coordinatesFor(location: google.maps.LatLng | google.maps.LatLngLiteral
   return { latitude: lat, longitude: lng }
 }
 
-export function GooglePlacePicker({ address, latitude, longitude, venueName, onChange }: GooglePlacePickerProps) {
+export function GooglePlacePicker({ address, latitude, longitude, venueName, onChange, onManualAddressChange }: GooglePlacePickerProps) {
   const searchRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<google.maps.Map | null>(null)
   const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [message, setMessage] = useState('')
+  const [manualMode, setManualMode] = useState(false)
+  const [selectedPlace, setSelectedPlace] = useState<{ name: string; address: string } | null>(null)
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY
+  const mapId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || 'DEMO_MAP_ID'
   const latestPropsRef = useRef({ address, venueName, onChange })
   const initialLocationRef = useRef({ latitude, longitude })
 
@@ -59,9 +63,9 @@ export function GooglePlacePicker({ address, latitude, longitude, venueName, onC
 
     async function loadMap() {
       try {
-        if (!mapsLoaderConfigured) {
+        if (!googleMapsLoaderState.__igdaperuMapsLoaderConfigured) {
           setOptions({ key: apiKey, v: 'weekly', language: 'es', region: 'PE' })
-          mapsLoaderConfigured = true
+          googleMapsLoaderState.__igdaperuMapsLoaderConfigured = true
         }
         const [{ Map }, { AdvancedMarkerElement }, { PlaceAutocompleteElement }] = await Promise.all([
           importLibrary('maps'),
@@ -74,7 +78,7 @@ export function GooglePlacePicker({ address, latitude, longitude, venueName, onC
         const map = new Map(mapElement, {
           center: initialCenter,
           zoom: initialLocationRef.current.latitude !== null && initialLocationRef.current.longitude !== null ? 16 : 12,
-          mapId: 'DEMO_MAP_ID',
+          mapId,
           streetViewControl: false,
           mapTypeControl: false,
           fullscreenControl: false,
@@ -89,6 +93,7 @@ export function GooglePlacePicker({ address, latitude, longitude, venueName, onC
         createdMarker = marker
         const autocomplete = new PlaceAutocompleteElement()
         autocomplete.placeholder = 'Busca un lugar o dirección'
+        autocomplete.setAttribute('aria-label', 'Buscar lugar o dirección')
         autocomplete.includedRegionCodes = ['pe']
         autocomplete.includedPrimaryTypes = ['establishment', 'geocode']
         searchElement.replaceChildren(autocomplete)
@@ -116,6 +121,7 @@ export function GooglePlacePicker({ address, latitude, longitude, venueName, onC
             marker.position = { lat: coordinates.latitude, lng: coordinates.longitude }
             if (place.viewport) map.fitBounds(place.viewport)
             else { map.setCenter({ lat: coordinates.latitude, lng: coordinates.longitude }); map.setZoom(16) }
+            setSelectedPlace({ name: place.displayName || 'Lugar seleccionado', address: place.formattedAddress || '' })
             setMessage('Lugar seleccionado. Puedes mover el pin para ajustar la ubicación.')
             latestPropsRef.current.onChange(next)
           } catch {
@@ -149,24 +155,42 @@ export function GooglePlacePicker({ address, latitude, longitude, venueName, onC
       mapInstanceRef.current = null
       searchElement.replaceChildren()
     }
-  }, [apiKey])
+  }, [apiKey, mapId])
 
   useEffect(() => {
-    if (!mapInstanceRef.current || !markerRef.current || latitude === null || longitude === null) return
+    if (!mapInstanceRef.current || !markerRef.current) return
+    if (latitude === null || longitude === null) {
+      markerRef.current.position = null
+      return
+    }
     const position = { lat: latitude, lng: longitude }
     markerRef.current.position = position
     mapInstanceRef.current.setCenter(position)
     mapInstanceRef.current.setZoom(16)
   }, [latitude, longitude])
 
-  if (!apiKey) return <div className="map-picker-unavailable"><MapPin size={19} aria-hidden="true" /><div><strong>Selector de mapa pendiente de configuración</strong><p>Completa el lugar manualmente o usa el enlace de Google Maps. El mapa interactivo aparecerá cuando se configure la clave del proyecto.</p></div></div>
+  const toggleManualMode = () => {
+    setManualMode((current) => !current)
+    setMessage('')
+  }
 
-  return <div className="google-place-picker" data-state={state}>
-    <div className="map-picker-search" ref={searchRef} aria-label="Buscar ubicación" />
-    <div className="map-picker-canvas" ref={mapRef} aria-label="Mapa para seleccionar la ubicación" role="application">
-      {state === 'loading' && <div className="map-picker-loading"><RotateCcw className="spin" size={18} aria-hidden="true" /> Cargando mapa…</div>}
-      {state === 'error' && <div className="map-picker-loading"><LocateFixed size={18} aria-hidden="true" /> Mapa no disponible</div>}
+  if (!apiKey) return <div className="google-place-picker google-place-picker-manual" data-state="manual">
+    <div className="map-picker-manual-input"><input aria-label="Buscar lugar o dirección" value={address} onChange={(event) => onManualAddressChange?.(event.target.value)} placeholder="Av. / calle, distrito, ciudad" /><span className="field-help">La búsqueda de Google Maps aparecerá cuando se configure la clave del proyecto.</span></div>
+    <div className="map-picker-unavailable"><MapPin size={19} aria-hidden="true" /><div><strong>Mapa pendiente de configuración</strong><p>Al activar Google Maps verás las sugerencias y el pin aquí. Por ahora puedes completar la dirección manualmente.</p></div></div>
+  </div>
+
+  return <div className="google-place-picker-shell">
+    <div className="google-place-picker" data-state={state}>
+      <div className={`map-picker-search ${manualMode ? 'is-hidden' : ''}`} ref={searchRef} aria-label="Buscar lugar o dirección" />
+      {manualMode && <div className="map-picker-manual-input"><input aria-label="Dirección manual" value={address} onChange={(event) => { setSelectedPlace(null); onManualAddressChange?.(event.target.value) }} placeholder="Av. / calle, distrito, ciudad" /><span className="field-help">Usa esta opción si el lugar no aparece en las sugerencias.</span></div>}
+      {selectedPlace && <div className="map-picker-selection"><MapPin size={17} aria-hidden="true" /><span><strong>{selectedPlace.name}</strong><small>{selectedPlace.address}</small></span></div>}
+      <div className="map-picker-canvas" aria-label="Mapa para seleccionar la ubicación" role="application">
+        <div className="map-picker-map" ref={mapRef} aria-hidden="true" />
+        {state === 'loading' && <div className="map-picker-loading"><RotateCcw className="spin" size={18} aria-hidden="true" /> Cargando mapa…</div>}
+        {state === 'error' && <div className="map-picker-loading"><LocateFixed size={18} aria-hidden="true" /> Mapa no disponible</div>}
+      </div>
     </div>
+    <button className="map-picker-mode-button" type="button" onClick={toggleManualMode}>{manualMode ? 'Volver a buscar en Google Maps' : <><CircleAlert size={15} aria-hidden="true" /> No encuentro el lugar · Ingresar manualmente</>}</button>
     {message && <p className="field-help map-picker-message" role={state === 'error' ? 'alert' : undefined}>{message}</p>}
   </div>
 }

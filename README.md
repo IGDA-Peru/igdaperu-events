@@ -34,6 +34,9 @@ Esta configuración debe hacerse en la cuenta de Cloudflare que administra la zo
 4. Configura Node.js `22`, comando `pnpm build` y directorio de salida `dist`.
 5. En **Custom domains**, agrega `eventos.igda.pe` desde el propio proyecto Pages.
 6. Agrega las variables `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` y `VITE_APP_URL=https://eventos.igda.pe` en producción.
+7. En **Settings → Variables and Secrets**, agrega también `SUPABASE_URL` y `SUPABASE_PUBLISHABLE_KEY` como variables de runtime para Production y Preview. La Pages Function usa la clave publicable y sigue protegida por RLS; nunca agregues `service_role` al frontend ni a esta función.
+
+La ruta `/api/home-events` consulta solo tres eventos públicos futuros y los almacena temporalmente en la caché de Cloudflare durante dos minutos. El archivo `public/_routes.json` limita las invocaciones de Pages Functions a esa ruta y deja los assets estáticos fuera de la función.
 
 El dominio se asocia primero al proyecto Pages; no basta con crear un CNAME manual. Los previews de ramas y los despliegues de `main` quedarán vinculados a GitHub.
 
@@ -49,6 +52,8 @@ pnpm exec supabase functions deploy create-invitation
 pnpm exec supabase functions deploy accept-invitation
 pnpm exec supabase functions deploy sync-communities
 pnpm exec supabase functions deploy sync-google-calendar
+pnpm exec supabase functions deploy google-meet-oauth --no-verify-jwt
+pnpm exec supabase functions deploy google-meet-create
 ```
 
 En el dashboard de Supabase:
@@ -108,6 +113,45 @@ Después de crear el primer usuario de IGDA, asígnale `platform_admin` con su U
 
 La `service_role` key solo se usa como secret de Edge Functions. Nunca se coloca en variables `VITE_*` ni en el navegador.
 
+### Creación de enlaces de Google Meet
+
+El editor permite conectar una cuenta de Google por comunidad y crear espacios de Google Meet desde el servidor. La cuenta se autoriza una sola vez mediante OAuth; el refresh token se cifra antes de guardarse y nunca se envía al navegador.
+
+En Google Cloud configura un cliente OAuth de tipo **Aplicación web** con esta URI de redirección exacta:
+
+```text
+https://vqjatmuozhpblucpiiqw.supabase.co/functions/v1/google-meet-oauth
+```
+
+También habilita **Google Meet REST API** y agrega el correo que probará la integración como usuario de prueba si la aplicación OAuth está en modo de pruebas.
+
+En Supabase → **Project Settings → Edge Functions → Secrets**, guarda estos valores. El Client Secret y la llave de cifrado deben permanecer solo como secrets de Edge Functions:
+
+```text
+GOOGLE_OAUTH_CLIENT_ID=<Client ID de Google Cloud>
+GOOGLE_OAUTH_CLIENT_SECRET=<Client Secret de Google Cloud>
+GOOGLE_OAUTH_REDIRECT_URI=https://vqjatmuozhpblucpiiqw.supabase.co/functions/v1/google-meet-oauth
+GOOGLE_TOKEN_ENCRYPTION_KEY=<cadena aleatoria larga>
+APP_URL=https://eventos.igda.pe
+```
+
+Para probar desde el servidor local, usa temporalmente `APP_URL=http://127.0.0.1:5174`; la URI de Google no cambia porque el callback sigue ocurriendo en Supabase. Genera la llave de cifrado en PowerShell sin guardarla en el repositorio:
+
+```powershell
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+Después de guardar los secrets, aplica la migración y despliega las funciones:
+
+```powershell
+pnpm exec supabase link --project-ref vqjatmuozhpblucpiiqw
+pnpm exec supabase db push
+pnpm exec supabase functions deploy google-meet-oauth --no-verify-jwt
+pnpm exec supabase functions deploy google-meet-create
+```
+
+`google-meet-oauth` usa `--no-verify-jwt` porque Google vuelve al callback mediante un `GET` sin sesión de Supabase; la función valida la sesión en su endpoint `POST` antes de iniciar la autorización. `google-meet-create` conserva la verificación JWT estándar.
+
 ### Sincronización manual con Google Calendar
 
 El botón **Sincronizar calendario** de `/app/admin` ejecuta `sync-google-calendar`. Solo publica eventos
@@ -123,5 +167,5 @@ los eventos** sobre el calendario y el proyecto de Google debe tener habilitada 
 - Roles `reader`, `community_editor`, `community_admin` y `platform_admin`.
 - Invitaciones de un solo uso con token almacenado como hash.
 - CRUD de eventos, moderación IGDA, reportes y auditoría.
-- Embed público en `/embed?community=igda-peru`.
+- Embed público en `/embed?community=igda-peru` y embed compacto para la portada en `/embed/inicio` (también admite `?community=...`).
 - Feeds iCal/RSS e integración dentro de `igdaperu-site` como siguiente iteración.

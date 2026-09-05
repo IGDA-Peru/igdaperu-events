@@ -16,6 +16,13 @@ const timeFormatter = new Intl.DateTimeFormat('es-PE', {
   minute: '2-digit',
 })
 
+const limaDateKeyFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Lima',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
 export function formatDateParts(date: string | null | undefined) {
   if (!date) return { month: '—', date: '—', weekday: 'Por definir' }
   const parsed = new Date(date)
@@ -29,11 +36,29 @@ export function formatDate(date: string | null | undefined) {
   return limaFormatter.format(new Date(date)).replace('.', '')
 }
 
-export function formatTimeRange(startsAt: string | null | undefined, endsAt: string | null | undefined) {
+export function formatEventDateRange(startsAt: string | null | undefined, endsAt: string | null | undefined, isAllDay = false) {
+  if (!startsAt && !endsAt) return 'Fecha por definir'
+  if (!startsAt) return `Desde ${formatDate(endsAt)}`
+  if (!endsAt) return formatDate(startsAt)
+
+  const startDate = limaDateKeyFormatter.format(new Date(startsAt))
+  const displayEnd = isAllDay ? new Date(new Date(endsAt).getTime() - 1) : new Date(endsAt)
+  const endDate = limaDateKeyFormatter.format(displayEnd)
+  return startDate === endDate ? formatDate(startsAt) : `${formatDate(startsAt)} – ${formatDate(displayEnd.toISOString())}`
+}
+
+export function formatTimeRange(startsAt: string | null | undefined, endsAt: string | null | undefined, isAllDay = false) {
+  if (isAllDay && (startsAt || endsAt)) return 'Todo el día'
   if (!startsAt && !endsAt) return 'Hora por definir'
   if (!startsAt) return `Desde ${timeFormatter.format(new Date(endsAt as string))}`
   if (!endsAt) return `Desde ${timeFormatter.format(new Date(startsAt))}`
   return `${timeFormatter.format(new Date(startsAt))} – ${timeFormatter.format(new Date(endsAt))}`
+}
+
+export function formatEventSchedule(startsAt: string | null | undefined, endsAt: string | null | undefined, isAllDay = false) {
+  const dateLabel = formatEventDateRange(startsAt, endsAt, isAllDay)
+  const timeLabel = formatTimeRange(startsAt, endsAt, isAllDay)
+  return dateLabel === formatDate(startsAt) ? timeLabel : `${dateLabel} · ${timeLabel}`
 }
 
 export function formatEventLocation(event: { locationType: 'venue' | 'online' | 'hybrid'; venueName?: string | null; address?: string | null; formattedAddress?: string | null }) {
@@ -55,6 +80,7 @@ export function isEventPast(eventOrEndsAt: { endsAt: string | null } | string | 
 export function meetingActionLabel(provider?: string | null) {
   if (provider === 'google_meet') return 'Unirme por Google Meet'
   if (provider === 'zoom') return 'Unirme por Zoom'
+  if (provider === 'discord') return 'Unirme por Discord'
   return 'Abrir enlace para unirse'
 }
 
@@ -66,4 +92,8 @@ export function slugify(value: string) {
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
+}
+
+export function eventSlug(title: string, communitySlug?: string) {
+  return [slugify(title), slugify(communitySlug || '')].filter(Boolean).join('-')
 }

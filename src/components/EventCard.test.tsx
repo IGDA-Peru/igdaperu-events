@@ -15,6 +15,7 @@ const event: EventItem = {
   type: 'CHARLA',
   startsAt: '2026-09-19T19:00:00-05:00',
   endsAt: '2026-09-19T21:00:00-05:00',
+  isAllDay: false,
   timezone: 'America/Lima',
   locationType: 'venue',
   venueName: 'Lima, Perú',
@@ -58,6 +59,28 @@ describe('EventCard visibility', () => {
     rerender(<MemoryRouter><EventCard event={{ ...event, visibility: 'network' }} compact panelActions={{ onArchive: vi.fn(), onDelete: vi.fn() }} /></MemoryRouter>)
 
     expect(screen.getByText('Solo la red')).toBeInTheDocument()
+  })
+
+  it('shows the creator email only in managed event cards', () => {
+    const managedEvent = { ...event, creatorEmail: 'editor@comunidad.pe' }
+    const { rerender } = render(<MemoryRouter><EventCard event={managedEvent} compact panelActions={{ onArchive: vi.fn(), onDelete: vi.fn() }} /></MemoryRouter>)
+
+    expect(screen.getByText('Creado por editor@comunidad.pe')).toBeInTheDocument()
+
+    rerender(<MemoryRouter><EventCard event={managedEvent} /></MemoryRouter>)
+    expect(screen.queryByText('Creado por editor@comunidad.pe')).not.toBeInTheDocument()
+  })
+
+  it('keeps the banner in a dedicated column and does not reserve one when absent', () => {
+    const { container, rerender } = render(<MemoryRouter><EventCard event={{ ...event, coverPath: '/banners/event-1.jpg' }} /></MemoryRouter>)
+
+    expect(container.querySelector('.event-row.has-cover')).toBeInTheDocument()
+    expect(container.querySelector('.event-card-cover')).toHaveAttribute('src', '/banners/event-1.jpg')
+
+    rerender(<MemoryRouter><EventCard event={event} /></MemoryRouter>)
+
+    expect(container.querySelector('.event-row.has-cover')).not.toBeInTheDocument()
+    expect(container.querySelector('.event-card-cover')).not.toBeInTheDocument()
   })
 
   it('calls archive and delete actions from the panel card', () => {
