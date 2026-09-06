@@ -20,7 +20,7 @@ function panelState(event: EventItem, isPast: boolean) {
   return { label: 'Público', tone: 'public' }
 }
 
-export function EventCard({ event, compact = false, showVisibility = false, panelActions, onOpen }: { event: EventItem; compact?: boolean; showVisibility?: boolean; panelActions?: EventCardActions; onOpen?: () => void }) {
+export function EventCard({ event, compact = false, showCover = false, showVisibility = false, panelActions, onOpen }: { event: EventItem; compact?: boolean; showCover?: boolean; showVisibility?: boolean; panelActions?: EventCardActions; onOpen?: () => void }) {
   const parts = formatDateParts(event.startsAt)
   const isPrivate = event.visibility === 'network'
   const isPast = isEventPast(event)
@@ -28,7 +28,7 @@ export function EventCard({ event, compact = false, showVisibility = false, pane
   const managed = Boolean(panelActions)
   const state = panelState(event, isPast)
   const coverUrl = getEventCoverUrl(event.coverPath)
-  const hasCover = !compact && Boolean(coverUrl)
+  const hasCover = Boolean(coverUrl) && (!compact || showCover)
   const openPreview = (clickEvent: React.MouseEvent) => {
     clickEvent.stopPropagation()
     onOpen?.()

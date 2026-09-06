@@ -74,6 +74,23 @@ describe('public events', () => {
     expect(screen.getByRole('link', { name: 'IGDA Perú' })).toHaveAttribute('target', '_top')
   })
 
+  it('uses the calendar view by default in the large event embed and allows switching views', async () => {
+    window.history.pushState({}, '', '/embed')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Próximos eventos' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Calendario' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('region', { name: /Calendario/ })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tarjetas' }))
+    expect(screen.getByRole('button', { name: 'Tarjetas' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getAllByRole('article').length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Línea de tiempo' }))
+    expect(screen.getByRole('button', { name: 'Línea de tiempo' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('region', { name: /Línea de tiempo/ })).toBeInTheDocument()
+  })
+
   it('redirects legacy event URLs back to the agenda', async () => {
     window.history.pushState({}, '', '/eventos/diseno-de-niveles')
     render(<App />)
@@ -114,6 +131,8 @@ describe('public events', () => {
     expect(document.querySelector('.dashboard-sidebar .dashboard-chat-summary')).toBeInTheDocument()
     expect(document.querySelector('.dashboard-community-panel')?.nextElementSibling).toHaveClass('dashboard-chat-summary')
     expect(document.querySelector('.dashboard-grid--with-chat')?.children).toHaveLength(2)
+    expect(document.querySelector('.brand-wordmark')).toHaveAttribute('src', '/brand/igda-peru-wordmark.svg')
+    expect(document.querySelector('.brand-copy small')).toHaveTextContent('Eventos')
     expect(document.querySelector('.account-button img')).toHaveAttribute('src', '/brand/logo-igda-peru.png')
     expect(screen.getByRole('link', { name: /Nuevo evento/ })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Ver todos/ })).not.toBeInTheDocument()

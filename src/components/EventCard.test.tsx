@@ -83,6 +83,13 @@ describe('EventCard visibility', () => {
     expect(container.querySelector('.event-card-cover')).not.toBeInTheDocument()
   })
 
+  it('can show the banner in a compact event card', () => {
+    const { container } = render(<MemoryRouter><EventCard event={{ ...event, coverPath: '/banners/event-1.jpg' }} compact showCover /></MemoryRouter>)
+
+    expect(container.querySelector('.event-row.compact.has-cover')).toBeInTheDocument()
+    expect(container.querySelector('.event-card-cover')).toHaveAttribute('src', '/banners/event-1.jpg')
+  })
+
   it('calls archive and delete actions from the panel card', () => {
     const onArchive = vi.fn()
     const onDelete = vi.fn()

@@ -7,9 +7,10 @@ import { DemoNotice, ErrorState, LoadingState } from '../components/Feedback'
 import { EventPreviewDrawer } from '../components/EventPreviewDrawer'
 import { CommunityLogo } from '../components/CommunityLogo'
 import { EventFilters } from '../components/EventFilters'
-import { EventResults, EventViewSwitcher } from '../components/EventViews'
+import { EventFocusButton, EventResults, EventViewSwitcher, type EventFocusRequest } from '../components/EventViews'
 import type { EventViewMode } from '../components/eventViewModes'
 import { filterEvents, type TimeFilter } from '../lib/eventFilters'
+import { findNextEvent } from '../lib/eventFocus'
 import { listCommunities, listEvents, listHomeEmbedEvents, type EventQueryOptions } from '../lib/data'
 import type { Community, EventItem } from '../types'
 
@@ -149,10 +150,13 @@ export function CommunityDetailPage() {
 
 export function EmbedPage() {
   const [params] = useSearchParams()
+  const [viewMode, setViewMode] = useState<EventViewMode>('calendar')
+  const [focusRequest, setFocusRequest] = useState<EventFocusRequest | null>(null)
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const communitySlug = params.get('community') || undefined
   const { events, loading, error } = useEvents({ communitySlug })
-  return <div className="embed-page"><div className="embed-header"><span className="compact-brand"><img src="/brand/logo-igda-peru.png" alt="" width="30" height="28" /> <span>Eventos IGDA Perú</span></span><Link to="/" target="_blank">Ver todos los eventos <ExternalLink size={14} /></Link></div><h1>Próximos eventos</h1>{loading ? <LoadingState /> : error ? <ErrorState message={error} /> : events.length ? <div className="event-list">{events.slice(0, 4).map((event) => <EventCard event={event} compact onOpen={() => setSelectedEvent(event)} key={event.id} />)}</div> : <EmptyEvents />}<EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" /></div>
+  const nextEvent = useMemo(() => findNextEvent(events), [events])
+  return <div className="embed-page"><div className="embed-header"><span className="compact-brand"><img src="/brand/logo-igda-peru.png" alt="" width="30" height="28" /> <span>Eventos IGDA Perú</span></span><Link to="/" target="_blank">Ver todos los eventos <ExternalLink size={14} /></Link></div><div className="embed-section-heading"><h1>Próximos eventos</h1><div className="embed-section-actions"><EventViewSwitcher value={viewMode} onChange={setViewMode} />{nextEvent && <EventFocusButton onClick={() => setFocusRequest({ eventId: nextEvent.id, nonce: Date.now() })} />}</div></div>{loading && <LoadingState />}{error && <ErrorState message={error} />}{!loading && !error && <EventResults events={events} viewMode={viewMode} showVisibility={false} onEventOpen={setSelectedEvent} showViewLabel={false} showFocusButton={false} focusRequest={focusRequest} onFocusRequestChange={setFocusRequest} />}<EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" /></div>
 }
 
 export function HomeEventsEmbedPage() {
@@ -192,7 +196,7 @@ export function HomeEventsEmbedPage() {
         </div>
         {loading && <LoadingState />}
         {error && <ErrorState message={error} />}
-        {!loading && !error && (events.length ? <div className="event-list">{events.map((event) => <EventCard event={event} compact onOpen={() => setSelectedEvent(event)} key={event.id} />)}</div> : <EmptyEvents />)}
+        {!loading && !error && (events.length ? <div className="event-list">{events.map((event) => <EventCard event={event} compact showCover onOpen={() => setSelectedEvent(event)} key={event.id} />)}</div> : <EmptyEvents />)}
         <div className="home-events-embed-cta-row">
           <a className="primary-button home-events-embed-cta" href="https://igda.pe/comunidad/calendario/" target="_top" rel="noreferrer">Ver todos los eventos <ExternalLink size={16} aria-hidden="true" /></a>
         </div>

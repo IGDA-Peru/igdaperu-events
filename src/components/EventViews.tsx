@@ -1,6 +1,7 @@
 import { CalendarDays, ChevronLeft, ChevronRight, LocateFixed, LockKeyhole, Minus, Plus } from 'lucide-react'
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { formatEventDateRange, formatTimeRange, isEventPast } from '../lib/format'
+import { findNextEvent } from '../lib/eventFocus'
 import type { EventItem } from '../types'
 import { EmptyEvents, EventCard } from './EventCard'
 import { CommunityLogo } from './CommunityLogo'
@@ -360,6 +361,7 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
   const todayIndex = visibleDays.indexOf(todayKey)
   const canvasStyle = timelineCssVariables(zoomConfig.dayWidth, visibleDays.length)
   const bodyStyle = { '--timeline-day-width': `${zoomConfig.dayWidth}px`, '--timeline-day-count': String(visibleDays.length), '--timeline-axis-width': `${zoomConfig.dayWidth * visibleDays.length}px`, '--timeline-today-offset': todayIndex >= 0 ? `${todayIndex * zoomConfig.dayWidth + zoomConfig.dayWidth / 2}px` : '0px' } as CSSProperties
+  const singleDayLabelWidthDays = Math.ceil(160 / zoomConfig.dayWidth) + 1
   const decreaseZoom = () => setZoom((current) => timelineZoomOrder[Math.max(0, timelineZoomOrder.indexOf(current) - 1)])
   const increaseZoom = () => setZoom((current) => timelineZoomOrder[Math.min(timelineZoomOrder.length - 1, timelineZoomOrder.indexOf(current) + 1)])
   const isCurrentMonth = visibleMonth.getFullYear() === new Date().getFullYear() && visibleMonth.getMonth() === new Date().getMonth()
@@ -438,7 +440,7 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
                 <div className="timeline-day-grid" aria-hidden="true">{visibleDays.map((key) => <span className={`${key < range.monthStartKey || key > range.monthEndKey ? 'outside-month' : ''} ${new Date(`${key}T12:00:00-05:00`).getDay() === 0 || new Date(`${key}T12:00:00-05:00`).getDay() === 6 ? 'weekend' : ''}`} key={key} />)}</div>
                 {community.segments.map((segment) => {
                   const privateEvent = showVisibility && segment.event.visibility === 'network'
-                  const labelBefore = segment.isSingleDay && segment.endIndex >= visibleDays.length - 2
+                  const labelBefore = segment.isSingleDay && segment.endIndex >= visibleDays.length - singleDayLabelWidthDays
                   const segmentWidth = segment.isSingleDay ? Math.min(28, zoomConfig.dayWidth - 8) : (segment.endIndex - segment.startIndex + 1) * zoomConfig.dayWidth - 8
                   const segmentLeft = segment.isSingleDay ? segment.startIndex * zoomConfig.dayWidth + (zoomConfig.dayWidth - segmentWidth) / 2 : segment.startIndex * zoomConfig.dayWidth + 4
                   const segmentStyle = { ...timelineStyle(community.color), left: `${segmentLeft}px`, width: `${segmentWidth}px`, top: `${segment.lane * 38 + 10}px` }
@@ -454,15 +456,25 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
   )
 }
 
-function findNextEvent(events: EventItem[]) {
-  const now = Date.now()
-  const scheduled = events.filter((event) => event.startsAt && !isEventPast(event)).sort((first, second) => new Date(first.startsAt as string).getTime() - new Date(second.startsAt as string).getTime())
-  return scheduled.find((event) => new Date(event.startsAt as string).getTime() >= now) || scheduled[0] || null
+export function EventFocusButton({ onClick }: { onClick: () => void }) {
+  return <button className="event-focus-button" type="button" onClick={onClick}><LocateFixed size={16} aria-hidden="true" /><span>Próximo evento</span></button>
 }
 
-export function EventResults({ events, viewMode, showVisibility, onEventOpen }: { events: EventItem[]; viewMode: EventViewMode; showVisibility: boolean; onEventOpen: (event: EventItem) => void }) {
-  const [focusRequest, setFocusRequest] = useState<EventFocusRequest | null>(null)
+type EventResultsProps = {
+  events: EventItem[]
+  viewMode: EventViewMode
+  showVisibility: boolean
+  onEventOpen: (event: EventItem) => void
+  showViewLabel?: boolean
+  showFocusButton?: boolean
+  focusRequest?: EventFocusRequest | null
+  onFocusRequestChange?: (request: EventFocusRequest) => void
+}
+
+export function EventResults({ events, viewMode, showVisibility, onEventOpen, showViewLabel = true, showFocusButton = true, focusRequest: controlledFocusRequest, onFocusRequestChange }: EventResultsProps) {
+  const [internalFocusRequest, setInternalFocusRequest] = useState<EventFocusRequest | null>(null)
   const nextEvent = useMemo(() => findNextEvent(events), [events])
+  const focusRequest = controlledFocusRequest === undefined ? internalFocusRequest : controlledFocusRequest
 
   useEffect(() => {
     if (viewMode !== 'cards' || !focusRequest) return
@@ -472,11 +484,18 @@ export function EventResults({ events, viewMode, showVisibility, onEventOpen }: 
 
   if (!events.length) return <EmptyEvents authenticated={showVisibility} />
   const viewLabel = viewMode === 'cards' ? 'Tarjetas' : viewMode === 'calendar' ? 'Calendario' : 'Línea de tiempo'
+  const requestFocus = () => {
+    if (!nextEvent) return
+    const request = { eventId: nextEvent.id, nonce: Date.now() }
+    if (onFocusRequestChange) onFocusRequestChange(request)
+    else setInternalFocusRequest(request)
+  }
+  const showToolbar = showViewLabel || Boolean(showFocusButton && nextEvent)
   return <div className="event-results">
-    <div className="event-results-toolbar">
-      <span>Vista: {viewLabel}</span>
-      {nextEvent && <button className="event-focus-button" type="button" onClick={() => setFocusRequest({ eventId: nextEvent.id, nonce: Date.now() })}><LocateFixed size={16} aria-hidden="true" /> Encontrar próximo evento</button>}
-    </div>
+    {showToolbar && <div className="event-results-toolbar">
+      {showViewLabel && <span>Vista: {viewLabel}</span>}
+      {showFocusButton && nextEvent && <EventFocusButton onClick={requestFocus} />}
+    </div>}
     {viewMode === 'calendar' && <CalendarView events={events} onEventOpen={onEventOpen} focusRequest={focusRequest} />}
     {viewMode === 'timeline' && <TimelineView events={events} showVisibility={showVisibility} onEventOpen={onEventOpen} focusRequest={focusRequest} />}
     {viewMode === 'cards' && <div className="event-list">{events.map((event) => <EventCard event={event} showVisibility={showVisibility} onOpen={() => onEventOpen(event)} key={event.id} />)}</div>}

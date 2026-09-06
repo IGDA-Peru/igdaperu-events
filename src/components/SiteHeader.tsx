@@ -39,7 +39,7 @@ export function SiteHeader({ embed = false }: { embed?: boolean }) {
       <div className="site-header-inner">
         <Link className="brand" to="/" aria-label="Eventos IGDA Perú, inicio">
           <img className="brand-logo" src="/brand/logo-igda-peru.png" alt="" width="56" height="50" />
-          <span className="brand-copy"><span className="brand-name">IGDA Peru</span><small>Eventos</small></span>
+          <span className="brand-copy"><img className="brand-wordmark" src="/brand/igda-peru-wordmark.svg" alt="IGDA Perú" width="112" height="25" /><small>Eventos</small></span>
         </Link>
         <button className="mobile-menu" type="button" aria-label={menuOpen ? 'Cerrar menú' : 'Abrir menú'} onClick={() => setMenuOpen(!menuOpen)}>
           {menuOpen ? <X size={22} /> : <Menu size={22} />}
