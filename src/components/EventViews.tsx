@@ -213,7 +213,7 @@ export type TimelineZoom = 'compact' | 'normal' | 'detailed'
 type TimelineZoomConfig = { label: string; dayWidth: number }
 
 const timelineZoomConfig: Record<TimelineZoom, TimelineZoomConfig> = {
-  compact: { label: 'Compacto', dayWidth: 30 },
+  compact: { label: 'Compacto', dayWidth: 22 },
   normal: { label: 'Normal', dayWidth: 38 },
   detailed: { label: 'Detallado', dayWidth: 54 },
 }
@@ -365,7 +365,7 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
   const scheduledEvents = useMemo(() => events.filter((event) => event.startsAt), [events])
   const communities = useMemo(() => stableCommunities(scheduledEvents), [scheduledEvents])
   const [visibleMonth, setVisibleMonth] = useState(() => timelineMonthDate(new Date()))
-  const [zoom, setZoom] = useState<TimelineZoom>('normal')
+  const [zoom, setZoom] = useState<TimelineZoom>('compact')
   const [communityFilter, setCommunityFilter] = useState('all')
   const [timelineSection, setTimelineSection] = useState(0)
   const handledFocusNonce = useRef<number | null>(null)
@@ -376,9 +376,13 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
   const zoomConfig = timelineZoomConfig[zoom]
   const range = useMemo(() => timelineRangeForMonth(visibleMonth), [visibleMonth])
   const weeks = useMemo(() => Array.from({ length: range.days.length / 7 }, (_, index) => range.days.slice(index * 7, index * 7 + 7)), [range.days])
-  const sectionCount = Math.max(1, Math.ceil(weeks.length / timelineWeeksPerSection))
+  // The compact view is deliberately wide enough to show a full month without
+  // splitting it into "Partes" on a desktop screen. Other zoom levels keep the
+  // shorter, more legible three-week sections.
+  const weeksPerSection = zoom === 'compact' ? weeks.length : timelineWeeksPerSection
+  const sectionCount = Math.max(1, Math.ceil(weeks.length / weeksPerSection))
   const currentSection = Math.min(timelineSection, sectionCount - 1)
-  const visibleWeeks = useMemo(() => weeks.slice(currentSection * timelineWeeksPerSection, currentSection * timelineWeeksPerSection + timelineWeeksPerSection), [currentSection, weeks])
+  const visibleWeeks = useMemo(() => weeks.slice(currentSection * weeksPerSection, currentSection * weeksPerSection + weeksPerSection), [currentSection, weeks, weeksPerSection])
   const visibleDays = useMemo(() => visibleWeeks.flat(), [visibleWeeks])
   const sectionRange = useMemo(() => ({ ...range, startKey: visibleDays[0] || range.startKey, endKey: visibleDays[visibleDays.length - 1] || range.endKey, days: visibleDays }), [range, visibleDays])
   const groupedCommunities = useMemo(() => communities.filter((community) => communityFilter === 'all' || community.id === communityFilter).map((community) => {
@@ -391,8 +395,12 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
   const canvasStyle = timelineCssVariables(zoomConfig.dayWidth, visibleDays.length)
   const bodyStyle = { '--timeline-day-width': `${zoomConfig.dayWidth}px`, '--timeline-day-count': String(visibleDays.length), '--timeline-axis-width': `${zoomConfig.dayWidth * visibleDays.length}px`, '--timeline-today-offset': todayIndex >= 0 ? `${todayIndex * zoomConfig.dayWidth + zoomConfig.dayWidth / 2}px` : '0px' } as CSSProperties
   const singleDayLabelWidthDays = Math.ceil(160 / zoomConfig.dayWidth) + 1
-  const decreaseZoom = () => setZoom((current) => timelineZoomOrder[Math.max(0, timelineZoomOrder.indexOf(current) - 1)])
-  const increaseZoom = () => setZoom((current) => timelineZoomOrder[Math.min(timelineZoomOrder.length - 1, timelineZoomOrder.indexOf(current) + 1)])
+  const changeZoom = (direction: -1 | 1) => {
+    setZoom((current) => timelineZoomOrder[Math.min(timelineZoomOrder.length - 1, Math.max(0, timelineZoomOrder.indexOf(current) + direction))])
+    setTimelineSection(0)
+  }
+  const decreaseZoom = () => changeZoom(-1)
+  const increaseZoom = () => changeZoom(1)
   const isCurrentMonth = visibleMonth.getFullYear() === new Date().getFullYear() && visibleMonth.getMonth() === new Date().getMonth()
   const changeMonth = (offset: number) => {
     setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + offset, 1))
@@ -440,9 +448,8 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
             <h3 className="timeline-month-title">{formatTimelineMonth(visibleMonth)}</h3>
           </div>
           {sectionCount > 1 && <div className="timeline-section-controls" aria-label="Secciones del mes">
-            <button className="timeline-section-button" type="button" aria-label="Sección anterior" title="Sección anterior" disabled={currentSection === 0} onClick={() => setTimelineSection((section) => Math.max(0, section - 1))}><ChevronLeft size={14} /></button>
-            <span>Parte {currentSection + 1} de {sectionCount}</span>
-            <button className="timeline-section-button" type="button" aria-label="Siguiente sección" title="Siguiente sección" disabled={currentSection === sectionCount - 1} onClick={() => setTimelineSection((section) => Math.min(sectionCount - 1, section + 1))}><ChevronRight size={14} /></button>
+            <button className="timeline-section-button" type="button" aria-label="Ver semanas anteriores" title="Ver semanas anteriores" disabled={currentSection === 0} onClick={() => setTimelineSection((section) => Math.max(0, section - 1))}><ChevronLeft size={14} /></button>
+            <button className="timeline-section-button" type="button" aria-label="Ver semanas siguientes" title="Ver semanas siguientes" disabled={currentSection === sectionCount - 1} onClick={() => setTimelineSection((section) => Math.min(sectionCount - 1, section + 1))}><ChevronRight size={14} /></button>
           </div>}
         </div>
         <div className="timeline-toolbar-filters">
@@ -480,7 +487,7 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
                   return <button className={`timeline-event-bar ${segment.isSingleDay ? 'single-day' : ''} ${labelBefore ? 'label-before' : ''} ${privateEvent ? 'private' : 'public'} ${isEventPast(segment.event) ? 'past' : ''} ${segment.continuesBefore ? 'continues-before' : ''} ${segment.continuesAfter ? 'continues-after' : ''}`} data-event-focus-id={segment.event.id} style={segmentStyle} type="button" data-lane={segment.lane} title={`${label} · ${formatTimeRange(segment.event.startsAt, segment.event.endsAt, segment.event.isAllDay)}`} aria-label={label} onClick={() => onEventOpen(segment.event)} key={segment.event.id}><span className="timeline-event-diamond" aria-hidden="true" />{privateEvent && !segment.isSingleDay && <LockKeyhole size={12} aria-hidden="true" />}<span className="timeline-event-label">{segment.event.title}</span>{isEventPast(segment.event) && <span className="sr-only">Ya pasó</span>}<CalendarEventHoverPreview event={segment.event} coverUrl={coverUrl} /></button>
                 })}
               </div>
-            </div>) : <div className="timeline-empty"><CalendarDays size={24} aria-hidden="true" /><strong>No hay eventos en esta sección</strong><span>{sectionCount > 1 ? 'Usa las flechas bajo el mes para ver la siguiente sección.' : 'Prueba con otro mes o cambia el filtro de comunidad.'}</span></div>}
+            </div>) : <div className="timeline-empty"><CalendarDays size={24} aria-hidden="true" /><strong>No hay eventos en esta sección</strong><span>{sectionCount > 1 ? 'Usa las flechas junto al mes para ver las semanas siguientes.' : 'Prueba con otro mes o cambia el filtro de comunidad.'}</span></div>}
           </div>
         </div>
       </div>

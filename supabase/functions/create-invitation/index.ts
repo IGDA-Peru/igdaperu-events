@@ -5,7 +5,9 @@ import { verifyTurnstile } from '../_shared/turnstile.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const appUrl = (Deno.env.get('APP_URL') || 'http://localhost:5173').replace(/\/$/, '')
+// Invitation links must use the public site URL. Keep this separate from APP_URL,
+// which may intentionally point to localhost while testing OAuth callbacks.
+const appUrl = (Deno.env.get('PUBLIC_APP_URL') || 'https://eventos.igda.pe').replace(/\/$/, '')
 const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } })
 
 Deno.serve(async (request) => {

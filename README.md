@@ -64,13 +64,14 @@ pnpm exec supabase functions deploy google-meet-create
 En el dashboard de Supabase:
 
 - Site URL: `https://eventos.igda.pe`.
-- Redirect URLs: `https://eventos.igda.pe/auth/callback`, `https://eventos.igda.pe/restablecer`, `http://localhost:5173/auth/callback` y `http://localhost:5173/restablecer`.
+- Redirect URLs: `https://eventos.igda.pe/auth/callback`, `https://eventos.igda.pe/restablecer`, `https://eventos.igda.pe/invitaciones/**`, `http://localhost:5173/auth/callback`, `http://localhost:5173/restablecer` y `http://localhost:5173/invitaciones/**`.
 - Confirmación de email activada.
 - **Registro público desactivado** en Authentication → Settings/General Configuration → **Allow new users to sign up**.
 - Email provider activo. Las cuentas se crean únicamente desde invitaciones de administrador; la persona invitada confirma su correo y define su contraseña desde `/invitaciones/:token`.
 - SMTP propio configurado antes de enviar invitaciones en producción.
 - Secret `APP_URL=https://eventos.igda.pe` para las Edge Functions.
-- Las Edge Functions restringen CORS a `APP_URL`; si se usa otro origen local, define temporalmente `CORS_ALLOWED_ORIGIN` con el origen exacto, por ejemplo `http://localhost:5174`.
+- Secret `PUBLIC_APP_URL=https://eventos.igda.pe` para los enlaces de invitación. Esta variable es la URL pública canónica y no debe reutilizarse para pruebas OAuth locales.
+- Las Edge Functions restringen CORS a `CORS_ALLOWED_ORIGIN`; si no existe, usan `PUBLIC_APP_URL` y luego `APP_URL`. Si se usa otro origen local, define temporalmente `CORS_ALLOWED_ORIGIN` con el origen exacto, por ejemplo `http://localhost:5174`.
 - Turnstile configurado en Cloudflare con un widget para `eventos.igda.pe` y, si se prueba localmente, otro widget para `localhost`/`127.0.0.1`, usando modo `Managed`.
 - Secretos de Turnstile en Supabase Edge Functions: `TURNSTILE_SECRET` y `TURNSTILE_HOSTNAMES=eventos.igda.pe` en producción. Para desarrollo local se puede agregar temporalmente `localhost,127.0.0.1`; nunca mezcles hostnames de desarrollo en el secret de producción. La `VITE_TURNSTILE_SITE_KEY` es pública y solo se usa en el frontend.
 - El formulario `/proponer-evento` no requiere cuenta ni comunidad: guarda la propuesta pendiente y el admin de plataforma la revisa en `/app/admin/propuestas`. Debes aplicar la migración `20260907120000_event_proposals.sql` y desplegar `submit-event-proposal` antes de habilitarlo en producción.
@@ -153,7 +154,7 @@ GOOGLE_TOKEN_ENCRYPTION_KEY=<cadena aleatoria larga>
 APP_URL=https://eventos.igda.pe
 ```
 
-Para probar desde el servidor local, usa temporalmente `APP_URL=http://127.0.0.1:5174`; la URI de Google no cambia porque el callback sigue ocurriendo en Supabase. Genera la llave de cifrado en PowerShell sin guardarla en el repositorio:
+Para probar desde el servidor local, usa temporalmente `APP_URL=http://127.0.0.1:5174`; la URI de Google no cambia porque el callback sigue ocurriendo en Supabase. Mantén `PUBLIC_APP_URL=https://eventos.igda.pe` para que las invitaciones sigan siendo aceptables desde cualquier dispositivo. Genera la llave de cifrado en PowerShell sin guardarla en el repositorio:
 
 ```powershell
 node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"

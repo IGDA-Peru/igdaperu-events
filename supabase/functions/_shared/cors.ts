@@ -1,4 +1,4 @@
-const configuredOrigin = Deno.env.get('CORS_ALLOWED_ORIGIN') || Deno.env.get('APP_URL') || 'https://eventos.igda.pe'
+const configuredOrigin = Deno.env.get('CORS_ALLOWED_ORIGIN') || Deno.env.get('PUBLIC_APP_URL') || Deno.env.get('APP_URL') || 'https://eventos.igda.pe'
 const allowedOrigin = /^https?:\/\/[^\s/]+$/i.test(configuredOrigin) ? configuredOrigin.replace(/\/$/, '') : 'https://eventos.igda.pe'
 
 export const corsHeaders = {

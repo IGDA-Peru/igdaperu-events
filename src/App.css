@@ -423,7 +423,7 @@ html:has(.embed-page), body:has(.embed-page) { background: var(--surface); }
 .timeline-control-button:focus-visible, .timeline-section-button:focus-visible, .timeline-zoom button:focus-visible, .timeline-community-filter select:focus-visible, .timeline-event-bar:focus-visible { outline: 3px solid rgb(216 32 40 / 22%); outline-offset: 2px; }
 .timeline-month-heading { display: grid; justify-items: center; min-width: 0; }
 .timeline-month-title { margin: 0; font-family: 'Museo Sans Rounded', var(--font-sans); font-size: 1.45rem; letter-spacing: -.04em; text-align: center; }
-.timeline-section-controls { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: .66rem; font-weight: 850; }
+.timeline-section-controls { display: inline-flex; align-items: center; gap: 5px; }
 .timeline-section-button { display: inline-flex; width: 24px; height: 24px; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--line); border-radius: 50%; color: var(--ink); background: #fff; cursor: pointer; }
 .timeline-section-button:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
 .timeline-section-button:disabled { color: rgb(85 77 68 / 32%); background: rgb(247 243 235 / 78%); cursor: not-allowed; }

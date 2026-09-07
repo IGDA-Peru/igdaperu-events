@@ -17,6 +17,10 @@ function FormMessage({ error, success }: { error?: string; success?: string }) {
   return <p className={`form-message ${error ? 'error' : 'success'}`} role="alert">{error || success}</p>
 }
 
+function isSamePasswordError(error: { code?: string; message?: string } | null) {
+  return error?.code === 'same_password' || /new password should be different from the old password/i.test(error?.message || '')
+}
+
 export function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -161,8 +165,13 @@ export function AcceptInvitationPage() {
     const normalizedLastName = lastName.trim()
     if (normalizedFirstName.length < 2) { setLoading(false); setError('Ingresa tus nombres.'); return }
     const displayName = [normalizedFirstName, normalizedLastName].filter(Boolean).join(' ')
-    const update = await supabase.auth.updateUser({ password, data: { first_name: normalizedFirstName, last_name: normalizedLastName, display_name: displayName } })
-    if (update.error) { setLoading(false); setError(update.error.message); return }
+    const identity = { first_name: normalizedFirstName, last_name: normalizedLastName, display_name: displayName }
+    const update = await supabase.auth.updateUser({ password, data: identity })
+    if (update.error && !isSamePasswordError(update.error)) { setLoading(false); setError(update.error.message); return }
+    if (update.error) {
+      const identityUpdate = await supabase.auth.updateUser({ data: identity })
+      if (identityUpdate.error) { setLoading(false); setError(identityUpdate.error.message); return }
+    }
     try {
       await updateProfileIdentity(user.id, normalizedFirstName, normalizedLastName)
     } catch (reason: unknown) {
@@ -176,7 +185,7 @@ export function AcceptInvitationPage() {
     else { await refreshUserData(); setTurnstileToken(''); setTurnstileResetSignal((value) => value + 1); setSuccess(true) }
   }
 
-  return <AuthFrame title="Aceptar invitación" description="Completa tu perfil para administrar eventos de una comunidad.">{!configured && <DemoNotice />}{!user ? <div className="invite-login"><ShieldCheck size={32} /><p>Confirma primero tu cuenta desde el enlace que recibiste por correo.</p><Link className="primary-button full" to={`/login?next=${encodeURIComponent(`/invitaciones/${token}`)}`}>Ingresar</Link></div> : success ? <div className="success-panel"><CheckCircle2 size={31} /><p>Invitación aceptada. Ya puedes gestionar eventos.</p><Link className="primary-button full" to="/app">Ir al panel</Link></div> : <form className="auth-form" onSubmit={submit}><div className="identity-form-grid"><label>Nombres<input type="text" required minLength={2} autoComplete="given-name" value={firstName} onChange={(event) => setFirstName(event.target.value)} /></label><label>Apellidos<input type="text" autoComplete="family-name" value={lastName} onChange={(event) => setLastName(event.target.value)} /></label></div><label>Contraseña<input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label><TurnstileWidget action="accept-invitation" value={turnstileToken} onChange={setTurnstileToken} resetSignal={turnstileResetSignal} /><FormMessage error={error} /><button className="primary-button full" disabled={loading}>{loading ? 'Activando acceso…' : 'Aceptar invitación'}</button></form>}</AuthFrame>
+  return <AuthFrame title="Aceptar invitación" description="Completa tu perfil para administrar eventos de una comunidad.">{!configured && <DemoNotice />}{!user ? <div className="invite-login"><ShieldCheck size={32} /><p>Confirma primero tu cuenta desde el enlace que recibiste por correo.</p><Link className="primary-button full" to={`/login?next=${encodeURIComponent(`/invitaciones/${token}`)}`}>Ingresar</Link></div> : success ? <div className="success-panel"><CheckCircle2 size={31} /><p>Invitación aceptada. Ya puedes gestionar eventos.</p><Link className="primary-button full" to="/app">Ir al panel</Link></div> : <form className="auth-form" onSubmit={submit}><div className="identity-form-grid"><label>Nombres<input type="text" required minLength={2} autoComplete="given-name" value={firstName} onChange={(event) => setFirstName(event.target.value)} /></label><label>Apellidos<input type="text" autoComplete="family-name" value={lastName} onChange={(event) => setLastName(event.target.value)} /></label></div><label>Contraseña nueva o actual<input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label><TurnstileWidget action="accept-invitation" value={turnstileToken} onChange={setTurnstileToken} resetSignal={turnstileResetSignal} /><FormMessage error={error} /><button className="primary-button full" disabled={loading}>{loading ? 'Activando acceso…' : 'Aceptar invitación'}</button></form>}</AuthFrame>
 }
 
 export function AuthCallbackPage() {
