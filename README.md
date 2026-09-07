@@ -112,7 +112,7 @@ La migración `20260906110000_security_rate_limits.sql` crea el contador distrib
 pnpm exec supabase db push
 ```
 
-Las respuestas del sitio incluyen headers de seguridad desde `public/_headers`, incluyendo CSP, `frame-ancestors` limitado a `igda.pe` y una `Permissions-Policy` sin cámara, micrófono, geolocalización ni pagos.
+Las respuestas del sitio incluyen headers de seguridad desde `public/_headers`, incluyendo CSP. `frame-ancestors` permite el sitio de producción (`igda.pe` y `www.igda.pe`) y el entorno de pruebas `develop2026coredir.igda.pe`; una `Permissions-Policy` desactiva cámara, micrófono, geolocalización y pagos.
 
 Después borra el archivo temporal de credenciales de tu equipo y verifica que no haya quedado dentro del repositorio. La sincronización:
 
