@@ -1,7 +1,7 @@
 import type { EventInput } from '../types'
 
 export type EventValidationMode = 'draft' | 'publish'
-export type EventField = 'communityId' | 'title' | 'description' | 'startsAt' | 'endsAt' | 'location' | 'meetingUrl' | 'mapUrl'
+export type EventField = 'communityId' | 'organizerName' | 'title' | 'description' | 'startsAt' | 'endsAt' | 'location' | 'meetingUrl' | 'registrationUrl' | 'mapUrl'
 
 export type EventValidationResult = {
   errors: Partial<Record<EventField, string>>
@@ -11,12 +11,14 @@ export type EventValidationResult = {
 
 export const eventFieldLabels: Record<EventField, string> = {
   communityId: 'Comunidad',
+  organizerName: 'Organizador',
   title: 'Título del evento',
   description: 'Descripción',
   startsAt: 'Fecha y hora de inicio',
   endsAt: 'Fecha y hora de fin',
   location: 'Ubicación',
   meetingUrl: 'Enlace para unirse',
+  registrationUrl: 'Enlace de inscripción',
   mapUrl: 'Enlace de Google Maps',
 }
 
@@ -29,14 +31,13 @@ function isHttpUrl(value: string) {
   }
 }
 
-export function validateEvent(input: EventInput, mode: EventValidationMode): EventValidationResult {
+export function validateEvent(input: EventInput, mode: EventValidationMode, options: { allowIndependent?: boolean } = {}): EventValidationResult {
   const errors: Partial<Record<EventField, string>> = {}
   const title = input.title.trim()
   const description = input.description.trim()
-  const needsPhysicalLocation = input.locationType !== 'online'
-  const needsMeetingLink = input.locationType !== 'venue'
 
-  if (!input.communityId) errors.communityId = 'Selecciona la comunidad que organiza el evento.'
+  if (!input.communityId && !options.allowIndependent) errors.communityId = 'Selecciona la comunidad que organiza el evento.'
+  if (!input.communityId && options.allowIndependent && !input.organizerName?.trim()) errors.organizerName = 'Indica quién organiza el evento independiente.'
   if (!title) errors.title = 'Añade un título para identificar el evento.'
   else if (title.length < 3) errors.title = 'El título debe tener al menos 3 caracteres.'
 
@@ -60,12 +61,17 @@ export function validateEvent(input: EventInput, mode: EventValidationMode): Eve
         ? 'La hora de fin debe ser posterior a la hora de inicio.'
         : 'La fecha de fin debe ser igual o posterior a la fecha de inicio.'
     }
-    if (needsPhysicalLocation && !input.venueName.trim() && !input.address.trim() && (input.latitude == null || input.longitude == null)) errors.location = 'Añade un lugar, una dirección o selecciona un punto en el mapa.'
-    if (needsMeetingLink && !input.meetingUrl.trim()) errors.meetingUrl = 'Añade un enlace de Google Meet, Zoom, Discord u otra plataforma.'
+    if (input.accessMode === 'location_access' && input.locationType !== 'venue' && !input.meetingUrl.trim()) errors.meetingUrl = 'Añade el enlace para unirse al evento online o híbrido.'
+    if (input.accessMode === 'location_access' && input.locationType !== 'online') {
+      if (input.locationPrecision === 'department' && !input.locationDepartment.trim()) errors.location = 'Selecciona el departamento que quieres compartir.'
+      if (input.locationPrecision === 'province' && (!input.locationDepartment.trim() || !input.locationProvince.trim())) errors.location = 'Selecciona el departamento y la provincia que quieres compartir.'
+      if (input.locationPrecision === 'exact' && !input.venueName.trim() && !input.address.trim() && (input.latitude == null || input.longitude == null)) errors.location = 'Añade un lugar, una dirección o selecciona un punto en el mapa.'
+    }
   }
 
-  if (!minimalRequirements && input.meetingUrl.trim() && !isHttpUrl(input.meetingUrl)) errors.meetingUrl = 'El enlace debe comenzar con http:// o https://.'
-  if (!minimalRequirements && input.mapUrl.trim() && !isHttpUrl(input.mapUrl)) errors.mapUrl = 'El enlace de Google Maps debe comenzar con http:// o https://.'
+  if (!minimalRequirements && input.accessMode === 'location_access' && input.meetingUrl.trim() && !isHttpUrl(input.meetingUrl)) errors.meetingUrl = 'El enlace debe comenzar con http:// o https://.'
+  if (!minimalRequirements && input.registrationUrl.trim() && !isHttpUrl(input.registrationUrl)) errors.registrationUrl = 'El enlace debe comenzar con http:// o https://.'
+  if (!minimalRequirements && input.accessMode === 'location_access' && input.mapUrl.trim() && !isHttpUrl(input.mapUrl)) errors.mapUrl = 'El enlace de Google Maps debe comenzar con http:// o https://.'
 
   const missing = Object.keys(errors).filter((field): field is EventField => field in eventFieldLabels)
   return { errors, missing, valid: missing.length === 0 }

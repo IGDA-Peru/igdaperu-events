@@ -4,7 +4,7 @@ type PagesContext<Env> = {
   waitUntil: (promise: Promise<unknown>) => void
 }
 
-type HomeEventsEnv = {
+type PublicEventsEnv = {
   SUPABASE_URL?: string
   SUPABASE_PUBLISHABLE_KEY?: string
 }
@@ -26,40 +26,56 @@ function jsonResponse(body: unknown, status = 200, headers: Record<string, strin
 
 function cacheResponse(response: Response, status: 'HIT' | 'MISS') {
   const headers = new Headers(response.headers)
-  headers.set('x-home-events-cache', status)
+  headers.set('x-public-events-cache', status)
   return new Response(response.body, { status: response.status, headers })
 }
 
-export const onRequestGet = async ({ request, env, waitUntil }: PagesContext<HomeEventsEnv>) => {
+function isSlug(value: string) {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)
+}
+
+function safeSearch(value: string) {
+  return value.replace(/[,*()]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80)
+}
+
+export const onRequestGet = async ({ request, env, waitUntil }: PagesContext<PublicEventsEnv>) => {
   const requestUrl = new URL(request.url)
   const communitySlug = requestUrl.searchParams.get('community') || ''
-  if (communitySlug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(communitySlug)) {
-    return jsonResponse({ error: 'La comunidad no es válida.' }, 400)
-  }
+  const search = safeSearch(requestUrl.searchParams.get('search') || '')
+  const upcomingOnly = requestUrl.searchParams.get('upcoming') === '1'
+  const parsedLimit = Number(requestUrl.searchParams.get('limit') || '50')
+  const limit = Number.isInteger(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 50) : 50
+
+  if (communitySlug && !isSlug(communitySlug)) return jsonResponse({ error: 'La comunidad no es válida.' }, 400)
 
   const cacheUrl = new URL(request.url)
-  cacheUrl.pathname = '/api/home-events'
-  cacheUrl.search = communitySlug ? `community=${encodeURIComponent(communitySlug)}` : ''
+  cacheUrl.pathname = '/api/public-events'
+  cacheUrl.search = new URLSearchParams({
+    ...(communitySlug ? { community: communitySlug } : {}),
+    ...(search ? { search } : {}),
+    ...(upcomingOnly ? { upcoming: '1' } : {}),
+    limit: String(limit),
+  }).toString()
   const cacheKey = new Request(cacheUrl.toString(), { method: 'GET' })
   const cacheStorage = (globalThis as unknown as { caches?: { default?: Cache } }).caches
   const cache = cacheStorage?.default
   const cached = cache ? await cache.match(cacheKey) : undefined
   if (cached) return cacheResponse(cached, 'HIT')
 
-  if (!env.SUPABASE_URL || !env.SUPABASE_PUBLISHABLE_KEY) {
-    return jsonResponse({ error: 'La caché de eventos no está configurada.' }, 500)
-  }
+  if (!env.SUPABASE_URL || !env.SUPABASE_PUBLISHABLE_KEY) return jsonResponse({ error: 'La caché pública de eventos no está configurada.' }, 500)
 
   const upstreamUrl = new URL(`${env.SUPABASE_URL.replace(/\/$/, '')}/rest/v1/events`)
-  upstreamUrl.search = new URLSearchParams({
+  const query: Record<string, string> = {
     select: communitySlug ? eventSelect.replace('community:communities(', 'community:communities!inner(') : eventSelect,
-    status: 'eq.published',
+    status: 'in.(published,archived)',
     visibility: 'eq.public',
-    starts_at: `gte.${new Date().toISOString()}`,
     order: 'starts_at.asc',
-    limit: '3',
+    limit: String(limit),
     ...(communitySlug ? { 'community.slug': `eq.${communitySlug}` } : {}),
-  }).toString()
+    ...(search ? { title: `ilike.*${search}*` } : {}),
+    ...(upcomingOnly ? { starts_at: `gte.${new Date().toISOString()}` } : {}),
+  }
+  upstreamUrl.search = new URLSearchParams(query).toString()
 
   const upstream = await fetch(upstreamUrl, {
     headers: {
@@ -68,7 +84,7 @@ export const onRequestGet = async ({ request, env, waitUntil }: PagesContext<Hom
       accept: 'application/json',
     },
   })
-  if (!upstream.ok) return jsonResponse({ error: 'No pudimos cargar los próximos eventos.' }, 502)
+  if (!upstream.ok) return jsonResponse({ error: 'No pudimos cargar los eventos.' }, 502)
 
   const payload = await upstream.json() as unknown
   const filteredPayload = Array.isArray(payload)

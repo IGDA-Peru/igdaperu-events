@@ -61,14 +61,21 @@ export function formatEventSchedule(startsAt: string | null | undefined, endsAt:
   return dateLabel === formatDate(startsAt) ? timeLabel : `${dateLabel} · ${timeLabel}`
 }
 
-export function formatEventLocation(event: { locationType: 'venue' | 'online' | 'hybrid'; venueName?: string | null; address?: string | null; formattedAddress?: string | null }) {
+export function formatEventLocation(event: { locationType: 'venue' | 'online' | 'hybrid'; accessMode?: 'registration_only' | 'location_access' | null; locationPrecision?: 'none' | 'department' | 'province' | 'exact' | null; locationDepartment?: string | null; locationProvince?: string | null; venueName?: string | null; address?: string | null; formattedAddress?: string | null }) {
+  if (event.accessMode === 'registration_only') return 'Ubicación por confirmar'
   if (event.locationType === 'online') return 'Online'
+
+  const precision = event.locationPrecision || (event.venueName?.trim() || event.address?.trim() || event.formattedAddress?.trim() ? 'exact' : 'none')
+  let location = ''
+  if (precision === 'department' && event.locationDepartment?.trim()) location = `${event.locationDepartment.trim()}, Perú`
+  if (precision === 'province' && event.locationProvince?.trim()) location = [event.locationProvince.trim(), event.locationDepartment?.trim()].filter(Boolean).join(', ')
 
   const placeName = event.venueName?.trim() || ''
   const address = event.formattedAddress?.trim() || event.address?.trim() || ''
   const locationParts = [placeName, address].filter((part, index, parts) => part && parts.indexOf(part) === index)
-  if (!locationParts.length) return event.locationType === 'hybrid' ? 'Híbrido' : 'Por confirmar'
-  return event.locationType === 'hybrid' ? `Híbrido · ${locationParts.join(' · ')}` : locationParts.join(' · ')
+  if (!location && precision === 'exact') location = locationParts.join(' · ')
+  if (!location) location = 'Ubicación por confirmar'
+  return event.locationType === 'hybrid' ? `Híbrido · ${location}` : location
 }
 
 export function isEventPast(eventOrEndsAt: { endsAt: string | null } | string | null | undefined) {

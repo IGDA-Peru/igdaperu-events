@@ -35,8 +35,11 @@ Esta configuración debe hacerse en la cuenta de Cloudflare que administra la zo
 5. En **Custom domains**, agrega `eventos.igda.pe` desde el propio proyecto Pages.
 6. Agrega las variables `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` y `VITE_APP_URL=https://eventos.igda.pe` en producción.
 7. En **Settings → Variables and Secrets**, agrega también `SUPABASE_URL` y `SUPABASE_PUBLISHABLE_KEY` como variables de runtime para Production y Preview. La Pages Function usa la clave publicable y sigue protegida por RLS; nunca agregues `service_role` al frontend ni a esta función.
+8. Agrega `VITE_TURNSTILE_SITE_KEY` con la clave pública del widget de Turnstile para mostrar el formulario público de propuestas.
 
-La ruta `/api/home-events` consulta solo tres eventos públicos futuros y los almacena temporalmente en la caché de Cloudflare durante dos minutos. El archivo `public/_routes.json` limita las invocaciones de Pages Functions a esa ruta y deja los assets estáticos fuera de la función.
+Las rutas públicas `/api/home-events`, `/api/public-events` y `/api/public-communities` consultan Supabase usando solo la clave publicable, limitan los campos y resultados devueltos y almacenan temporalmente las respuestas en la caché de Cloudflare. Los eventos del embed se cachean durante dos minutos y las comunidades durante diez minutos. El archivo `public/_routes.json` limita las invocaciones de Pages Functions a esas rutas y deja los assets estáticos fuera de la función.
+
+La zona `igda.pe` también tiene una regla de Rate Limiting en Cloudflare para esas tres rutas: bloquea temporalmente una IP que supere 10 solicitudes en 10 segundos. Esta regla protege el acceso al servicio público, pero no reemplaza las políticas RLS de Supabase ni los límites propios de las operaciones autenticadas.
 
 El dominio se asocia primero al proyecto Pages; no basta con crear un CNAME manual. Los previews de ramas y los despliegues de `main` quedarán vinculados a GitHub.
 
@@ -50,6 +53,8 @@ pnpm exec supabase link --project-ref <PROJECT_REF>
 pnpm exec supabase db push
 pnpm exec supabase functions deploy create-invitation
 pnpm exec supabase functions deploy accept-invitation
+pnpm exec supabase functions deploy create-event-report
+pnpm exec supabase functions deploy submit-event-proposal --no-verify-jwt
 pnpm exec supabase functions deploy sync-communities
 pnpm exec supabase functions deploy sync-google-calendar
 pnpm exec supabase functions deploy google-meet-oauth --no-verify-jwt
@@ -65,6 +70,11 @@ En el dashboard de Supabase:
 - Email provider activo. Las cuentas se crean únicamente desde invitaciones de administrador; la persona invitada confirma su correo y define su contraseña desde `/invitaciones/:token`.
 - SMTP propio configurado antes de enviar invitaciones en producción.
 - Secret `APP_URL=https://eventos.igda.pe` para las Edge Functions.
+- Las Edge Functions restringen CORS a `APP_URL`; si se usa otro origen local, define temporalmente `CORS_ALLOWED_ORIGIN` con el origen exacto, por ejemplo `http://localhost:5174`.
+- Turnstile configurado en Cloudflare con un widget para `eventos.igda.pe` y, si se prueba localmente, otro widget para `localhost`/`127.0.0.1`, usando modo `Managed`.
+- Secretos de Turnstile en Supabase Edge Functions: `TURNSTILE_SECRET` y `TURNSTILE_HOSTNAMES=eventos.igda.pe` en producción. Para desarrollo local se puede agregar temporalmente `localhost,127.0.0.1`; nunca mezcles hostnames de desarrollo en el secret de producción. La `VITE_TURNSTILE_SITE_KEY` es pública y solo se usa en el frontend.
+- El formulario `/proponer-evento` no requiere cuenta ni comunidad: guarda la propuesta pendiente y el admin de plataforma la revisa en `/app/admin/propuestas`. Debes aplicar la migración `20260907120000_event_proposals.sql` y desplegar `submit-event-proposal` antes de habilitarlo en producción.
+- Password recovery también debe tener Turnstile habilitado en Authentication → Settings/CAPTCHA de Supabase, con el mismo proveedor y secret; el formulario envía el token mediante `captchaToken`.
 
 ### Sincronización manual de comunidades
 
@@ -95,6 +105,14 @@ pnpm exec supabase secrets set `
 pnpm exec supabase functions deploy sync-communities
 pnpm exec supabase functions deploy sync-google-calendar
 ```
+
+La migración `20260906110000_security_rate_limits.sql` crea el contador distribuido de las Edge Functions y limita también las mutaciones de eventos desde PostgreSQL. Aplícala antes de desplegar las funciones endurecidas:
+
+```sh
+pnpm exec supabase db push
+```
+
+Las respuestas del sitio incluyen headers de seguridad desde `public/_headers`, incluyendo CSP, `frame-ancestors` limitado a `igda.pe` y una `Permissions-Policy` sin cámara, micrófono, geolocalización ni pagos.
 
 Después borra el archivo temporal de credenciales de tu equipo y verifica que no haya quedado dentro del repositorio. La sincronización:
 
@@ -155,7 +173,7 @@ pnpm exec supabase functions deploy google-meet-create
 ### Sincronización manual con Google Calendar
 
 El botón **Sincronizar calendario** de `/app/admin` ejecuta `sync-google-calendar`. Solo publica eventos
-`published` y `public` de comunidades `approved`. Cada evento usa un identificador determinista y una
+`published` y `public` independientes o vinculados a comunidades `approved`. Cada evento usa un identificador determinista y una
 propiedad privada para que las actualizaciones sean idempotentes; los eventos que dejan de cumplir esos
 criterios se retiran del calendario oficial. La cuenta de servicio debe tener permiso **Realizar cambios en
 los eventos** sobre el calendario y el proyecto de Google debe tener habilitada la Google Calendar API.
@@ -167,5 +185,6 @@ los eventos** sobre el calendario y el proyecto de Google debe tener habilitada 
 - Roles `reader`, `community_editor`, `community_admin` y `platform_admin`.
 - Invitaciones de un solo uso con token almacenado como hash.
 - CRUD de eventos, moderación IGDA, reportes y auditoría.
+- Postulación pública de eventos sin cuenta, con Turnstile, límite por IP y moderación de plataforma.
 - Embed público en `/embed?community=igda-peru` y embed compacto para la portada en `/embed/inicio` (también admite `?community=...`).
 - Feeds iCal/RSS e integración dentro de `igdaperu-site` como siguiente iteración.

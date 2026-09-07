@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { bearerToken, json, options } from '../_shared/cors.ts'
+import { bearerToken, json, options, readJsonBody } from '../_shared/cors.ts'
 import { createGoogleMeetSpace, decryptSecret, refreshGoogleAccessToken } from '../_shared/google-meet.ts'
+import { enforceRateLimit, rateLimitResponse } from '../_shared/rate-limit.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -25,9 +26,15 @@ Deno.serve(async (request) => {
     const { data: authData, error: authError } = await admin.auth.getUser(accessToken)
     if (authError || !authData.user) return json({ error: 'Invalid session' }, 401)
 
-    const body = await request.json().catch(() => ({})) as { eventId?: string }
-    const eventId = String(body.eventId || '')
+    const limit = await enforceRateLimit(admin, request, 'google-meet-create', authData.user.id, { windowSeconds: 600, maxRequests: 10 })
+    if (!limit.allowed) return rateLimitResponse(limit, 'Demasiadas solicitudes para crear enlaces. Intenta nuevamente más tarde.')
+
+    const parsed = await readJsonBody<{ eventId?: unknown }>(request)
+    if (parsed.tooLarge) return json({ error: 'La solicitud es demasiado grande.' }, 413)
+    if (parsed.invalid || !parsed.value) return json({ error: 'La solicitud no es válida.' }, 400)
+    const eventId = typeof parsed.value.eventId === 'string' ? parsed.value.eventId.trim() : ''
     if (!eventId) return json({ error: 'eventId es obligatorio' }, 400)
+    if (!/^[0-9a-f-]{36}$/i.test(eventId)) return json({ error: 'eventId no es válido' }, 400)
 
     const { data: event, error: eventError } = await admin.from('events').select('id,community_id,meeting_provider,meeting_url,meeting_connection_id').eq('id', eventId).maybeSingle()
     if (eventError || !event) return json({ error: eventError?.message || 'Evento no encontrado' }, 404)

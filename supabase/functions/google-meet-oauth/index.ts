@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { bearerToken, json, options, randomToken, sha256 } from '../_shared/cors.ts'
+import { bearerToken, json, options, randomToken, readJsonBody, sha256 } from '../_shared/cors.ts'
 import { GOOGLE_MEET_SCOPE, appUrl, authorizationUrl, encryptSecret, exchangeAuthorizationCode, googleUserInfo, safeReturnPath } from '../_shared/google-meet.ts'
+import { enforceRateLimit, rateLimitResponse } from '../_shared/rate-limit.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -70,8 +71,14 @@ Deno.serve(async (request) => {
   try {
     const user = await getUser(request)
     if (!user) return json({ error: 'Authentication required' }, 401)
-    const body = await request.json().catch(() => ({})) as { action?: string; communityId?: string; returnPath?: string }
-    const communityId = String(body.communityId || '')
+    const limit = await enforceRateLimit(admin, request, 'google-meet-oauth', user.id, { windowSeconds: 600, maxRequests: 20 })
+    if (!limit.allowed) return rateLimitResponse(limit, 'Demasiadas solicitudes para conectar Google Meet. Intenta nuevamente más tarde.')
+
+    const parsed = await readJsonBody<{ action?: unknown; communityId?: unknown; returnPath?: unknown }>(request)
+    if (parsed.tooLarge) return json({ error: 'La solicitud es demasiado grande.' }, 413)
+    if (parsed.invalid || !parsed.value) return json({ error: 'La solicitud no es válida.' }, 400)
+    const body = parsed.value
+    const communityId = typeof body.communityId === 'string' ? body.communityId.trim() : ''
     if (!communityId || !(await canManageCommunity(user.id, communityId))) return json({ error: 'No tienes permisos para conectar Google Meet en esta comunidad.' }, 403)
 
     const { data: connection, error: connectionError } = await admin.from('google_meet_connections').select('google_email,status').eq('community_id', communityId).maybeSingle()

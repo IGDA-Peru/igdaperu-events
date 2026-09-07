@@ -1,5 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { bearerToken, corsHeaders, json, options, randomToken, sha256 } from '../_shared/cors.ts'
+import { bearerToken, corsHeaders, json, options, randomToken, readJsonBody, sha256 } from '../_shared/cors.ts'
+import { enforceRateLimit, rateLimitResponse } from '../_shared/rate-limit.ts'
+import { verifyTurnstile } from '../_shared/turnstile.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -17,11 +19,18 @@ Deno.serve(async (request) => {
     const { data: authData, error: authError } = await admin.auth.getUser(accessToken)
     if (authError || !authData.user) return json({ error: 'Invalid session' }, 401)
 
-    const body = await request.json()
-    const email = String(body.email || '').trim().toLowerCase()
-    const communityId = String(body.communityId || '')
-    const role = body.role === 'community_admin' ? 'community_admin' : body.role === 'community_editor' ? 'community_editor' : null
-    if (!email || !email.includes('@') || !communityId || !role) return json({ error: 'Email, comunidad y rol son obligatorios' }, 400)
+    const limit = await enforceRateLimit(admin, request, 'create-invitation', authData.user.id, { windowSeconds: 3600, maxRequests: 10 })
+    if (!limit.allowed) return rateLimitResponse(limit, 'Demasiadas invitaciones. Intenta nuevamente más tarde.')
+
+    const parsed = await readJsonBody<{ email?: unknown; communityId?: unknown; role?: unknown; turnstileToken?: unknown }>(request)
+    if (parsed.tooLarge) return json({ error: 'La solicitud es demasiado grande.' }, 413)
+    if (parsed.invalid || !parsed.value) return json({ error: 'La solicitud no es válida.' }, 400)
+    const email = typeof parsed.value.email === 'string' ? parsed.value.email.trim().toLowerCase() : ''
+    const communityId = typeof parsed.value.communityId === 'string' ? parsed.value.communityId.trim() : ''
+    const role = parsed.value.role === 'community_admin' ? 'community_admin' : parsed.value.role === 'community_editor' ? 'community_editor' : null
+    const turnstileToken = typeof parsed.value.turnstileToken === 'string' ? parsed.value.turnstileToken.trim().slice(0, 2048) : ''
+    if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !communityId || !role) return json({ error: 'Email, comunidad y rol son obligatorios' }, 400)
+    if (!(await verifyTurnstile(turnstileToken, request, 'create-invitation'))) return json({ error: 'No pudimos verificar que eres una persona. Recarga el formulario e inténtalo nuevamente.' }, 403)
 
     const [{ data: platformMembership }, { data: communityMembership }, { data: community }] = await Promise.all([
       admin.from('memberships').select('role').eq('user_id', authData.user.id).is('community_id', null).eq('role', 'platform_admin').eq('status', 'active').maybeSingle(),

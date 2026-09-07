@@ -1,5 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { bearerToken, corsHeaders, json, options, sha256 } from '../_shared/cors.ts'
+import { bearerToken, corsHeaders, json, options, readJsonBody, sha256 } from '../_shared/cors.ts'
+import { enforceRateLimit, rateLimitResponse } from '../_shared/rate-limit.ts'
+import { verifyTurnstile } from '../_shared/turnstile.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -16,9 +18,17 @@ Deno.serve(async (request) => {
     const { data: authData, error: authError } = await admin.auth.getUser(accessToken)
     if (authError || !authData.user) return json({ error: 'Invalid session' }, 401)
 
-    const body = await request.json()
-    const token = String(body.token || '').trim()
+    const limit = await enforceRateLimit(admin, request, 'accept-invitation', authData.user.id, { windowSeconds: 3600, maxRequests: 10 })
+    if (!limit.allowed) return rateLimitResponse(limit, 'Demasiados intentos de invitación. Intenta nuevamente más tarde.')
+
+    const parsed = await readJsonBody<{ token?: unknown; turnstileToken?: unknown }>(request)
+    if (parsed.tooLarge) return json({ error: 'La solicitud es demasiado grande.' }, 413)
+    if (parsed.invalid || !parsed.value) return json({ error: 'La solicitud no es válida.' }, 400)
+    const token = typeof parsed.value.token === 'string' ? parsed.value.token.trim() : ''
+    const turnstileToken = typeof parsed.value.turnstileToken === 'string' ? parsed.value.turnstileToken.trim().slice(0, 2048) : ''
     if (!token) return json({ error: 'Invitation token is required' }, 400)
+    if (token.length > 256) return json({ error: 'El token de invitación no es válido.' }, 400)
+    if (!(await verifyTurnstile(turnstileToken, request, 'accept-invitation'))) return json({ error: 'No pudimos verificar que eres una persona. Recarga el formulario e inténtalo nuevamente.' }, 403)
 
     const userScopedAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },

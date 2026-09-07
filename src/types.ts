@@ -1,8 +1,11 @@
 export type Role = 'reader' | 'community_editor' | 'community_admin' | 'platform_admin'
 export type CommunityStatus = 'pending' | 'approved' | 'suspended'
 export type EventStatus = 'draft' | 'published' | 'archived'
+export type EventProposalStatus = 'pending' | 'approved' | 'rejected'
 export type EventVisibility = 'public' | 'network'
 export type LocationType = 'venue' | 'online' | 'hybrid'
+export type LocationPrecision = 'none' | 'department' | 'province' | 'exact'
+export type EventAccessMode = 'registration_only' | 'location_access'
 export type MeetingProvider = 'google_meet' | 'zoom' | 'discord' | 'other'
 export type ConversationStatus = 'pending' | 'active' | 'rejected'
 
@@ -20,10 +23,11 @@ export type Community = {
 export type EventItem = {
   id: string
   slug: string
-  communityId: string
+  communityId: string | null
   communityName: string
   communitySlug: string
   communityLogoPath?: string | null
+  organizerName?: string | null
   creatorEmail?: string | null
   title: string
   description: string
@@ -33,6 +37,10 @@ export type EventItem = {
   isAllDay: boolean
   timezone: string
   locationType: LocationType
+  accessMode?: EventAccessMode
+  locationPrecision?: LocationPrecision
+  locationDepartment?: string | null
+  locationProvince?: string | null
   venueName?: string | null
   address?: string | null
   mapUrl?: string | null
@@ -42,13 +50,15 @@ export type EventItem = {
   longitude?: number | null
   meetingUrl?: string | null
   meetingProvider?: MeetingProvider | null
+  registrationUrl?: string | null
   coverPath?: string | null
   visibility: EventVisibility
   status: EventStatus
 }
 
 export type EventInput = {
-  communityId: string
+  communityId: string | null
+  organizerName?: string
   title: string
   slug: string
   description: string
@@ -57,6 +67,10 @@ export type EventInput = {
   endsAt: string
   isAllDay: boolean
   locationType: LocationType
+  accessMode: EventAccessMode
+  locationPrecision: LocationPrecision
+  locationDepartment: string
+  locationProvince: string
   venueName: string
   address: string
   mapUrl: string
@@ -65,6 +79,7 @@ export type EventInput = {
   latitude: number | null
   longitude: number | null
   meetingUrl: string
+  registrationUrl: string
   meetingProvider: MeetingProvider
   coverPath?: string | null
   visibility: EventVisibility
@@ -117,6 +132,42 @@ export type EventReport = {
   reason: string
   createdAt: string
   resolvedAt?: string | null
+}
+
+export type EventProposal = {
+  id: string
+  organizerName: string
+  contactEmail: string
+  title: string
+  description: string
+  type: string
+  startsAt: string
+  endsAt: string
+  isAllDay: boolean
+  timezone: string
+  locationType: LocationType
+  accessMode: EventAccessMode
+  locationPrecision: LocationPrecision
+  locationDepartment?: string | null
+  locationProvince?: string | null
+  venueName?: string | null
+  address?: string | null
+  mapUrl?: string | null
+  placeId?: string | null
+  formattedAddress?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  meetingUrl?: string | null
+  meetingProvider?: MeetingProvider | null
+  registrationUrl?: string | null
+  communityId: string | null
+  communityName?: string | null
+  status: EventProposalStatus
+  reviewNotes: string
+  rejectionReason?: string | null
+  reviewedAt?: string | null
+  approvedEventId?: string | null
+  createdAt: string
 }
 
 export type CommunitySyncSkippedRow = {

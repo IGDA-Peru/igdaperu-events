@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { bearerToken, json, options } from '../_shared/cors.ts'
+import { enforceRateLimit, rateLimitResponse } from '../_shared/rate-limit.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -340,6 +341,9 @@ Deno.serve(async (request) => {
     if (!accessToken) return json({ error: 'Authentication required' }, 401)
     const { data: authData, error: authError } = await admin.auth.getUser(accessToken)
     if (authError || !authData.user) return json({ error: 'Invalid session' }, 401)
+
+    const limit = await enforceRateLimit(admin, request, 'sync-communities', authData.user.id, { windowSeconds: 3600, maxRequests: 2 })
+    if (!limit.allowed) return rateLimitResponse(limit, 'La sincronización ya se ejecutó recientemente. Intenta nuevamente más tarde.')
 
     stage = 'validating-platform-admin'
     const { data: platformMembership, error: membershipError } = await admin

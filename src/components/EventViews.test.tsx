@@ -51,6 +51,23 @@ describe('CalendarView', () => {
 
     fireEvent.click(segments[0])
     expect(onEventOpen).toHaveBeenCalledWith(multiDayEvent)
+    expect(screen.queryByRole('heading', { name: multiDayEvent.title })).not.toBeInTheDocument()
+  })
+
+  it('shows single-day events as compact bars with hover preview and opens the parent popup on click', () => {
+    const onEventOpen = vi.fn()
+    const singleDayEvent = { ...multiDayEvent, id: 'single-day-event', title: 'Taller de prueba', startsAt: '2026-09-19T09:00:00-05:00', endsAt: '2026-09-19T12:00:00-05:00', coverPath: '/banners/taller.jpg' }
+    const { container } = render(<MemoryRouter><CalendarView events={[singleDayEvent]} onEventOpen={onEventOpen} /></MemoryRouter>)
+
+    const card = screen.getByRole('button', { name: /Taller de prueba/ })
+    expect(card).toHaveClass('single-day')
+    expect(card).not.toHaveClass('calendar-event-card')
+    expect(card.querySelector('.calendar-event-card-media')).not.toBeInTheDocument()
+    expect(card.querySelector('.calendar-event-hover-card')).toBeInTheDocument()
+
+    fireEvent.click(card)
+    expect(onEventOpen).toHaveBeenCalledWith(singleDayEvent)
+    expect(container.querySelector('.calendar-event-dropdown')).not.toBeInTheDocument()
   })
 })
 
@@ -80,6 +97,7 @@ describe('TimelineView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Evento IGDA/ }))
     expect(onEventOpen).toHaveBeenCalledWith(first)
+    expect(screen.getByRole('button', { name: /Evento IGDA/ }).querySelector('.calendar-event-hover-card')).toBeInTheDocument()
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Filtrar timeline por comunidad' }), { target: { value: 'godot' } })
     expect(screen.queryByRole('button', { name: /Evento IGDA/ })).not.toBeInTheDocument()
@@ -97,5 +115,18 @@ describe('TimelineView', () => {
     expect(screen.getByText('Parte 2 de 2')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Evento segunda sección/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Evento primera sección/ })).not.toBeInTheDocument()
+  })
+
+  it('keeps manual month navigation after handling an event focus request', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-06T12:00:00-05:00'))
+    try {
+      render(<MemoryRouter><TimelineView events={[timelineEvent({ id: 'focused-event', title: 'Evento enfocado' })]} showVisibility={false} onEventOpen={vi.fn()} focusRequest={{ eventId: 'focused-event', nonce: 1 }} /></MemoryRouter>)
+      vi.runOnlyPendingTimers()
+      fireEvent.click(screen.getByRole('button', { name: 'Mes siguiente' }))
+      expect(screen.getByRole('heading', { name: 'Octubre de 2026' })).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

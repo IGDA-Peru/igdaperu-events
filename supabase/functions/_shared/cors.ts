@@ -1,7 +1,11 @@
+const configuredOrigin = Deno.env.get('CORS_ALLOWED_ORIGIN') || Deno.env.get('APP_URL') || 'https://eventos.igda.pe'
+const allowedOrigin = /^https?:\/\/[^\s/]+$/i.test(configuredOrigin) ? configuredOrigin.replace(/\/$/, '') : 'https://eventos.igda.pe'
+
 export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': allowedOrigin,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Vary': 'Origin',
 }
 
 export function json(body: unknown, status = 200) {
@@ -13,6 +17,19 @@ export function json(body: unknown, status = 200) {
 
 export function options(request: Request) {
   return request.method === 'OPTIONS' ? new Response('ok', { headers: corsHeaders }) : null
+}
+
+export async function readJsonBody<T>(request: Request, maxBytes = 16 * 1024): Promise<{ value: T | null; tooLarge: boolean; invalid: boolean }> {
+  const declaredLength = Number(request.headers.get('content-length') || 0)
+  if (declaredLength > maxBytes) return { value: null, tooLarge: true, invalid: false }
+  const raw = await request.text()
+  if (new TextEncoder().encode(raw).byteLength > maxBytes) return { value: null, tooLarge: true, invalid: false }
+  if (!raw.trim()) return { value: null, tooLarge: false, invalid: true }
+  try {
+    return { value: JSON.parse(raw) as T, tooLarge: false, invalid: false }
+  } catch {
+    return { value: null, tooLarge: false, invalid: true }
+  }
 }
 
 export function bearerToken(request: Request) {

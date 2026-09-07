@@ -54,7 +54,7 @@ export function matchesTimeFilter(event: EventItem, filter: TimeFilter) {
 
 export function matchesLocationFilter(event: EventItem, filter: string) {
   if (filter === 'all') return true
-  const location = normalizeLocation(`${event.venueName || ''} ${event.formattedAddress || ''} ${event.address || ''}`)
+  const location = normalizeLocation(`${event.locationDepartment || ''} ${event.locationProvince || ''} ${event.venueName || ''} ${event.formattedAddress || ''} ${event.address || ''}`)
   if (filter === 'Internacional') return Boolean(location) && !peruDepartmentNames.some((department) => location.includes(normalizeLocation(department)))
   return location.includes(normalizeLocation(filter))
 }

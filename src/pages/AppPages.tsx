@@ -1,4 +1,4 @@
-import { CalendarDays, Check, ChevronLeft, ChevronRight, CircleAlert, Clipboard, Clock3, Globe2, ImagePlus, LockKeyhole, Mail, MapPinned, Plus, RefreshCw, Shield, UserPlus, Users, Video, X } from 'lucide-react'
+import { CalendarDays, Check, ChevronLeft, ChevronRight, CircleAlert, Clipboard, Clock3, Globe2, ImagePlus, LockKeyhole, Mail, MapPinned, Plus, RefreshCw, Save, Search, Send, Shield, UserPlus, Users, Video, X } from 'lucide-react'
 import type { ChangeEvent, FormEvent, MouseEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
@@ -11,14 +11,16 @@ import { EventPreviewDrawer } from '../components/EventPreviewDrawer'
 import { EventResults, EventViewSwitcher } from '../components/EventViews'
 import { LoadingState } from '../components/Feedback'
 import { GooglePlacePicker } from '../components/GooglePlacePicker'
+import { TurnstileWidget } from '../components/TurnstileWidget'
 import { ConversationSummary } from './ChatPage'
-import { archiveEvent, cancelCommunityInvitation, createCommunity, createGoogleMeetLink, createInvitation, deleteEvent, getEventCoverUrl, getGoogleMeetConnection, listCommunities, listCommunityEvents, listCommunityMembers, listEventConflicts, listEventReports, listManagedEvents, resolveEventReport, revokeCommunityMember, saveEvent, startGoogleMeetConnection, syncCommunitiesFromSheet, syncEventsToGoogleCalendar, updateCommunityStatus, uploadCommunityLogo, uploadEventBanner } from '../lib/data'
+import { approveEventProposal, archiveEvent, cancelCommunityInvitation, createCommunity, createGoogleMeetLink, createInvitation, deleteEvent, getEventCoverUrl, getGoogleMeetConnection, listCommunities, listCommunityEvents, listCommunityMembers, listEventConflicts, listEventProposals, listEventReports, listManagedEvents, migrateExistingAssets, rejectEventProposal, removeEventBanner, resolveEventReport, revokeCommunityMember, saveEvent, startGoogleMeetConnection, syncCommunitiesFromSheet, syncEventsToGoogleCalendar, updateCommunityStatus, updateEventProposal, uploadCommunityLogo, uploadEventBanner } from '../lib/data'
 import { eventFieldLabels, validateEvent, type EventField } from '../lib/eventValidation'
 import { filterEvents, type TimeFilter } from '../lib/eventFilters'
 import { eventSlug, formatEventDateRange, formatEventLocation, formatTimeRange, isEventPast, meetingActionLabel, slugify } from '../lib/format'
-import { supabase } from '../lib/supabase'
+import { peruDepartments, peruLocations } from '../lib/peruLocations'
+import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { emptyEventSchedule, eventScheduleFromLocalDateTimes, eventScheduleToLocalDateTimes, type EventSchedule } from '../lib/eventSchedule'
-import type { Community, CommunityMember, CommunitySyncResult, EventConflict, EventInput, EventItem, EventReport, GoogleCalendarSyncResult, Membership, Role } from '../types'
+import type { Community, CommunityMember, CommunitySyncResult, EventConflict, EventInput, EventItem, EventProposal, EventReport, GoogleCalendarSyncResult, Membership, Role } from '../types'
 
 function PanelEventSwitcher({ active }: { active: 'managed' | 'community' }) {
   return <div className="panel-event-switcher" role="tablist" aria-label="Eventos del panel">
@@ -109,7 +111,7 @@ export function DashboardPage() {
       </div>
       {user && <p className="account-caption">Sesión iniciada como {user.email}</p>}
       <InviteMemberDialog open={inviteOpen} inviteRole={inviteRole} isPlatformAdmin={isPlatformAdmin} communityOptions={communityOptions} onClose={() => setInviteOpen(false)} />
-      <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+      <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" />
     </div>
   )
 }
@@ -128,7 +130,7 @@ export function ManagedEventsPage() {
   useEffect(load, [manageableIds, isPlatformAdmin])
   const archive = async (event: EventItem) => { setActionError(''); try { await archiveEvent(event.id); setMessage('Evento archivado.'); load() } catch (reason: unknown) { setActionError(reason instanceof Error ? reason.message : 'No pudimos archivar el evento.') } }
   const remove = async (event: EventItem) => { if (!window.confirm(`¿Eliminar “${event.title}”? Esta acción no se puede deshacer.`)) return; setActionError(''); try { await deleteEvent(event.id); setMessage('Evento eliminado.'); load() } catch (reason: unknown) { setActionError(reason instanceof Error ? reason.message : 'No pudimos eliminar el evento.') } }
-  return <div className="dashboard-page"><PanelEventSwitcher active="managed" /><PanelTitle title="Tus eventos" description="Crea, publica y actualiza los eventos de tus comunidades." action={<Link className="primary-button" to="/app/eventos/nuevo"><Plus size={17} /> Nuevo evento</Link>} />{message && <p className="form-message success">{message}</p>}{actionError && <p className="form-message error">{actionError}</p>}{loading ? <LoadingState label="Cargando eventos" /> : events.length ? <div className="managed-event-list">{events.map((event) => <EventCard event={event} compact onOpen={() => setSelectedEvent(event)} panelActions={{ onArchive: () => void archive(event), onDelete: () => void remove(event), canDelete: canDeleteEvent(event, memberships, isPlatformAdmin) }} key={event.id} />)}</div> : <EmptyEvents authenticated />}<EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} /></div>
+  return <div className="dashboard-page"><PanelEventSwitcher active="managed" /><PanelTitle title="Tus eventos" description="Crea, publica y actualiza los eventos de tus comunidades." action={<Link className="primary-button" to="/app/eventos/nuevo"><Plus size={17} /> Nuevo evento</Link>} />{message && <p className="form-message success">{message}</p>}{actionError && <p className="form-message error">{actionError}</p>}{loading ? <LoadingState label="Cargando eventos" /> : events.length ? <div className="managed-event-list">{events.map((event) => <EventCard event={event} compact onOpen={() => setSelectedEvent(event)} panelActions={{ onArchive: () => void archive(event), onDelete: () => void remove(event), canDelete: canDeleteEvent(event, memberships, isPlatformAdmin) }} key={event.id} />)}</div> : <EmptyEvents authenticated />}<EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" /></div>
 }
 
 export function CommunityEventsPage() {
@@ -138,7 +140,7 @@ export function CommunityEventsPage() {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
   const [locationFilter, setLocationFilter] = useState('all')
   const [search, setSearch] = useState('')
-  const [viewMode, setViewMode] = useState<'cards' | 'calendar' | 'timeline'>('cards')
+  const [viewMode, setViewMode] = useState<'cards' | 'calendar' | 'timeline'>('timeline')
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
 
   useEffect(() => {
@@ -155,19 +157,20 @@ export function CommunityEventsPage() {
     <div className="panel-title"><div><h1>Eventos de la comunidad</h1><p>Consulta las actividades publicadas por las comunidades de la red.</p></div></div>
     <div className="community-events-toolbar"><EventFilters timeFilter={timeFilter} locationFilter={locationFilter} search={search} onTimeChange={setTimeFilter} onLocationChange={setLocationFilter} onSearchChange={setSearch} /><EventViewSwitcher value={viewMode} onChange={setViewMode} /></div>
     {loading ? <LoadingState label="Cargando eventos de la comunidad" /> : error ? <p className="form-message error">{error}</p> : <EventResults events={visibleEvents} viewMode={viewMode} showVisibility onEventOpen={setSelectedEvent} />}
-    {selectedEvent && <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} />}
+    {selectedEvent && <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" />}
   </div>
 }
 
-const emptyEvent: EventInput = { communityId: '', title: '', slug: '', description: '', type: 'CHARLA', startsAt: '', endsAt: '', isAllDay: false, locationType: 'venue', venueName: '', address: '', mapUrl: '', placeId: '', formattedAddress: '', latitude: null, longitude: null, meetingUrl: '', meetingProvider: 'google_meet', coverPath: null, visibility: 'public', status: 'draft' }
+const emptyEvent: EventInput = { communityId: '', organizerName: '', title: '', slug: '', description: '', type: 'CHARLA', startsAt: '', endsAt: '', isAllDay: false, locationType: 'venue', accessMode: 'registration_only', locationPrecision: 'none', locationDepartment: '', locationProvince: '', venueName: '', address: '', mapUrl: '', placeId: '', formattedAddress: '', latitude: null, longitude: null, meetingUrl: '', meetingProvider: 'google_meet', registrationUrl: '', coverPath: null, visibility: 'public', status: 'draft' }
 
-type EditorSectionId = 'information' | 'datetime' | 'location' | 'publication'
+type EditorSectionId = 'information' | 'datetime' | 'registration' | 'location' | 'publication'
 
 const editorSections = [
   { id: 'information', number: '01', label: 'Información principal' },
   { id: 'datetime', number: '02', label: 'Fecha y hora' },
-  { id: 'location', number: '03', label: 'Ubicación y Acceso' },
-  { id: 'publication', number: '04', label: 'Publicación' },
+  { id: 'registration', number: '03', label: 'Inscripción' },
+  { id: 'location', number: '04', label: 'Ubicación y Acceso' },
+  { id: 'publication', number: '05', label: 'Publicación' },
 ] as const satisfies Array<{ id: EditorSectionId; number: string; label: string }>
 
 function toLimaIso(value: string) {
@@ -213,6 +216,7 @@ export function EventEditorPage() {
   const [bannerError, setBannerError] = useState('')
   const [savedEventId, setSavedEventId] = useState<string | undefined>(eventId)
   const [summaryOpen, setSummaryOpen] = useState(false)
+  const removedCoverPathRef = useRef<string | null>(null)
   const intentionalNavigationRef = useRef(false)
   const currentEvent = managedEvents.find((event) => event.id === eventId)
   const conflictStart = toLimaIso(form.startsAt)
@@ -226,8 +230,8 @@ export function EventEditorPage() {
     }
     setAvailableCommunities(scopedCommunityId ? [{ id: scopedCommunityId, slug: scopedCommunitySlug, name: scopedCommunityName, description: '', status: 'approved' }] : [])
   }, [isPlatformAdmin, scopedCommunityId, scopedCommunityName, scopedCommunitySlug])
-  useEffect(() => { if (!eventId) return; setSavedEventId(eventId); if (!manageable.length && !isPlatformAdmin) { setLoading(false); return } void listManagedEvents(manageableIds ? manageableIds.split(',') : [], isPlatformAdmin).then((items) => { setManagedEvents(items); const item = items.find((event) => event.id === eventId); if (item) { const nextSchedule = { ...eventScheduleFromLocalDateTimes(item.startsAt, item.endsAt, item.isAllDay), isAllDay: false }; const localTimes = eventScheduleToLocalDateTimes(nextSchedule); setSchedule(nextSchedule); setForm({ communityId: item.communityId, title: item.title, slug: item.slug, description: item.description || '', type: item.type, startsAt: localTimes.startsAt, endsAt: localTimes.endsAt, isAllDay: false, locationType: item.locationType, venueName: item.venueName || '', address: item.address || '', mapUrl: item.mapUrl || '', placeId: item.placeId || '', formattedAddress: item.formattedAddress || '', latitude: item.latitude ?? null, longitude: item.longitude ?? null, meetingUrl: item.meetingUrl || '', meetingProvider: item.meetingProvider === 'google_meet' ? 'google_meet' : 'other', coverPath: item.coverPath || null, visibility: item.visibility, status: item.status }); setBannerPreview(getEventCoverUrl(item.coverPath) || ''); setDirty(false) } }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'No pudimos cargar el evento.')).finally(() => setLoading(false)) }, [eventId, manageableIds, isPlatformAdmin])
-  useEffect(() => { if (!eventId && !form.communityId && availableCommunities[0]) setForm((current) => ({ ...current, communityId: availableCommunities[0].id })) }, [eventId, form.communityId, availableCommunities])
+  useEffect(() => { if (!eventId) return; setSavedEventId(eventId); if (!manageable.length && !isPlatformAdmin) { setLoading(false); return } void listManagedEvents(manageableIds ? manageableIds.split(',') : [], isPlatformAdmin).then((items) => { setManagedEvents(items); const item = items.find((event) => event.id === eventId); if (item) { const nextSchedule = { ...eventScheduleFromLocalDateTimes(item.startsAt, item.endsAt, item.isAllDay), isAllDay: false }; const localTimes = eventScheduleToLocalDateTimes(nextSchedule); setSchedule(nextSchedule); setForm({ communityId: item.communityId, organizerName: item.organizerName || '', title: item.title, slug: item.slug, description: item.description || '', type: item.type, startsAt: localTimes.startsAt, endsAt: localTimes.endsAt, isAllDay: false, locationType: item.locationType, accessMode: item.accessMode || 'location_access', locationPrecision: item.locationPrecision || 'none', locationDepartment: item.locationDepartment || '', locationProvince: item.locationProvince || '', venueName: item.venueName || '', address: item.address || '', mapUrl: item.mapUrl || '', placeId: item.placeId || '', formattedAddress: item.formattedAddress || '', latitude: item.latitude ?? null, longitude: item.longitude ?? null, meetingUrl: item.meetingUrl || '', meetingProvider: item.meetingProvider === 'google_meet' ? 'google_meet' : 'other', registrationUrl: item.registrationUrl || '', coverPath: item.coverPath || null, visibility: item.visibility, status: item.status }); setBannerPreview(getEventCoverUrl(item.coverPath) || ''); setDirty(false) } }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'No pudimos cargar el evento.')).finally(() => setLoading(false)) }, [eventId, manageableIds, isPlatformAdmin])
+  useEffect(() => { if (!eventId && !isPlatformAdmin && !form.communityId && availableCommunities[0]) setForm((current) => ({ ...current, communityId: availableCommunities[0].id })) }, [eventId, form.communityId, availableCommunities, isPlatformAdmin])
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const result = params.get('google_meet')
@@ -300,6 +304,46 @@ export function EventEditorPage() {
     setFieldErrors((current) => ({ ...current, location: undefined, mapUrl: undefined }))
     setForm((current) => ({ ...current, ...selection }))
   }
+  const updateAccessMode = (accessMode: EventInput['accessMode']) => {
+    setDirty(true)
+    setFieldErrors((current) => ({ ...current, location: undefined, meetingUrl: undefined, mapUrl: undefined }))
+    setForm((current) => accessMode === 'registration_only'
+      ? { ...current, accessMode, locationType: 'venue', locationPrecision: 'none', locationDepartment: '', locationProvince: '', venueName: '', address: '', mapUrl: '', placeId: '', formattedAddress: '', latitude: null, longitude: null, meetingUrl: '', meetingProvider: 'other' }
+      : { ...current, accessMode })
+    if (accessMode === 'registration_only' && activeSection === 'location') setActiveSection('registration')
+  }
+  const updateLocationPrecision = (locationPrecision: EventInput['locationPrecision']) => {
+    setDirty(true)
+    setFieldErrors((current) => ({ ...current, location: undefined, mapUrl: undefined }))
+    setForm((current) => ({
+      ...current,
+      locationPrecision,
+      locationDepartment: locationPrecision === 'department' || locationPrecision === 'province' ? current.locationDepartment : '',
+      locationProvince: locationPrecision === 'province' ? current.locationProvince : '',
+      venueName: locationPrecision === 'exact' ? current.venueName : '',
+      address: locationPrecision === 'exact' ? current.address : '',
+      mapUrl: locationPrecision === 'exact' ? current.mapUrl : '',
+      placeId: locationPrecision === 'exact' ? current.placeId : '',
+      formattedAddress: locationPrecision === 'exact' ? current.formattedAddress : '',
+      latitude: locationPrecision === 'exact' ? current.latitude : null,
+      longitude: locationPrecision === 'exact' ? current.longitude : null,
+    }))
+  }
+  const updateLocationDepartment = (locationDepartment: string) => {
+    setDirty(true)
+    setFieldErrors((current) => ({ ...current, location: undefined }))
+    setForm((current) => ({ ...current, locationPrecision: 'department', locationDepartment, locationProvince: '' }))
+  }
+  const updateLocationProvince = (locationProvince: string) => {
+    setDirty(true)
+    setFieldErrors((current) => ({ ...current, location: undefined }))
+    setForm((current) => ({ ...current, locationPrecision: locationProvince ? 'province' : 'department', locationProvince }))
+  }
+  const updateLocationType = (locationType: EventInput['locationType']) => {
+    setDirty(true)
+    setFieldErrors((current) => ({ ...current, location: undefined, meetingUrl: undefined }))
+    setForm((current) => ({ ...current, locationType, locationPrecision: locationType === 'online' ? 'none' : current.locationPrecision }))
+  }
   const updateManualAddress = (address: string) => {
     setDirty(true)
     setFieldErrors((current) => ({ ...current, location: undefined, mapUrl: undefined }))
@@ -324,14 +368,24 @@ export function EventEditorPage() {
   }
   const removeBanner = () => {
     setBannerError('')
+    if (form.coverPath) removedCoverPathRef.current = form.coverPath
     setCoverFile(null)
     setBannerPreviewUrl('')
     update('coverPath', null)
   }
   const connectGoogleMeet = async () => {
+    if (!form.communityId) {
+      setError('Asigna una comunidad antes de conectar Google Meet.')
+      return
+    }
     const popup = window.open('', 'google-meet-connect', 'popup,width=520,height=720,resizable=yes,scrollbars=yes')
     if (!popup) {
       setGoogleMeetConnection((current) => ({ ...current, status: 'error', error: 'El navegador bloqueó la ventana emergente. Permite pop-ups para conectar Google Meet.' }))
+      return
+    }
+    if (!form.communityId) {
+      popup.close()
+      setGoogleMeetConnection((current) => ({ ...current, status: 'error', error: 'Selecciona una comunidad antes de conectar Google Meet.' }))
       return
     }
     setGoogleMeetAction('connecting')
@@ -362,14 +416,16 @@ export function EventEditorPage() {
       setGoogleMeetAction(null)
     }
   }
-  const needsMeetingLink = form.locationType !== 'venue'
-  const needsPhysicalLocation = form.locationType !== 'online'
+  const needsLocationAccess = form.accessMode === 'location_access'
+  const needsMeetingLink = needsLocationAccess && form.locationType !== 'venue'
+  const needsPhysicalLocation = needsLocationAccess && form.locationType !== 'online'
   const hasPast = currentEvent ? isEventPast(currentEvent) : false
   const deleteAllowed = currentEvent ? canDeleteEvent(currentEvent, memberships, isPlatformAdmin) : false
-  const publicPublishValidation = validateEvent({ ...form, visibility: 'public' }, 'publish')
-  const networkPublishValidation = validateEvent({ ...form, visibility: 'network' }, 'publish')
-  const publishValidation = validateEvent({ ...form, visibility: publicationOpen ? publicationVisibility : form.visibility }, 'publish')
-  const draftValidation = validateEvent(form, 'draft')
+  const validationOptions = { allowIndependent: isPlatformAdmin }
+  const publicPublishValidation = validateEvent({ ...form, visibility: 'public' }, 'publish', validationOptions)
+  const networkPublishValidation = validateEvent({ ...form, visibility: 'network' }, 'publish', validationOptions)
+  const publishValidation = validateEvent({ ...form, visibility: publicationOpen ? publicationVisibility : form.visibility }, 'publish', validationOptions)
+  const draftValidation = validateEvent(form, 'draft', validationOptions)
   const publishReady = publishValidation.valid
   const publishMissingLabels = publishValidation.missing.map((field) => eventFieldLabels[field])
   const draftMissingLabels = draftValidation.missing.map((field) => eventFieldLabels[field])
@@ -381,26 +437,22 @@ export function EventEditorPage() {
   const summaryMilestoneLabel = !minimumReady ? 'Borrador / Red privada' : form.visibility === 'network' ? 'Solo la red' : 'Para publicar'
   const summaryProgressPercent = summaryMilestoneReady ? 100 : Math.max(8, 100 - summaryMilestoneMissing.length * 20)
   const statusLabel = currentEvent ? (hasPast ? 'Ya pasó' : currentEvent.status === 'published' ? 'Publicado' : currentEvent.status === 'draft' ? 'Borrador' : 'Archivado') : 'Borrador nuevo'
-  const sectionCompletion: Record<EditorSectionId, boolean> = {
-    information: Boolean(form.communityId && form.title.trim().length >= 3),
-    datetime: scheduleIsComplete,
-    location: Boolean((form.locationType === 'online' || form.venueName.trim() || form.address.trim() || form.latitude !== null) && (form.locationType === 'venue' || form.meetingUrl.trim())),
-    publication: publishReady,
-  }
-  const activeSectionIndex = editorSections.findIndex((section) => section.id === activeSection)
-  const previousSection = activeSectionIndex > 0 ? editorSections[activeSectionIndex - 1] : undefined
-  const nextSection = activeSectionIndex < editorSections.length - 1 ? editorSections[activeSectionIndex + 1] : undefined
+  const visibleEditorSections = useMemo(() => editorSections.filter((section) => section.id !== 'location' || needsLocationAccess), [needsLocationAccess])
+  const activeSectionIndex = visibleEditorSections.findIndex((section) => section.id === activeSection)
+  const previousSection = activeSectionIndex > 0 ? visibleEditorSections[activeSectionIndex - 1] : undefined
+  const nextSection = activeSectionIndex < visibleEditorSections.length - 1 ? visibleEditorSections[activeSectionIndex + 1] : undefined
 
   const persist = async (status: EventInput['status'], visibility = form.visibility) => {
     const validationInput = { ...form, visibility }
-    const validation = validateEvent(validationInput, status === 'draft' ? 'draft' : 'publish')
+    const validation = validateEvent(validationInput, status === 'draft' ? 'draft' : 'publish', validationOptions)
     setFieldErrors(validation.errors)
     if (!validation.valid) {
       const firstMissing = validation.missing[0]
-      if (firstMissing === 'communityId' || firstMissing === 'title' || firstMissing === 'description') setActiveSection('information')
+      if (firstMissing === 'communityId' || firstMissing === 'organizerName' || firstMissing === 'title' || firstMissing === 'description') setActiveSection('information')
       else if (firstMissing === 'startsAt' || firstMissing === 'endsAt') setActiveSection('datetime')
+      else if (firstMissing === 'registrationUrl') setActiveSection('registration')
       else if (firstMissing === 'location' || firstMissing === 'meetingUrl' || firstMissing === 'mapUrl') setActiveSection('location')
-      setError(status === 'draft' ? 'Para guardar el borrador, selecciona una comunidad, escribe un título y define la fecha.' : visibility === 'network' ? 'Para publicar solo en la red, escribe un título y define la fecha.' : 'Completa los campos pendientes antes de publicar.')
+      setError(status === 'draft' ? 'Para guardar el borrador, selecciona una comunidad o indica el organizador, escribe un título y define la fecha.' : visibility === 'network' ? 'Para publicar solo en la red, escribe un título y define la fecha.' : 'Completa los campos pendientes antes de publicar.')
       return false
     }
     setSaving(true); setError('')
@@ -410,12 +462,23 @@ export function EventEditorPage() {
       setSavedEventId(savedEvent.id)
       if (coverFile) {
         try {
+          const removedCoverPath = removedCoverPathRef.current
           const coverPath = await uploadEventBanner(savedEvent.id, coverFile, form.coverPath)
+          if (removedCoverPath && removedCoverPath !== form.coverPath) await removeEventBanner(removedCoverPath)
           setForm((current) => ({ ...current, coverPath }))
           setCoverFile(null)
+          removedCoverPathRef.current = null
           setBannerPreviewUrl(getEventCoverUrl(coverPath) || '')
         } catch (reason: unknown) {
           setError(`El evento se guardó, pero no pudimos subir el banner. ${reason instanceof Error ? reason.message : 'Inténtalo de nuevo.'}`)
+          return false
+        }
+      } else if (removedCoverPathRef.current) {
+        try {
+          await removeEventBanner(removedCoverPathRef.current)
+          removedCoverPathRef.current = null
+        } catch (reason: unknown) {
+          setError(`El evento se guardó, pero no pudimos eliminar el banner anterior. ${reason instanceof Error ? reason.message : 'Inténtalo de nuevo.'}`)
           return false
         }
       }
@@ -445,14 +508,16 @@ export function EventEditorPage() {
   if (loading) return <LoadingState label="Cargando editor" />
   return (
     <div className="dashboard-page event-editor-page">
-      <div className="editor-progress" role="tablist" aria-label="Secciones del evento">
-        {editorSections.map((section) => <EditorProgressStep key={section.id} {...section} active={activeSection === section.id} complete={sectionCompletion[section.id]} onClick={() => setActiveSection(section.id)} />)}
+      <div className={`editor-progress editor-progress--${visibleEditorSections.length}`} role="tablist" aria-label="Secciones del evento">
+        {visibleEditorSections.map((section) => <EditorProgressStep key={section.id} {...section} active={activeSection === section.id} complete={section.id === 'publication'} onClick={() => setActiveSection(section.id)} />)}
       </div>
       <div className="event-editor-layout">
         <form className="event-editor-card" onSubmit={(event) => void save(event)}>
+          <p className="editor-required-note"><span className="field-required" aria-hidden="true">*</span> Campos obligatorios para publicar. La ubicación, la inscripción y el enlace de conexión son opcionales.</p>
           {activeSection === 'information' && <section className="editor-section" id="editor-information" role="tabpanel" aria-labelledby="editor-tab-information" tabIndex={-1}>
             <div className={`form-grid ${isPlatformAdmin ? '' : 'form-grid--single'}`}>
-              {isPlatformAdmin && (availableCommunities.length === 1 ? <div className="editor-field"><FieldLabel required>Comunidad</FieldLabel><div className="editor-static-value" aria-label={`Comunidad: ${availableCommunities[0].name}`}>{availableCommunities[0].name}</div><FieldError id="event-community-error" message={fieldErrors.communityId} /></div> : <label className="editor-field"><FieldLabel required>Comunidad</FieldLabel><select aria-invalid={Boolean(fieldErrors.communityId)} aria-describedby={fieldErrors.communityId ? 'event-community-error' : undefined} value={form.communityId} onChange={(event) => update('communityId', event.target.value)}><option value="">Selecciona una comunidad</option>{availableCommunities.map((community) => <option value={community.id} key={community.id}>{community.name}</option>)}</select><FieldError id="event-community-error" message={fieldErrors.communityId} /></label>)}
+              {isPlatformAdmin && <label className="editor-field"><FieldLabel required={!form.communityId}>Comunidad</FieldLabel><select aria-invalid={Boolean(fieldErrors.communityId)} aria-describedby={fieldErrors.communityId ? 'event-community-error' : undefined} value={form.communityId || ''} onChange={(event) => update('communityId', event.target.value || null)}><option value="">Evento independiente</option>{availableCommunities.map((community) => <option value={community.id} key={community.id}>{community.name}</option>)}</select><FieldError id="event-community-error" message={fieldErrors.communityId} /></label>}
+              {isPlatformAdmin && !form.communityId && <label className="editor-field"><FieldLabel required>Organizador</FieldLabel><input aria-invalid={Boolean(fieldErrors.organizerName)} aria-describedby={fieldErrors.organizerName ? 'event-organizer-error' : undefined} value={form.organizerName || ''} onChange={(event) => update('organizerName', event.target.value)} placeholder="Ej. Asociación de desarrolladores" /><FieldError id="event-organizer-error" message={fieldErrors.organizerName} /></label>}
               <label className="editor-field"><FieldLabel required>Título del evento</FieldLabel><input aria-invalid={Boolean(fieldErrors.title)} aria-describedby={fieldErrors.title ? 'event-title-error' : undefined} value={form.title} onChange={(event) => update('title', event.target.value)} placeholder="Ej. Meetup de desarrollo indie" /><FieldError id="event-title-error" message={fieldErrors.title} /></label>
             </div>
             <div className="form-grid">
@@ -461,10 +526,20 @@ export function EventEditorPage() {
             </div>
             <div className="event-banner-field">
               <div className="event-banner-heading"><div><strong>Banner del evento</strong><p>Se mostrará recortado en formato horizontal 16:9.</p></div></div>
-              {bannerPreview ? <div className="event-banner-preview"><img src={bannerPreview} alt="Vista previa del banner del evento" /><div className="event-banner-actions"><label className="secondary-button event-banner-action"><ImagePlus size={16} aria-hidden="true" /> Cambiar banner<input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleBannerChange} /></label><button className="secondary-button event-banner-action" type="button" onClick={removeBanner}><X size={16} aria-hidden="true" /> Quitar banner</button></div></div> : <label className="event-banner-dropzone"><ImagePlus size={22} aria-hidden="true" /><span>Subir banner</span><small>JPG, PNG o WebP · recomendado 1600 × 900 px</small><input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleBannerChange} /></label>}
+              {bannerPreview ? <div className="event-banner-preview"><img src={bannerPreview} alt="Vista previa del banner del evento" /><div className="event-banner-actions"><label className="secondary-button event-banner-action"><ImagePlus size={16} aria-hidden="true" /> Cambiar banner<input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleBannerChange} /></label><button className="secondary-button event-banner-action" type="button" onClick={removeBanner}><X size={16} aria-hidden="true" /> Quitar banner</button></div></div> : <label className="event-banner-dropzone"><ImagePlus size={22} aria-hidden="true" /><span>Subir banner</span><small>JPG, PNG o WebP · se optimiza automáticamente · máximo 1600 × 900 px</small><input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleBannerChange} /></label>}
               {bannerError && <p className="form-message error" role="alert">{bannerError}</p>}
             </div>
               <label className="editor-field"><FieldLabel required>Descripción</FieldLabel><textarea aria-invalid={Boolean(fieldErrors.description)} aria-describedby={fieldErrors.description ? 'event-description-error' : undefined} rows={5} maxLength={5000} value={form.description} onChange={(event) => update('description', event.target.value)} placeholder="Cuenta qué aprenderán o encontrarán las personas asistentes." /><div className="field-meta"><span aria-hidden="true" /><small className="field-count">{form.description.length}/5000</small></div><FieldError id="event-description-error" message={fieldErrors.description} /></label>
+          </section>}
+
+          {activeSection === 'registration' && <section className="editor-section" id="editor-registration" role="tabpanel" aria-labelledby="editor-tab-registration" tabIndex={-1}>
+            <div className="registration-editor-intro"><h2>Inscripción</h2><p>Añade un enlace y gestiona las inscripciones desde tu comunidad, o activa las opciones de ubicación y conexión para compartir dónde y cómo participar.</p></div>
+            <label className="editor-field"><FieldLabel required={false}>Enlace de inscripción</FieldLabel><input type="url" aria-invalid={Boolean(fieldErrors.registrationUrl)} aria-describedby="event-registration-help event-registration-error" value={form.registrationUrl} onChange={(event) => update('registrationUrl', event.target.value)} placeholder="https://…" /><small className="field-help" id="event-registration-help">La comunidad puede gestionar la plataforma de inscripción que prefiera.</small><FieldError id="event-registration-error" message={fieldErrors.registrationUrl} /></label>
+            <fieldset className="editor-choice-group registration-mode-group"><legend><FieldLabel required>¿Qué quieres gestionar en este evento?</FieldLabel></legend><div className="choice-grid choice-grid-two">
+              <ChoiceCard name="access-mode" value="registration_only" checked={form.accessMode === 'registration_only'} onChange={() => updateAccessMode('registration_only')} icon={<Clipboard size={19} aria-hidden="true" />} label="Solo inscripción" description="Comparte el enlace y deja ubicación y conexión privadas" />
+              <ChoiceCard name="access-mode" value="location_access" checked={form.accessMode === 'location_access'} onChange={() => updateAccessMode('location_access')} icon={<MapPinned size={19} aria-hidden="true" />} label="Ubicación y acceso" description="Activa la sección para configurar modalidad, lugar y conexión" />
+            </div></fieldset>
+            <p className="editor-inline-note"><CircleAlert size={16} aria-hidden="true" /> Si activas “Ubicación y acceso”, aparecerá una sección adicional antes de Publicación.</p>
           </section>}
 
           {activeSection === 'datetime' && <section className="editor-section" id="editor-datetime" role="tabpanel" aria-labelledby="editor-tab-datetime" tabIndex={-1}>
@@ -479,19 +554,39 @@ export function EventEditorPage() {
           </section>}
 
           {activeSection === 'location' && <section className="editor-section" id="editor-location" role="tabpanel" aria-labelledby="editor-tab-location" tabIndex={-1}>
-            <fieldset className="editor-choice-group"><legend><FieldLabel required>Modalidad</FieldLabel></legend><div className="choice-grid choice-grid-three">{(['venue', 'online', 'hybrid'] as const).map((locationType) => <ChoiceCard key={locationType} name="locationType" value={locationType} checked={form.locationType === locationType} onChange={() => update('locationType', locationType)} icon={locationType === 'venue' ? <MapPinIcon /> : locationType === 'online' ? <Video size={19} aria-hidden="true" /> : <><MapPinIcon /><Video size={17} aria-hidden="true" /></>} label={locationType === 'venue' ? 'Presencial' : locationType === 'online' ? 'Online' : 'Híbrido'} description={locationType === 'venue' ? 'En un lugar físico' : locationType === 'online' ? 'Solo por videollamada' : 'Lugar y videollamada'} />)}</div></fieldset>
-            {needsPhysicalLocation && <div className="location-editor-block">
-              <GooglePlacePicker address={form.address} latitude={form.latitude} longitude={form.longitude} venueName={form.venueName} onChange={updateLocation} onManualAddressChange={updateManualAddress} />
-              <FieldError id="event-location-error" message={fieldErrors.location} />
-            </div>}
+            <fieldset className="editor-choice-group"><legend><FieldLabel required>Modalidad</FieldLabel></legend><div className="choice-grid choice-grid-three">{(['venue', 'online', 'hybrid'] as const).map((locationType) => <ChoiceCard key={locationType} name="locationType" value={locationType} checked={form.locationType === locationType} onChange={() => updateLocationType(locationType)} icon={locationType === 'venue' ? <MapPinned size={19} aria-hidden="true" /> : locationType === 'online' ? <Video size={19} aria-hidden="true" /> : <><MapPinned size={19} aria-hidden="true" /><Video size={17} aria-hidden="true" /></>} label={locationType === 'venue' ? 'Presencial' : locationType === 'online' ? 'Online' : 'Híbrido'} description={locationType === 'venue' ? 'En un lugar físico' : locationType === 'online' ? 'Solo por videollamada' : 'Lugar y videollamada'} />)}</div></fieldset>
+            <p className="editor-inline-note"><CircleAlert size={16} aria-hidden="true" /> La modalidad es obligatoria; la ubicación y los enlaces son opcionales para publicar.</p>
+            {needsPhysicalLocation && <>
+              <fieldset className="editor-choice-group"><legend><FieldLabel required={false}>Qué ubicación quieres compartir</FieldLabel></legend><div className="choice-grid choice-grid-three">
+                <ChoiceCard name="location-precision" value="none" checked={form.locationPrecision === 'none'} onChange={() => updateLocationPrecision('none')} icon={<MapPinned size={19} aria-hidden="true" />} label="No compartir" description="La ubicación queda privada" />
+                <ChoiceCard name="location-precision" value="regional" checked={form.locationPrecision === 'department' || form.locationPrecision === 'province'} onChange={() => updateLocationPrecision('department')} icon={<MapPinned size={19} aria-hidden="true" />} label="Regional" description="Comparte un departamento o provincia" />
+                <ChoiceCard name="location-precision" value="exact" checked={form.locationPrecision === 'exact'} onChange={() => updateLocationPrecision('exact')} icon={<MapPinned size={19} aria-hidden="true" />} label="Ubicación exacta" description="Muestra lugar y mapa" />
+              </div></fieldset>
+              {(form.locationPrecision === 'department' || form.locationPrecision === 'province') && <div className="location-editor-block location-general-block">
+                <div className="location-search-heading"><h3>Ubicación regional</h3><p className="field-help">Selecciona un departamento y, si quieres, una provincia. La provincia es opcional.</p></div>
+                <div className="form-grid location-general-fields">
+                  <label className="editor-field"><FieldLabel required>Departamento</FieldLabel><select aria-label="Departamento" aria-invalid={Boolean(fieldErrors.location)} aria-describedby={fieldErrors.location ? 'event-location-error' : undefined} value={form.locationDepartment} onChange={(event) => updateLocationDepartment(event.target.value)}><option value="">Selecciona un departamento</option>{peruDepartments.map((department) => <option value={department} key={department}>{department}</option>)}</select></label>
+                  <label className="editor-field"><FieldLabel required={false}>Provincia <span className="field-optional">(opcional)</span></FieldLabel><select aria-label="Provincia (opcional)" value={form.locationProvince} disabled={!form.locationDepartment} onChange={(event) => updateLocationProvince(event.target.value)}><option value="">Todas las provincias</option>{(form.locationDepartment ? peruLocations[form.locationDepartment as keyof typeof peruLocations] : []).map((province) => <option value={province} key={province}>{province}</option>)}</select></label>
+                </div>
+                <FieldError id="event-location-error" message={fieldErrors.location} />
+              </div>}
+              {form.locationPrecision === 'exact' && <div className="location-editor-block">
+                <div className="location-search-heading"><h3><FieldLabel required>Ubicación exacta</FieldLabel></h3><p className="field-help">Puedes elegir un lugar en Google Maps o escribir una dirección manualmente.</p></div>
+                <GooglePlacePicker address={form.address} latitude={form.latitude} longitude={form.longitude} venueName={form.venueName} onChange={updateLocation} onManualAddressChange={updateManualAddress} />
+                <FieldError id="event-location-error" message={fieldErrors.location} />
+              </div>}
+            </>}
             {needsMeetingLink && <div className="access-editor-block">
-              <label className="editor-field meeting-provider-field"><FieldLabel required={needsMeetingLink}>Plataforma</FieldLabel><select value={form.meetingProvider === 'google_meet' ? 'google_meet' : 'other'} onChange={(event) => update('meetingProvider', event.target.value as EventInput['meetingProvider'])}><option value="google_meet">Google Meet · Generar enlace</option><option value="other">Otra plataforma · Pegar enlace manual</option></select></label>
-              {form.meetingProvider === 'google_meet' ? <div className="meeting-connection-panel" aria-label="Enlace para unirse" aria-live="polite"><div><strong>Google Meet</strong><small>{googleMeetConnection.status === 'loading' ? 'Verificando la cuenta conectada…' : googleMeetConnection.status === 'connected' ? `Cuenta conectada: ${googleMeetConnection.email || 'Google'}` : googleMeetConnection.error || 'Conecta una cuenta de Google para crear el enlace.'}</small></div><div className="meeting-connection-actions">{googleMeetConnection.status === 'connected' ? <button className="secondary-button" type="button" disabled={googleMeetAction !== null} onClick={() => void generateGoogleMeet()}>{googleMeetAction === 'creating' ? 'Creando enlace…' : form.meetingUrl ? 'Regenerar enlace' : 'Generar enlace'}</button> : <button className="secondary-button" type="button" disabled={googleMeetAction !== null || googleMeetConnection.status === 'loading'} onClick={() => void connectGoogleMeet()}>{googleMeetAction === 'connecting' ? 'Conectando…' : 'Conectar Google Meet'}</button>}</div>{!eventId && googleMeetConnection.status === 'connected' && <small className="field-help">Guarda el borrador y vuelve a abrirlo para generar el enlace.</small>}{form.meetingUrl && <a className="meeting-link-preview" href={form.meetingUrl} target="_blank" rel="noreferrer">{form.meetingUrl}</a>}{googleMeetConnection.status === 'error' && <FieldError id="event-meeting-error" message={googleMeetConnection.error} />}</div> : <label className="editor-field"><FieldLabel required={needsMeetingLink}>Enlace para unirse</FieldLabel><input type="url" aria-invalid={Boolean(fieldErrors.meetingUrl)} aria-describedby="event-meeting-help event-meeting-error" value={form.meetingUrl} onChange={(event) => update('meetingUrl', event.target.value)} placeholder="https://…" /><div className="field-meta"><small className="field-help" id="event-meeting-help">{needsMeetingLink ? 'Es obligatorio para eventos online e híbridos.' : 'No es necesario para eventos presenciales.'}</small></div><FieldError id="event-meeting-error" message={fieldErrors.meetingUrl} /></label>}
-             </div>}
+              <div className="access-heading"><div><h3>Conexión</h3><p className="field-help">El enlace para conectarse también es opcional. Puedes generarlo o pegarlo desde la plataforma que use la comunidad.</p></div></div>
+              <>
+                <label className="editor-field meeting-provider-field"><FieldLabel required={false}>Plataforma de conexión</FieldLabel><select value={form.meetingProvider === 'google_meet' ? 'google_meet' : 'other'} onChange={(event) => update('meetingProvider', event.target.value as EventInput['meetingProvider'])}><option value="google_meet">Google Meet · Generar enlace</option><option value="other">Otra plataforma · Pegar enlace manual</option></select></label>
+                {form.meetingProvider === 'google_meet' ? <div className="meeting-connection-panel" aria-label="Enlace para unirse" aria-live="polite"><div><strong>Google Meet</strong><small>{googleMeetConnection.status === 'loading' ? 'Verificando la cuenta conectada…' : googleMeetConnection.status === 'connected' ? `Cuenta conectada: ${googleMeetConnection.email || 'Google'}` : googleMeetConnection.error || 'Puedes conectar Google para crear un enlace, pero no es obligatorio.'}</small></div><div className="meeting-connection-actions">{googleMeetConnection.status === 'connected' ? <button className="secondary-button" type="button" disabled={googleMeetAction !== null} onClick={() => void generateGoogleMeet()}>{googleMeetAction === 'creating' ? 'Creando enlace…' : form.meetingUrl ? 'Regenerar enlace' : 'Generar enlace'}</button> : <button className="secondary-button" type="button" disabled={googleMeetAction !== null || googleMeetConnection.status === 'loading'} onClick={() => void connectGoogleMeet()}>{googleMeetAction === 'connecting' ? 'Conectando…' : 'Conectar Google Meet'}</button>}</div>{!eventId && googleMeetConnection.status === 'connected' && <small className="field-help">Guarda el borrador y vuelve a abrirlo para generar el enlace.</small>}{form.meetingUrl && <a className="meeting-link-preview" href={form.meetingUrl} target="_blank" rel="noreferrer">{form.meetingUrl}</a>}{googleMeetConnection.status === 'error' && <FieldError id="event-meeting-error" message={googleMeetConnection.error} />}</div> : <label className="editor-field"><FieldLabel required={false}>Enlace para unirse</FieldLabel><input type="url" aria-invalid={Boolean(fieldErrors.meetingUrl)} aria-describedby="event-meeting-help event-meeting-error" value={form.meetingUrl} onChange={(event) => update('meetingUrl', event.target.value)} placeholder="https://…" /><small className="field-help" id="event-meeting-help">Opcional para eventos online e híbridos.</small><FieldError id="event-meeting-error" message={fieldErrors.meetingUrl} /></label>}
+              </>
+            </div>}
           </section>}
 
           {activeSection === 'publication' && <section className="editor-section" id="editor-publication" role="tabpanel" aria-labelledby="editor-tab-publication" tabIndex={-1}>
-            <fieldset className="editor-choice-group"><legend><FieldLabel required>Visibilidad</FieldLabel></legend><div className="choice-grid choice-grid-two"><ChoiceCard name="visibility" value="public" checked={form.visibility === 'public'} onChange={() => update('visibility', 'public')} icon={<Globe2 size={19} aria-hidden="true" />} label="Público" description="Cualquier visitante, agenda y embed" /><ChoiceCard name="visibility" value="network" checked={form.visibility === 'network'} onChange={() => update('visibility', 'network')} icon={<LockKeyhole size={19} aria-hidden="true" />} label="Solo la red" description="Personas con una cuenta activa" /></div></fieldset>
+            <fieldset className="editor-choice-group"><legend><FieldLabel required>Visibilidad</FieldLabel></legend><div className="choice-grid choice-grid-two"><ChoiceCard name="visibility" value="network" checked={form.visibility === 'network'} onChange={() => update('visibility', 'network')} icon={<LockKeyhole size={19} aria-hidden="true" />} label="Solo la red" description="Personas con una cuenta activa" /><ChoiceCard name="visibility" value="public" checked={form.visibility === 'public'} onChange={() => update('visibility', 'public')} icon={<Globe2 size={19} aria-hidden="true" />} label="Público" description="Cualquier visitante, agenda y embed" /></div></fieldset>
             <p className="editor-inline-note"><CircleAlert size={16} aria-hidden="true" /> La visibilidad se confirma justo antes de publicar.</p>
           </section>}
 
@@ -520,16 +615,16 @@ export function EventEditorPage() {
                <p>{form.description.trim() || 'Completa la información para preparar una publicación clara.'}</p>
                <div className="summary-divider" />
                <div className="summary-schedule"><CalendarDays size={17} aria-hidden="true" /><span><strong>{formatEventDateRange(conflictStart, conflictEnd, form.isAllDay)}</strong><small>{formatTimeRange(conflictStart, conflictEnd, form.isAllDay)} · Hora de Lima</small></span></div>
-               <div className="summary-location-access">
-                 <div><MapPinned size={17} aria-hidden="true" /><span><strong>Ubicación</strong><small>{formatEventLocation(form)}</small></span></div>
-                 <div><Video size={17} aria-hidden="true" /><span><strong>Acceso</strong><small>{form.locationType === 'venue' ? 'Presencial' : form.meetingUrl.trim() ? meetingActionLabel(form.meetingProvider) : 'Enlace por agregar'}</small></span></div>
+                <div className="summary-location-access">
+                  <div><MapPinned size={17} aria-hidden="true" /><span><strong>Ubicación</strong><small>{formatEventLocation(form)}</small></span></div>
+                  <div><Video size={17} aria-hidden="true" /><span><strong>Acceso</strong><small>{[form.registrationUrl.trim() ? 'Inscripción disponible' : '', form.meetingUrl.trim() ? meetingActionLabel(form.meetingProvider) : ''].filter(Boolean).join(' · ') || 'Sin enlace compartido'}</small></span></div>
                </div>
                <div className="summary-progress"><div className="summary-progress-top"><span>Listo para publicar</span><strong>{summaryProgressPercent}%</strong></div><div className="summary-progress-track"><span style={{ width: `${summaryProgressPercent}%` }} /></div></div>
                <div className={`summary-missing ${summaryMilestoneReady ? 'summary-missing-ready' : ''}`}><strong>{summaryMilestoneLabel}{summaryMilestoneReady ? ' listo' : ''}</strong>{summaryMilestoneReady ? <small>{form.visibility === 'network' ? 'Ya puedes publicar este evento solo para la red.' : 'Completa la revisión para publicar este evento.'}</small> : <><span className="summary-missing-caption">Falta:</span><ul>{summaryMilestoneMissing.slice(0, 4).map((label) => <li key={label}>{label}</li>)}</ul></>}{summaryMilestoneMissing.length > 4 && <small>+{summaryMilestoneMissing.length - 4} campos más</small>}</div>
               <div className="summary-visibility"><span>{form.visibility === 'public' ? <Globe2 size={16} aria-hidden="true" /> : <LockKeyhole size={16} aria-hidden="true" />} Visibilidad</span><strong>{form.visibility === 'public' ? 'Público' : 'Solo la red'}</strong></div>
               <button className="primary-button full" type="button" disabled={saving} onClick={requestPublish}>{publishReady ? 'Revisar publicación' : 'Ver qué falta'} <ChevronRight size={17} /></button>
             </div>
-            <p className="editor-summary-help">Los borradores solo necesitan una comunidad y un título. Podrás completar el resto cuando quieras.</p>
+            <p className="editor-summary-help">Los borradores solo necesitan una comunidad, un título y una fecha. Podrás completar el resto cuando quieras.</p>
           </aside>
         </div>
       </div>
@@ -547,22 +642,20 @@ function ChoiceCard({ name, value, checked, onChange, icon, label, description }
   return <label className={`choice-card ${checked ? 'selected' : ''}`}><input type="radio" name={name} value={value} checked={checked} onChange={onChange} /><span className="choice-card-icon">{icon}</span><span><strong>{label}</strong><small>{description}</small></span><span className="choice-card-check" aria-hidden="true"><Check size={14} /></span></label>
 }
 
-function MapPinIcon() { return <MapPinned size={19} aria-hidden="true" /> }
-
 function FieldError({ id, message }: { id: string; message?: string }) { return message ? <small className="field-error" id={id}>{message}</small> : null }
 
 function PublicationReviewModal({ open, form, bannerPreview, missingLabels, ready, visibility, onVisibilityChange, onClose, onConfirm, saving }: { open: boolean; form: EventInput; bannerPreview: string; missingLabels: string[]; ready: boolean; visibility: EventInput['visibility']; onVisibilityChange: (visibility: EventInput['visibility']) => void; onClose: () => void; onConfirm: () => void; saving: boolean }) {
   if (!open) return null
   const reviewStart = toLimaIso(form.startsAt)
   const reviewEnd = toLimaIso(form.endsAt)
-  const reviewLocation = form.locationType === 'online' ? 'Online' : form.venueName.trim() || form.address.trim() || 'Ubicación por completar'
+  const reviewLocation = formatEventLocation(form)
   return <div className="modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="publication-modal" role="dialog" aria-modal="true" aria-labelledby="publication-review-title" aria-describedby="publication-review-description" onMouseDown={(event) => event.stopPropagation()}>
     <div className="publication-modal-heading"><div><span className="dashboard-kicker">Última revisión</span><h2 id="publication-review-title">Publicar evento</h2></div><button className="icon-button" type="button" onClick={onClose} aria-label="Cerrar"><X size={18} /></button></div>
     <p className="muted-copy" id="publication-review-description">Confirma que la información esté correcta y decide quién podrá ver esta actividad.</p>
     {bannerPreview && <img className="publication-review-cover" src={bannerPreview} alt={form.title.trim() ? `Banner de ${form.title.trim()}` : 'Vista previa del banner'} />}
-    <div className="publication-event-summary"><div><CalendarDays size={17} aria-hidden="true" /><span><strong>Evento</strong><small>{form.title.trim() || 'Título por completar'}</small></span></div><div><Clock3 size={17} aria-hidden="true" /><span><strong>Horario</strong><small>{formatEventDateRange(reviewStart, reviewEnd, form.isAllDay)} · {formatTimeRange(reviewStart, reviewEnd, form.isAllDay)}</small></span></div><div><MapPinned size={17} aria-hidden="true" /><span><strong>Modalidad y lugar</strong><small>{form.locationType === 'hybrid' ? `Híbrido · ${reviewLocation}` : `${reviewLocation}`}</small></span></div></div>
+    <div className="publication-event-summary"><div><CalendarDays size={17} aria-hidden="true" /><span><strong>Evento</strong><small>{form.title.trim() || 'Título por completar'}</small></span></div><div><Clock3 size={17} aria-hidden="true" /><span><strong>Horario</strong><small>{formatEventDateRange(reviewStart, reviewEnd, form.isAllDay)} · {formatTimeRange(reviewStart, reviewEnd, form.isAllDay)}</small></span></div><div><MapPinned size={17} aria-hidden="true" /><span><strong>Modalidad y lugar</strong><small>{reviewLocation}</small></span></div></div>
     {ready ? <div className="publication-ready"><Check size={20} aria-hidden="true" /><span><strong>Todo listo para publicar</strong><small>{form.title || 'Este evento'} se mostrará con la visibilidad que elijas.</small></span></div> : <div className="publication-missing"><CircleAlert size={20} aria-hidden="true" /><div><strong>Aún faltan campos</strong><ul>{missingLabels.map((label) => <li key={label}>{label}</li>)}</ul><small>Vuelve al formulario para completar la información.</small></div></div>}
-    <fieldset className="editor-choice-group publication-visibility"><legend>Visibilidad del evento</legend><div className="choice-grid choice-grid-two"><ChoiceCard name="publication-visibility" value="public" checked={visibility === 'public'} onChange={() => onVisibilityChange('public')} icon={<Globe2 size={19} aria-hidden="true" />} label="Público" description="Cualquier visitante podrá verlo" /><ChoiceCard name="publication-visibility" value="network" checked={visibility === 'network'} onChange={() => onVisibilityChange('network')} icon={<LockKeyhole size={19} aria-hidden="true" />} label="Solo la red" description="Solo usuarios autenticados" /></div></fieldset>
+    <fieldset className="editor-choice-group publication-visibility"><legend>Visibilidad del evento</legend><div className="choice-grid choice-grid-two"><ChoiceCard name="publication-visibility" value="network" checked={visibility === 'network'} onChange={() => onVisibilityChange('network')} icon={<LockKeyhole size={19} aria-hidden="true" />} label="Solo la red" description="Solo usuarios autenticados" /><ChoiceCard name="publication-visibility" value="public" checked={visibility === 'public'} onChange={() => onVisibilityChange('public')} icon={<Globe2 size={19} aria-hidden="true" />} label="Público" description="Cualquier visitante podrá verlo" /></div></fieldset>
     <div className="publication-modal-actions"><button className="secondary-button" type="button" onClick={onClose}>Volver a editar</button><button className="primary-button" type="button" disabled={!ready || saving} onClick={onConfirm}>{saving ? 'Publicando…' : visibility === 'public' ? 'Publicar como público' : 'Publicar solo para la red'}</button></div>
   </section></div>
 }
@@ -604,6 +697,8 @@ function InviteMemberDialog({ open, inviteRole, isPlatformAdmin, communityOption
   const [error, setError] = useState('')
   const [communityLoading, setCommunityLoading] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileResetSignal, setTurnstileResetSignal] = useState(0)
 
   useEffect(() => {
     if (!open) return
@@ -613,6 +708,8 @@ function InviteMemberDialog({ open, inviteRole, isPlatformAdmin, communityOption
     setMessage('')
     setError('')
     setLoading(false)
+    setTurnstileToken('')
+    setTurnstileResetSignal((value) => value + 1)
     setCommunities(communityOptions)
     setCommunityId(communityOptions[0]?.id || '')
     if (!isPlatformAdmin) return
@@ -647,12 +744,15 @@ function InviteMemberDialog({ open, inviteRole, isPlatformAdmin, communityOption
     setInviteUrl('')
     setMessage('')
     if (!communityId) { setError('Selecciona una comunidad.'); return }
+    if (isSupabaseConfigured && !turnstileToken) { setError('Completa la verificación antispam antes de enviar la invitación.'); return }
     setLoading(true)
     try {
-      const result = await createInvitation(email, communityId, selectedRole)
+      const result = await createInvitation(email, communityId, selectedRole, turnstileToken)
       setInviteUrl(result.inviteUrl)
       setMessage('Invitación creada. Revisa el correo o comparte el enlace de un solo uso.')
       setEmail('')
+      setTurnstileToken('')
+      setTurnstileResetSignal((value) => value + 1)
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : 'No pudimos enviar la invitación.')
     } finally {
@@ -669,6 +769,7 @@ function InviteMemberDialog({ open, inviteRole, isPlatformAdmin, communityOption
         <label>Correo electrónico<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="persona@ejemplo.com" /></label>
         <label>Comunidad<select required value={communityId} disabled={communityLoading || !communities.length} onChange={(event) => setCommunityId(event.target.value)}><option value="">{communityLoading ? 'Cargando comunidades…' : 'Selecciona una comunidad'}</option>{communities.map((community) => <option value={community.id} key={community.id}>{community.name}</option>)}</select></label>
         {isPlatformAdmin ? <label>Rol<select value={selectedRole} onChange={(event) => setSelectedRole(event.target.value as InviteRole)}><option value="community_editor">Editor de comunidad</option><option value="community_admin">Administrador de comunidad</option></select></label> : <div className="invite-role-note"><span>Rol asignado</span><strong>{roleLabel(selectedRole)}</strong></div>}
+        <TurnstileWidget action="create-invitation" value={turnstileToken} onChange={setTurnstileToken} resetSignal={turnstileResetSignal} />
         {error && <FormError message={error} />}
         {message && <p className="form-message success">{message}</p>}
         {inviteUrl && <div className="invite-result"><input readOnly value={inviteUrl} aria-label="Enlace de invitación" /><button className="icon-button" type="button" onClick={() => void copy()} aria-label="Copiar invitación"><Clipboard size={17} /></button></div>}
@@ -684,17 +785,22 @@ function CommunityInviteForm({ community }: { community: Community }) {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileResetSignal, setTurnstileResetSignal] = useState(0)
   const invite = async (event: FormEvent) => {
     event.preventDefault()
     setError('')
     setInviteUrl('')
     setMessage('')
+    if (isSupabaseConfigured && !turnstileToken) { setError('Completa la verificación antispam antes de enviar la invitación.'); return }
     setLoading(true)
     try {
-      const result = await createInvitation(email, community.id, 'community_editor')
+      const result = await createInvitation(email, community.id, 'community_editor', turnstileToken)
       setInviteUrl(result.inviteUrl)
       setMessage('Invitación creada. Revisa el correo o comparte el enlace de un solo uso.')
       setEmail('')
+      setTurnstileToken('')
+      setTurnstileResetSignal((value) => value + 1)
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : 'No pudimos enviar la invitación.')
     } finally {
@@ -705,7 +811,7 @@ function CommunityInviteForm({ community }: { community: Community }) {
   return <section className="settings-section community-inline-invite-section">
     <h2>Invitar editor</h2>
     <p className="muted-copy">Ingresa el correo de la persona que tendrá permisos para crear y actualizar eventos de {community.name}.</p>
-    <form className="invite-form community-inline-invite-form" onSubmit={(event) => void invite(event)}><label>Correo electrónico<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="persona@ejemplo.com" /></label><button className="primary-button" type="submit" disabled={loading}><Mail size={16} /> {loading ? 'Enviando…' : 'Enviar invitación'}</button></form>
+    <form className="invite-form community-inline-invite-form" onSubmit={(event) => void invite(event)}><label>Correo electrónico<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="persona@ejemplo.com" /></label><TurnstileWidget action="create-invitation" value={turnstileToken} onChange={setTurnstileToken} resetSignal={turnstileResetSignal} /><button className="primary-button" type="submit" disabled={loading}><Mail size={16} /> {loading ? 'Enviando…' : 'Enviar invitación'}</button></form>
     {error && <FormError message={error} />}
     {message && <p className="form-message success">{message}</p>}
     {inviteUrl && <div className="invite-result"><input readOnly value={inviteUrl} aria-label="Enlace de invitación" /><button className="icon-button" type="button" onClick={() => void copy()} aria-label="Copiar invitación"><Clipboard size={17} /></button></div>}
@@ -848,7 +954,7 @@ export function CommunitySettingsPage() {
         </dl>
         <div className="community-logo-editor">
           <CommunityLogo path={logoPreview || community.logoPath} name={community.name} size="large" />
-          <div className="community-logo-copy"><h3>Logo de la comunidad</h3><p className="muted-copy">Este es el único dato editable desde el panel. Usa una imagen cuadrada en formato JPG, PNG o WebP.</p><label className="logo-file-field">Seleccionar logo<input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Logo de la comunidad" onChange={(event) => void handleLogoChange(event)} /></label>{logoPreview && <button className="primary-button logo-save-button" type="button" disabled={logoUploading} onClick={() => void saveLogo()}>{logoUploading ? 'Actualizando…' : 'Actualizar logo'}</button>}{logoError && <FormError message={logoError} />}{logoMessage && <p className="form-message success" role="status">{logoMessage}</p>}<small className="field-help">Proporción obligatoria 1:1 · máximo 5 MB.</small></div>
+          <div className="community-logo-copy"><h3>Logo de la comunidad</h3><p className="muted-copy">Este es el único dato editable desde el panel. Usa una imagen cuadrada en formato JPG, PNG o WebP.</p><label className="logo-file-field">Seleccionar logo<input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Logo de la comunidad" onChange={(event) => void handleLogoChange(event)} /></label>{logoPreview && <button className="primary-button logo-save-button" type="button" disabled={logoUploading} onClick={() => void saveLogo()}>{logoUploading ? 'Actualizando…' : 'Actualizar logo'}</button>}{logoError && <FormError message={logoError} />}{logoMessage && <p className="form-message success" role="status">{logoMessage}</p>}<small className="field-help">Proporción obligatoria 1:1 · se optimiza automáticamente · máximo 1024 × 1024 px.</small></div>
         </div>
       </div>}
     </section>
@@ -862,6 +968,7 @@ export function PlatformAdminPage() {
   const [reports, setReports] = useState<EventReport[]>([])
   const [syncResult, setSyncResult] = useState<CommunitySyncResult | null>(null)
   const [calendarSyncResult, setCalendarSyncResult] = useState<GoogleCalendarSyncResult | null>(null)
+  const [assetMigration, setAssetMigration] = useState<{ status: 'idle' | 'running' | 'done' | 'error'; completed: number; total: number; label: string; result?: Awaited<ReturnType<typeof migrateExistingAssets>>; error?: string }>({ status: 'idle', completed: 0, total: 0, label: '' })
   const [syncing, setSyncing] = useState(false)
   const [calendarSyncing, setCalendarSyncing] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -900,5 +1007,175 @@ export function PlatformAdminPage() {
       setCalendarSyncing(false)
     }
   }
-  return <div className="dashboard-page"><PanelTitle title="Administración IGDA" description="Aprueba comunidades y conserva el control de la red." /><section className="admin-create"><form onSubmit={create}><input aria-label="Nombre de la nueva comunidad" placeholder="Nombre de la nueva comunidad" value={newName} onChange={(event) => setNewName(event.target.value)} /><button className="primary-button"><Plus size={16} /> Crear comunidad</button></form>{error && <FormError message={error} />}</section><section className="settings-section admin-sync"><div className="sync-heading"><div><h2>Actualizar desde Google Sheets</h2><p className="muted-copy">Importa manualmente la pestaña <strong>TO NOTION</strong>. Solo se procesan filas con <strong>VALIDACIÓN</strong> activa.</p></div><button className="primary-button" type="button" onClick={() => void sync()} disabled={syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} /> {syncing ? 'Actualizando…' : 'Actualizar comunidades'}</button></div><p className="muted-copy">Las comunidades nuevas quedan aprobadas. El estado de una comunidad existente, incluida una suspensión, se conserva en esta aplicación.</p>{syncError && <FormError message={syncError} />}{syncResult && <div className="sync-result" role="status"><strong>Actualización completada</strong><span>{syncResult.created} creadas · {syncResult.updated} actualizadas · {syncResult.skipped} omitidas</span>{syncResult.skippedRows.length > 0 && <details><summary>Ver filas omitidas</summary><ul>{syncResult.skippedRows.map((row, index) => <li key={`${row.sourceId || 'row'}-${row.row}-${index}`}>{row.name || row.sourceId || `Fila ${row.row}`}: {row.reason}</li>)}</ul></details>}</div>}</section><section className="settings-section admin-sync"><div className="sync-heading"><div><h2>Publicar en Google Calendar</h2><p className="muted-copy">Sincroniza únicamente eventos <strong>publicados</strong>, <strong>públicos</strong> y de comunidades aprobadas.</p></div><button className="primary-button" type="button" onClick={() => void syncCalendar()} disabled={calendarSyncing}><CalendarDays size={16} className={calendarSyncing ? 'spin' : ''} /> {calendarSyncing ? 'Sincronizando…' : 'Sincronizar calendario'}</button></div><p className="muted-copy">Los eventos retirados, suspendidos o cambiados a visibilidad de red se eliminan del calendario oficial.</p>{calendarSyncError && <FormError message={calendarSyncError} />}{calendarSyncResult && <div className="sync-result" role="status"><strong>Calendario actualizado</strong><span>{calendarSyncResult.created} creados · {calendarSyncResult.updated} actualizados · {calendarSyncResult.removed} retirados{calendarSyncResult.errors ? ` · ${calendarSyncResult.errors} con error` : ''}</span>{calendarSyncResult.errorItems.length > 0 && <details><summary>Ver errores</summary><ul>{calendarSyncResult.errorItems.map((item, index) => <li key={`${item.eventId || 'event'}-${index}`}>{item.eventId || 'Evento'}: {item.message}</li>)}</ul></details>}</div>}</section>{loading ? <LoadingState label="Cargando comunidades" /> : <><div className="admin-list">{communities.map((community) => <div className="admin-row" key={community.id}><div><strong>{community.name}</strong><small>{community.slug} · {community.status}</small></div><div className="row-actions">{community.status === 'pending' && <button className="secondary-button" type="button" onClick={() => void moderate(community, 'approved')}><Check size={16} /> Aprobar</button>}{community.status === 'approved' && <button className="icon-button danger" type="button" onClick={() => void moderate(community, 'suspended')} aria-label={`Suspender ${community.name}`}><X size={17} /></button>}{community.status === 'suspended' && <button className="secondary-button" type="button" onClick={() => void moderate(community, 'approved')}>Reactivar</button>}</div></div>)}</div><section className="settings-section admin-reports"><h2>Reportes pendientes</h2>{reports.length ? <div className="report-list">{reports.map((report) => <div className="report-row" key={report.id}><div><strong>{report.eventTitle}</strong><p>{report.reason}</p></div><button className="secondary-button" type="button" onClick={() => void resolveEventReport(report.id).then(load)}>Marcar revisado</button></div>)}</div> : <p className="muted-copy">No hay reportes pendientes.</p>}</section></>}</div>
+  const migrateAssets = async () => {
+    if (assetMigration.status === 'running') return
+    if (!window.confirm('Se optimizarán los logos y banners existentes. Los archivos que ya son WebP se omitirán. ¿Continuar?')) return
+    setAssetMigration({ status: 'running', completed: 0, total: 0, label: '' })
+    try {
+      const result = await migrateExistingAssets((progress) => {
+        setAssetMigration((current) => ({ ...current, status: 'running', ...progress }))
+      })
+      setAssetMigration((current) => ({ ...current, status: 'done', result, label: '' }))
+    } catch (reason: unknown) {
+      setAssetMigration((current) => ({ ...current, status: 'error', error: reason instanceof Error ? reason.message : 'No pudimos migrar las imágenes.' }))
+    }
+  }
+  return <div className="dashboard-page"><PanelTitle title="Administración IGDA" description="Aprueba comunidades y conserva el control de la red." action={<Link className="secondary-button" to="/app/admin/propuestas"><Send size={16} /> Propuestas de eventos</Link>} /><section className="admin-create"><form onSubmit={create}><input aria-label="Nombre de la nueva comunidad" placeholder="Nombre de la nueva comunidad" value={newName} onChange={(event) => setNewName(event.target.value)} /><button className="primary-button"><Plus size={16} /> Crear comunidad</button></form>{error && <FormError message={error} />}</section><section className="settings-section admin-tools"><div className="admin-tools-heading"><div><span className="eyebrow">Herramientas de red</span><h2>Mantenimiento y sincronización</h2><p className="muted-copy">Actualiza las fuentes externas y conserva los recursos visuales optimizados.</p></div></div><div className="admin-tool-grid"><article className="admin-tool-card"><div className="admin-tool-card-copy"><span className="admin-tool-icon"><RefreshCw size={18} /></span><div><h3>Google Sheets</h3><p>Importa comunidades desde la pestaña <strong>TO NOTION</strong> con validación activa.</p></div></div><button className="primary-button" type="button" onClick={() => void sync()} disabled={syncing}><RefreshCw size={16} className={syncing ? 'spin' : ''} /> {syncing ? 'Actualizando…' : 'Actualizar comunidades'}</button>{syncError && <FormError message={syncError} />}{syncResult && <div className="sync-result" role="status"><strong>Actualización completada</strong><span>{syncResult.created} creadas · {syncResult.updated} actualizadas · {syncResult.skipped} omitidas</span>{syncResult.skippedRows.length > 0 && <details><summary>Ver filas omitidas</summary><ul>{syncResult.skippedRows.map((row, index) => <li key={`${row.sourceId || 'row'}-${row.row}-${index}`}>{row.name || row.sourceId || `Fila ${row.row}`}: {row.reason}</li>)}</ul></details>}</div>}</article><article className="admin-tool-card"><div className="admin-tool-card-copy"><span className="admin-tool-icon"><CalendarDays size={18} /></span><div><h3>Google Calendar</h3><p>Publica eventos aprobados y retira automáticamente los que ya no deben aparecer.</p></div></div><button className="primary-button" type="button" onClick={() => void syncCalendar()} disabled={calendarSyncing}><CalendarDays size={16} className={calendarSyncing ? 'spin' : ''} /> {calendarSyncing ? 'Sincronizando…' : 'Sincronizar calendario'}</button>{calendarSyncError && <FormError message={calendarSyncError} />}{calendarSyncResult && <div className="sync-result" role="status"><strong>Calendario actualizado</strong><span>{calendarSyncResult.created} creados · {calendarSyncResult.updated} actualizados · {calendarSyncResult.removed} retirados{calendarSyncResult.errors ? ` · ${calendarSyncResult.errors} con error` : ''}</span>{calendarSyncResult.errorItems.length > 0 && <details><summary>Ver errores</summary><ul>{calendarSyncResult.errorItems.map((item, index) => <li key={`${item.eventId || 'event'}-${index}`}>{item.eventId || 'Evento'}: {item.message}</li>)}</ul></details>}</div>}</article><article className="admin-tool-card"><div className="admin-tool-card-copy"><span className="admin-tool-icon"><ImagePlus size={18} /></span><div><h3>Optimizar imágenes</h3><p>Convierte logos y banners existentes a WebP. Los recursos que ya están en WebP se omiten.</p></div></div><button className="primary-button" type="button" onClick={() => void migrateAssets()} disabled={assetMigration.status === 'running'}><RefreshCw size={16} className={assetMigration.status === 'running' ? 'spin' : ''} /> {assetMigration.status === 'running' ? 'Optimizando…' : 'Optimizar recursos'}</button>{assetMigration.status === 'running' && assetMigration.total > 0 && <div className="admin-tool-progress" role="status"><div className="admin-tool-progress-label"><span>{assetMigration.label || 'Revisando recursos…'}</span><strong>{assetMigration.completed}/{assetMigration.total}</strong></div><progress value={assetMigration.completed} max={assetMigration.total} /></div>}{assetMigration.error && <FormError message={assetMigration.error} />}{assetMigration.result && <div className="sync-result" role="status"><strong>Imágenes revisadas</strong><span>{assetMigration.result.migrated} optimizadas · {assetMigration.result.skipped} omitidas · {assetMigration.result.failed} con error</span>{assetMigration.result.errors.length > 0 && <details><summary>Ver errores</summary><ul>{assetMigration.result.errors.map((item, index) => <li key={`${item.label}-${index}`}>{item.label}: {item.message}</li>)}</ul></details>}</div>}</article></div><p className="muted-copy admin-tools-note">La migración de imágenes solo procesa archivos actualmente referenciados por comunidades y eventos.</p></section>{loading ? <LoadingState label="Cargando comunidades" /> : <><div className="admin-list">{communities.map((community) => <div className="admin-row" key={community.id}><div><strong>{community.name}</strong><small>{community.slug} · {community.status}</small></div><div className="row-actions">{community.status === 'pending' && <button className="secondary-button" type="button" onClick={() => void moderate(community, 'approved')}><Check size={16} /> Aprobar</button>}{community.status === 'approved' && <button className="icon-button danger" type="button" onClick={() => void moderate(community, 'suspended')} aria-label={`Suspender ${community.name}`}><X size={17} /></button>}{community.status === 'suspended' && <button className="secondary-button" type="button" onClick={() => void moderate(community, 'approved')}>Reactivar</button>}</div></div>)}</div><section className="settings-section admin-reports"><h2>Reportes pendientes</h2>{reports.length ? <div className="report-list">{reports.map((report) => <div className="report-row" key={report.id}><div><strong>{report.eventTitle}</strong><p>{report.reason}</p></div><button className="secondary-button" type="button" onClick={() => void resolveEventReport(report.id).then(load)}>Marcar revisado</button></div>)}</div> : <p className="muted-copy">No hay reportes pendientes.</p>}</section></>}</div>
+}
+
+type ProposalDraft = {
+  organizerName: string
+  contactEmail: string
+  title: string
+  description: string
+  type: string
+  startsAt: string
+  endsAt: string
+  locationType: EventInput['locationType']
+  meetingUrl: string
+  registrationUrl: string
+  venueName: string
+  address: string
+  communityId: string | null
+  reviewNotes: string
+}
+
+function proposalLocalDateTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const parts = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Lima', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(date)
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`
+}
+
+function proposalDraftFromItem(proposal: EventProposal): ProposalDraft {
+  return {
+    organizerName: proposal.organizerName,
+    contactEmail: proposal.contactEmail,
+    title: proposal.title,
+    description: proposal.description,
+    type: proposal.type,
+    startsAt: proposalLocalDateTime(proposal.startsAt),
+    endsAt: proposalLocalDateTime(proposal.endsAt),
+    locationType: proposal.locationType,
+    meetingUrl: proposal.meetingUrl || '',
+    registrationUrl: proposal.registrationUrl || '',
+    venueName: proposal.venueName || '',
+    address: proposal.address || '',
+    communityId: proposal.communityId,
+    reviewNotes: proposal.reviewNotes,
+  }
+}
+
+function proposalDraftToValues(draft: ProposalDraft) {
+  const toIso = (value: string) => {
+    const date = new Date(`${value}:00-05:00`)
+    if (!value || Number.isNaN(date.getTime())) throw new Error('La propuesta necesita fechas válidas de inicio y fin.')
+    return date.toISOString()
+  }
+  if (draft.locationType !== 'venue' && !draft.meetingUrl.trim()) throw new Error('Añade el enlace para unirse al evento online o híbrido antes de aprobar.')
+  const accessMode = draft.meetingUrl || draft.venueName || draft.address ? 'location_access' as const : 'registration_only' as const
+  return {
+    organizerName: draft.organizerName,
+    contactEmail: draft.contactEmail,
+    title: draft.title,
+    description: draft.description,
+    type: draft.type,
+    startsAt: toIso(draft.startsAt),
+    endsAt: toIso(draft.endsAt),
+    isAllDay: false,
+    locationType: draft.locationType,
+    accessMode,
+    locationPrecision: draft.venueName || draft.address ? 'exact' as const : 'none' as const,
+    locationDepartment: '',
+    locationProvince: '',
+    venueName: draft.venueName,
+    address: draft.address,
+    mapUrl: '',
+    placeId: '',
+    formattedAddress: draft.address,
+    latitude: null,
+    longitude: null,
+    meetingUrl: draft.meetingUrl,
+    meetingProvider: 'other' as const,
+    registrationUrl: draft.registrationUrl,
+    reviewNotes: draft.reviewNotes,
+    communityId: draft.communityId,
+  }
+}
+
+export function EventProposalsPage() {
+  const { roles } = useAuth()
+  const [proposals, setProposals] = useState<EventProposal[]>([])
+  const [communities, setCommunities] = useState<Community[]>([])
+  const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected'>('pending')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [draft, setDraft] = useState<ProposalDraft | null>(null)
+  const [search, setSearch] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const [nextProposals, nextCommunities] = await Promise.all([listEventProposals(), listCommunities(true)])
+      setProposals(nextProposals)
+      setCommunities(nextCommunities.filter((community) => community.status === 'approved'))
+      setSelectedId((current) => current && nextProposals.some((proposal) => proposal.id === current) ? current : nextProposals.find((proposal) => proposal.status === statusFilter)?.id || nextProposals[0]?.id || null)
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'No pudimos cargar las propuestas.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { void load() }, [])
+
+  const visibleProposals = proposals.filter((proposal) => proposal.status === statusFilter && (!search.trim() || `${proposal.title} ${proposal.organizerName} ${proposal.contactEmail}`.toLowerCase().includes(search.trim().toLowerCase())))
+  const selected = proposals.find((proposal) => proposal.id === selectedId && proposal.status === statusFilter) || visibleProposals[0] || null
+  useEffect(() => { if (selected && selected.id !== selectedId) setSelectedId(selected.id); if (selected && (!draft || draft.title !== selected.title)) setDraft(proposalDraftFromItem(selected)) }, [draft, selected, selectedId])
+
+  if (!roles.includes('platform_admin')) return <div className="dashboard-page"><PanelTitle title="Sin acceso" description="Esta sección está reservada para administradores de IGDA Perú." /></div>
+
+  const update = <K extends keyof ProposalDraft>(key: K, value: ProposalDraft[K]) => { setDraft((current) => current ? { ...current, [key]: value } : current); setMessage(''); setError('') }
+  const save = async (event?: FormEvent): Promise<boolean> => {
+    event?.preventDefault()
+    if (!selected || !draft) return false
+    setSaving(true); setError(''); setMessage('')
+    try {
+      const saved = await updateEventProposal(selected.id, proposalDraftToValues(draft))
+      setProposals((current) => current.map((proposal) => proposal.id === saved.id ? saved : proposal))
+      setDraft(proposalDraftFromItem(saved))
+      setMessage('Cambios guardados.')
+      return true
+    } catch (reason: unknown) { setError(reason instanceof Error ? reason.message : 'No pudimos guardar los cambios.'); return false } finally { setSaving(false) }
+  }
+  const approve = async () => {
+    if (!selected || !draft) return
+    setSaving(true); setError(''); setMessage('')
+    try {
+      const saved = await save()
+      if (!saved) return
+      await approveEventProposal(selected.id, draft.communityId, draft.reviewNotes)
+      setMessage('Propuesta aprobada y publicada en la agenda.')
+      await load()
+    } catch (reason: unknown) { setError(reason instanceof Error ? reason.message : 'No pudimos aprobar la propuesta.') } finally { setSaving(false) }
+  }
+  const reject = async () => {
+    if (!selected) return
+    const reason = window.prompt('Escribe el motivo del rechazo para dejarlo en el historial:')?.trim()
+    if (!reason) return
+    setSaving(true); setError(''); setMessage('')
+    try { await rejectEventProposal(selected.id, reason); setMessage('Propuesta rechazada.'); await load() } catch (failure: unknown) { setError(failure instanceof Error ? failure.message : 'No pudimos rechazar la propuesta.') } finally { setSaving(false) }
+  }
+
+  return <div className="dashboard-page event-proposals-page"><PanelTitle title="Propuestas de eventos" description="Revisa, corrige y publica eventos enviados por personas fuera de las comunidades." action={<Link className="secondary-button" to="/app/admin"><ChevronLeft size={16} /> Administración IGDA</Link>} />
+    <div className="proposal-admin-tabs" role="tablist" aria-label="Estado de las propuestas">{(['pending', 'approved', 'rejected'] as const).map((status) => <button className={statusFilter === status ? 'selected' : ''} role="tab" aria-selected={statusFilter === status} type="button" onClick={() => setStatusFilter(status)} key={status}>{status === 'pending' ? 'Pendientes' : status === 'approved' ? 'Aprobados' : 'Rechazados'} <b>{proposals.filter((proposal) => proposal.status === status).length}</b></button>)}</div>
+    {message && <p className="form-message success" role="status">{message}</p>}{error && <p className="form-message error" role="alert">{error}</p>}
+    {loading ? <LoadingState label="Cargando propuestas" /> : <div className="proposal-admin-layout"><section className="proposal-admin-list" aria-label="Lista de propuestas"><label className="proposal-admin-search"><Search size={17} aria-hidden="true" /><input aria-label="Buscar propuestas" placeholder="Buscar propuesta…" value={search} onChange={(event) => setSearch(event.target.value)} /></label>{visibleProposals.length ? visibleProposals.map((proposal) => <button className={`proposal-admin-row ${selected?.id === proposal.id ? 'selected' : ''}`} type="button" key={proposal.id} onClick={() => { setSelectedId(proposal.id); setDraft(proposalDraftFromItem(proposal)) }}><span><strong>{proposal.title}</strong><small>{proposal.organizerName} · {new Date(proposal.createdAt).toLocaleDateString('es-PE')}</small></span><b>{proposal.type}</b></button>) : <div className="proposal-admin-empty"><Send size={25} aria-hidden="true" /><p>No hay propuestas en esta vista.</p></div>}</section>
+      {selected && draft ? <section className="proposal-admin-detail" aria-labelledby="selected-proposal-title"><div className="proposal-admin-detail-heading"><div><span className={`proposal-status proposal-status--${selected.status}`}>{selected.status === 'pending' ? 'Pendiente' : selected.status === 'approved' ? 'Aprobada' : 'Rechazada'}</span><h2 id="selected-proposal-title">{selected.title}</h2><p>Enviada por {selected.organizerName} · {selected.contactEmail}</p></div></div><form onSubmit={(event) => void save(event)}><div className="proposal-admin-form-grid"><label>Organizador<input value={draft.organizerName} onChange={(event) => update('organizerName', event.target.value)} disabled={selected.status !== 'pending'} /></label><label>Tipo<select value={draft.type} onChange={(event) => update('type', event.target.value)} disabled={selected.status !== 'pending'}><option>CHARLA</option><option>TALLER</option><option>MEETUP</option><option>GAME JAM</option><option>CONFERENCIA</option></select></label><label className="proposal-admin-wide">Título<input value={draft.title} onChange={(event) => update('title', event.target.value)} disabled={selected.status !== 'pending'} /></label><label className="proposal-admin-wide">Descripción<textarea rows={6} value={draft.description} onChange={(event) => update('description', event.target.value)} disabled={selected.status !== 'pending'} /></label><label>Inicio<input type="datetime-local" value={draft.startsAt} onChange={(event) => update('startsAt', event.target.value)} disabled={selected.status !== 'pending'} /></label><label>Fin<input type="datetime-local" value={draft.endsAt} onChange={(event) => update('endsAt', event.target.value)} disabled={selected.status !== 'pending'} /></label><label>Modalidad<select value={draft.locationType} onChange={(event) => update('locationType', event.target.value as ProposalDraft['locationType'])} disabled={selected.status !== 'pending'}><option value="venue">Presencial</option><option value="online">Online</option><option value="hybrid">Híbrido</option></select></label><label>Comunidad<select value={draft.communityId || ''} onChange={(event) => update('communityId', event.target.value || null)} disabled={selected.status !== 'pending'}><option value="">Evento independiente</option>{communities.map((community) => <option value={community.id} key={community.id}>{community.name}</option>)}</select></label><label>Lugar<input value={draft.venueName} onChange={(event) => update('venueName', event.target.value)} disabled={selected.status !== 'pending'} /></label><label>Dirección<input value={draft.address} onChange={(event) => update('address', event.target.value)} disabled={selected.status !== 'pending'} /></label><label className="proposal-admin-wide">Enlace de registro<input type="url" value={draft.registrationUrl} onChange={(event) => update('registrationUrl', event.target.value)} disabled={selected.status !== 'pending'} /></label><label className="proposal-admin-wide">Enlace para unirse<input type="url" value={draft.meetingUrl} onChange={(event) => update('meetingUrl', event.target.value)} disabled={selected.status !== 'pending'} /></label><label className="proposal-admin-wide">Notas internas<textarea rows={3} value={draft.reviewNotes} onChange={(event) => update('reviewNotes', event.target.value)} disabled={selected.status !== 'pending'} placeholder="Solo visible para administradores" /></label></div><div className="proposal-admin-actions">{selected.status === 'pending' ? <><button className="secondary-button" type="submit" disabled={saving}><Save size={16} /> {saving ? 'Guardando…' : 'Guardar cambios'}</button><button className="primary-button" type="button" disabled={saving} onClick={() => void approve()}><Check size={16} /> Aprobar y publicar</button><button className="danger-button" type="button" disabled={saving} onClick={() => void reject()}><X size={16} /> Rechazar</button></> : selected.approvedEventId ? <Link className="primary-button" to={`/app/eventos/${selected.approvedEventId}`}>Editar evento publicado</Link> : null}</div></form></section> : <section className="proposal-admin-detail proposal-admin-detail--empty"><Send size={38} aria-hidden="true" /><h2>Selecciona una propuesta</h2><p>Elige una propuesta de la lista para revisar sus datos.</p></section>}
+    </div>}
+  </div>
 }

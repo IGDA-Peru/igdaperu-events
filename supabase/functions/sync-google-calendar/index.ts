@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { bearerToken, json, options } from '../_shared/cors.ts'
 import { getGoogleAccessToken, readServiceAccountSecret } from '../_shared/google-auth.ts'
+import { enforceRateLimit, rateLimitResponse } from '../_shared/rate-limit.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -10,7 +11,7 @@ const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events'
 const GOOGLE_CALENDAR_API = 'https://www.googleapis.com/calendar/v3'
 const DEFAULT_APP_URL = 'https://eventos.igda.pe'
 const SYNC_SOURCE = 'eventos.igda.pe'
-const SYNC_VERSION = '2026-09-05-mapping-v2'
+const SYNC_VERSION = '2026-09-06-mapping-v3'
 
 type CalendarEvent = {
   id?: string
@@ -33,6 +34,7 @@ type SourceEvent = {
   id: string
   updated_at: string
   slug: string
+  organizer_name: string | null
   title: string
   description: string | null
   starts_at: string
@@ -40,12 +42,17 @@ type SourceEvent = {
   is_all_day: boolean
   timezone: string | null
   location_type: 'venue' | 'online' | 'hybrid'
+  access_mode: 'registration_only' | 'location_access' | null
+  location_precision: 'none' | 'department' | 'province' | 'exact' | null
+  location_department: string | null
+  location_province: string | null
   venue_name: string | null
   address: string | null
   formatted_address: string | null
   map_url: string | null
   meeting_url: string | null
   meeting_provider: 'google_meet' | 'zoom' | 'discord' | 'other' | null
+  registration_url: string | null
   community: { name: string; slug: string; status: 'approved' | 'pending' | 'suspended' } | null
 }
 
@@ -72,20 +79,29 @@ function calendarEventId(sourceId: string) {
 }
 
 function calendarLocation(event: SourceEvent) {
-  const venue = [event.venue_name, event.address || event.formatted_address].filter(Boolean).join(' · ')
+  if (event.access_mode === 'registration_only') return ''
+  const exactVenue = [event.venue_name, event.address || event.formatted_address].filter(Boolean).join(' · ')
+  const generalVenue = event.location_precision === 'province'
+    ? [event.location_province, event.location_department].filter(Boolean).join(', ')
+    : event.location_precision === 'department'
+      ? [event.location_department, 'Perú'].filter(Boolean).join(', ')
+      : ''
+  const venue = event.location_precision === 'exact' ? exactVenue : generalVenue
   if (event.location_type === 'online') return 'Online'
-  return venue || 'Por confirmar'
+  if (event.location_type === 'hybrid') return venue ? `Híbrido · ${venue}` : 'Híbrido · Ubicación por confirmar'
+  return venue || 'Ubicación por confirmar'
 }
 
 function calendarDescription(event: SourceEvent, appUrl: string, includeGoogleMeetLink = false) {
   const details = [
-    `Comunidad: ${event.community?.name || 'IGDA Perú'}`,
+    `Organiza: ${event.community?.name || event.organizer_name || 'Evento independiente'}`,
     '',
     event.description?.trim() || 'Más información en la agenda.',
   ]
   const additionalDetails = [
-    event.meeting_url && (event.meeting_provider !== 'google_meet' || includeGoogleMeetLink) ? `Enlace para conectarse: ${event.meeting_url}` : '',
-    event.map_url ? `Mapa: ${event.map_url}` : '',
+    event.access_mode !== 'registration_only' && event.meeting_url && (event.meeting_provider !== 'google_meet' || includeGoogleMeetLink) ? `Enlace para conectarse: ${event.meeting_url}` : '',
+    event.registration_url ? `Enlace de inscripción: ${event.registration_url}` : '',
+    event.access_mode !== 'registration_only' && event.map_url ? `Mapa: ${event.map_url}` : '',
     `Ver detalles: ${appUrl}/eventos/${event.slug}`,
   ].filter(Boolean)
   if (additionalDetails.length) details.push('', ...additionalDetails)
@@ -93,7 +109,7 @@ function calendarDescription(event: SourceEvent, appUrl: string, includeGoogleMe
 }
 
 function calendarConference(event: SourceEvent) {
-  if (event.meeting_provider !== 'google_meet' || !event.meeting_url) return undefined
+  if (event.access_mode === 'registration_only' || event.meeting_provider !== 'google_meet' || !event.meeting_url) return undefined
   return {
     conferenceSolution: { key: { type: 'hangoutsMeet' }, name: 'Google Meet' },
     entryPoints: [{ entryPointType: 'video', uri: event.meeting_url, label: event.meeting_url.replace(/^https?:\/\//, '') }],
@@ -227,10 +243,9 @@ async function deleteCalendarEvent(accessToken: string, calendarId: string, even
 async function loadPublicEvents(eventId?: string) {
   const query = admin
     .from('events')
-    .select('id,updated_at,slug,title,description,starts_at,ends_at,is_all_day,timezone,location_type,venue_name,address,formatted_address,map_url,meeting_url,meeting_provider,community:communities!inner(name,slug,status)')
+    .select('id,updated_at,slug,organizer_name,title,description,starts_at,ends_at,is_all_day,timezone,location_type,access_mode,location_precision,location_department,location_province,venue_name,address,formatted_address,map_url,meeting_url,meeting_provider,registration_url,community:communities(name,slug,status)')
     .eq('status', 'published')
     .eq('visibility', 'public')
-    .eq('community.status', 'approved')
     .not('starts_at', 'is', null)
     .not('ends_at', 'is', null)
     .order('starts_at', { ascending: true })
@@ -241,7 +256,7 @@ async function loadPublicEvents(eventId?: string) {
   return (data || []).map((row: any) => ({
     ...row,
     community: Array.isArray(row.community) ? row.community[0] || null : row.community,
-  })) as SourceEvent[]
+  })).filter((row: any) => !row.community || row.community.status === 'approved') as SourceEvent[]
 }
 
 function isCalendarEventCurrent(remoteEvent: CalendarEvent | undefined, desiredEvent: CalendarEvent) {
@@ -379,6 +394,9 @@ Deno.serve(async (request) => {
       const { data: authData, error: authError } = await admin.auth.getUser(accessToken)
       if (authError || !authData.user) return json({ error: 'Invalid session' }, 401)
       actorId = authData.user.id
+
+      const limit = await enforceRateLimit(admin, request, 'sync-google-calendar', authData.user.id, { windowSeconds: 3600, maxRequests: 2 })
+      if (!limit.allowed) return rateLimitResponse(limit, 'La sincronización ya se ejecutó recientemente. Intenta nuevamente más tarde.')
 
       stage = 'validating-platform-admin'
       const { data: platformMembership, error: membershipError } = await admin

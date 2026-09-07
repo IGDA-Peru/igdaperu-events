@@ -1,4 +1,4 @@
-import { LayoutDashboard, LockKeyhole, LogIn, LogOut, Menu, User, X } from 'lucide-react'
+import { LayoutDashboard, LockKeyhole, LogIn, LogOut, Menu, Send, User, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
@@ -49,6 +49,7 @@ export function SiteHeader({ embed = false }: { embed?: boolean }) {
           <Link className={location.pathname.startsWith('/comunidades') ? 'active' : ''} to="/comunidades">Comunidades</Link>
         </nav>
         <div className="header-actions">
+          {!isApp && !user && <Link className="publish-button" to="/proponer-evento" onClick={closeAccountMenu}><Send size={17} aria-hidden="true" /> Propón tu evento</Link>}
           {user && <Link className="publish-button" to="/app" onClick={closeAccountMenu}><LayoutDashboard size={19} aria-hidden="true" /> Panel</Link>}
           {user ? (
             <div className="account-menu" ref={accountMenuRef}>

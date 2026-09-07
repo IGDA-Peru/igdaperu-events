@@ -13,7 +13,7 @@ type EventPreviewPresentation = 'drawer' | 'modal'
 export function EventPreviewDrawer({
   event,
   onClose,
-  presentation = 'drawer',
+  presentation = 'modal',
 }: {
   event: EventItem | null
   onClose: () => void
@@ -60,10 +60,13 @@ export function EventPreviewDrawer({
         <div className="event-preview-meta">
           <div><CalendarDays size={19} aria-hidden="true" /><span><strong>Fecha</strong>{formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)}</span></div>
           <div><Clock3 size={19} aria-hidden="true" /><span><strong>Hora</strong>{formatTimeRange(event.startsAt, event.endsAt, event.isAllDay)}</span></div>
-          <div><MapPin size={19} aria-hidden="true" /><span><strong>Ubicación</strong>{formatEventLocation(event)}{event.mapUrl && <a href={event.mapUrl} target="_blank" rel="noreferrer">Ver en Google Maps <ExternalLink size={14} /></a>}</span></div>
-          <div><CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative /><span><strong>Organiza</strong>{presentation === 'modal' ? <a href="https://igda.pe/comunidad/" target="_top" rel="noreferrer">{event.communityName}</a> : <Link to={`/comunidades/${event.communitySlug}`} onClick={onClose}>{event.communityName}</Link>}</span></div>
+          <div><MapPin size={19} aria-hidden="true" /><span><strong>Ubicación</strong>{formatEventLocation(event)}{event.accessMode !== 'registration_only' && event.mapUrl && <a href={event.mapUrl} target="_blank" rel="noreferrer">Ver en Google Maps <ExternalLink size={14} /></a>}</span></div>
+          <div><CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative /><span><strong>Organiza</strong>{event.communityId ? presentation === 'modal' ? <a href="https://igda.pe/comunidad/" target="_top" rel="noreferrer">{event.communityName}</a> : <Link to={`/comunidades/${event.communitySlug}`} onClick={onClose}>{event.communityName}</Link> : <span>{event.organizerName || event.communityName || 'Evento independiente'}</span>}</span></div>
         </div>
-        {event.meetingUrl && !isPast && <a className="primary-button event-preview-link" href={event.meetingUrl} target="_blank" rel="noreferrer">{meetingActionLabel(event.meetingProvider)} <ExternalLink size={17} /></a>}
+        {!isPast && (event.registrationUrl || event.meetingUrl) && <div className="event-preview-actions">
+          {event.registrationUrl && <a className="primary-button event-preview-link" href={event.registrationUrl} target="_blank" rel="noreferrer">Inscribirme <ExternalLink size={17} /></a>}
+          {event.meetingUrl && <a className={`${event.registrationUrl ? 'secondary-button' : 'primary-button'} event-preview-link`} href={event.meetingUrl} target="_blank" rel="noreferrer">{meetingActionLabel(event.meetingProvider)} <ExternalLink size={17} /></a>}
+        </div>}
       </aside>
     </div>,
     document.body,

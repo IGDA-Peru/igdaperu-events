@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { DemoNotice } from '../components/Feedback'
+import { TurnstileWidget } from '../components/TurnstileWidget'
 import { updateProfileIdentity } from '../lib/data'
-import { appUrl, supabase } from '../lib/supabase'
+import { appUrl, isSupabaseConfigured, supabase } from '../lib/supabase'
 
 function AuthFrame({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return <div className="auth-page"><div className="auth-card"><Link className="auth-brand" to="/"><img className="auth-logo" src="/brand/logo-igda-peru.png" alt="" width="42" height="39" /><span className="brand-copy"><span className="brand-name">IGDA Peru</span><small>Eventos</small></span></Link><h1>{title}</h1><p className="auth-description">{description}</p>{children}</div></div>
@@ -49,19 +50,22 @@ export function RegisterPage() {
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
+  const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileResetSignal, setTurnstileResetSignal] = useState(0)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setError(''); setSuccess('')
     if (!supabase) { setError('Supabase aún no está configurado para este entorno.'); return }
+    if (isSupabaseConfigured && !turnstileToken) { setError('Completa la verificación antispam antes de continuar.'); return }
     setLoading(true)
-    const result = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${appUrl}/restablecer` })
+    const result = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${appUrl}/restablecer`, captchaToken: turnstileToken || undefined })
     setLoading(false)
     if (result.error) setError(result.error.message)
-    else setSuccess('Si existe una cuenta con ese email, recibirás instrucciones para restablecer tu contraseña.')
+    else { setSuccess('Si existe una cuenta con ese email, recibirás instrucciones para restablecer tu contraseña.'); setTurnstileToken(''); setTurnstileResetSignal((value) => value + 1) }
   }
-  return <AuthFrame title="Recuperar contraseña" description="Te enviaremos un enlace seguro para crear una nueva contraseña."><form className="auth-form" onSubmit={submit}><label>Email<input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label><FormMessage error={error} success={success} /><button className="primary-button full" disabled={loading}>{loading ? 'Enviando…' : 'Enviar instrucciones'}</button></form><div className="auth-links"><Link to="/login"><ArrowLeft size={15} /> Volver a ingresar</Link></div></AuthFrame>
+  return <AuthFrame title="Recuperar contraseña" description="Te enviaremos un enlace seguro para crear una nueva contraseña."><form className="auth-form" onSubmit={submit}><label>Email<input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label><TurnstileWidget action="password-recovery" value={turnstileToken} onChange={setTurnstileToken} resetSignal={turnstileResetSignal} /><FormMessage error={error} success={success} /><button className="primary-button full" disabled={loading}>{loading ? 'Enviando…' : 'Enviar instrucciones'}</button></form><div className="auth-links"><Link to="/login"><ArrowLeft size={15} /> Volver a ingresar</Link></div></AuthFrame>
 }
 
 export function ResetPasswordPage() {
@@ -142,6 +146,8 @@ export function AcceptInvitationPage() {
   const [password, setPassword] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
+  const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileResetSignal, setTurnstileResetSignal] = useState(0)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -149,6 +155,7 @@ export function AcceptInvitationPage() {
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setError('')
     if (!supabase || !user) { setError('Abre el enlace desde el correo de invitación para continuar.'); return }
+    if (isSupabaseConfigured && !turnstileToken) { setError('Completa la verificación antispam antes de aceptar la invitación.'); return }
     setLoading(true)
     const normalizedFirstName = firstName.trim()
     const normalizedLastName = lastName.trim()
@@ -163,13 +170,13 @@ export function AcceptInvitationPage() {
       setError(reason instanceof Error ? reason.message : 'No pudimos guardar tu identidad.')
       return
     }
-    const result = await supabase.functions.invoke('accept-invitation', { body: { token } })
+    const result = await supabase.functions.invoke('accept-invitation', { body: { token, turnstileToken } })
     setLoading(false)
     if (result.error) setError(result.error.message)
-    else { await refreshUserData(); setSuccess(true) }
+    else { await refreshUserData(); setTurnstileToken(''); setTurnstileResetSignal((value) => value + 1); setSuccess(true) }
   }
 
-  return <AuthFrame title="Aceptar invitación" description="Completa tu perfil para administrar eventos de una comunidad.">{!configured && <DemoNotice />}{!user ? <div className="invite-login"><ShieldCheck size={32} /><p>Confirma primero tu cuenta desde el enlace que recibiste por correo.</p><Link className="primary-button full" to={`/login?next=${encodeURIComponent(`/invitaciones/${token}`)}`}>Ingresar</Link></div> : success ? <div className="success-panel"><CheckCircle2 size={31} /><p>Invitación aceptada. Ya puedes gestionar eventos.</p><Link className="primary-button full" to="/app">Ir al panel</Link></div> : <form className="auth-form" onSubmit={submit}><div className="identity-form-grid"><label>Nombres<input type="text" required minLength={2} autoComplete="given-name" value={firstName} onChange={(event) => setFirstName(event.target.value)} /></label><label>Apellidos<input type="text" autoComplete="family-name" value={lastName} onChange={(event) => setLastName(event.target.value)} /></label></div><label>Contraseña<input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label><FormMessage error={error} /><button className="primary-button full" disabled={loading}>{loading ? 'Activando acceso…' : 'Aceptar invitación'}</button></form>}</AuthFrame>
+  return <AuthFrame title="Aceptar invitación" description="Completa tu perfil para administrar eventos de una comunidad.">{!configured && <DemoNotice />}{!user ? <div className="invite-login"><ShieldCheck size={32} /><p>Confirma primero tu cuenta desde el enlace que recibiste por correo.</p><Link className="primary-button full" to={`/login?next=${encodeURIComponent(`/invitaciones/${token}`)}`}>Ingresar</Link></div> : success ? <div className="success-panel"><CheckCircle2 size={31} /><p>Invitación aceptada. Ya puedes gestionar eventos.</p><Link className="primary-button full" to="/app">Ir al panel</Link></div> : <form className="auth-form" onSubmit={submit}><div className="identity-form-grid"><label>Nombres<input type="text" required minLength={2} autoComplete="given-name" value={firstName} onChange={(event) => setFirstName(event.target.value)} /></label><label>Apellidos<input type="text" autoComplete="family-name" value={lastName} onChange={(event) => setLastName(event.target.value)} /></label></div><label>Contraseña<input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label><TurnstileWidget action="accept-invitation" value={turnstileToken} onChange={setTurnstileToken} resetSignal={turnstileResetSignal} /><FormMessage error={error} /><button className="primary-button full" disabled={loading}>{loading ? 'Activando acceso…' : 'Aceptar invitación'}</button></form>}</AuthFrame>
 }
 
 export function AuthCallbackPage() {
