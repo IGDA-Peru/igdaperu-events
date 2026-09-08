@@ -211,6 +211,10 @@ export function CalendarView({ events, onEventOpen, focusRequest }: { events: Ev
 const timelineWeeksPerSection = 3
 const timelineNormalDayWidth = 38
 const timelineLabelWidth = 190
+const timelineDefaultCommunityRows = 3
+const timelineCommunityRowHeight = 68
+const timelineLaneHeight = 38
+const timelineTrackPadding = 20
 const timelineWeekFormatter = new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', day: 'numeric', month: 'short' })
 const timelineMonthFormatter = new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', month: 'long', year: 'numeric' })
 const timelineDayFormatter = new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', weekday: 'short', day: 'numeric' })
@@ -385,7 +389,8 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
   const fittedDayWidth = availableAxisWidth > 0 ? availableAxisWidth / visibleDays.length : timelineNormalDayWidth
   const dayWidth = Math.max(18, fittedDayWidth)
   const canvasStyle = timelineCssVariables(dayWidth, visibleDays.length, currentLabelWidth)
-  const bodyStyle = { '--timeline-day-width': `${dayWidth}px`, '--timeline-day-count': String(visibleDays.length), '--timeline-axis-width': `${dayWidth * visibleDays.length}px`, '--timeline-today-offset': todayIndex >= 0 ? `${todayIndex * dayWidth + dayWidth / 2}px` : '0px' } as CSSProperties
+  const contentHeight = groupedCommunities.reduce((total, community) => total + Math.max(timelineCommunityRowHeight, community.laneCount * timelineLaneHeight + timelineTrackPadding), 0)
+  const bodyStyle = { '--timeline-day-width': `${dayWidth}px`, '--timeline-day-count': String(visibleDays.length), '--timeline-axis-width': `${dayWidth * visibleDays.length}px`, '--timeline-today-offset': todayIndex >= 0 ? `${todayIndex * dayWidth + dayWidth / 2}px` : '0px', minHeight: `${Math.max(timelineDefaultCommunityRows * timelineCommunityRowHeight, contentHeight)}px` } as CSSProperties
   const singleDayLabelWidthDays = Math.ceil(160 / dayWidth) + 1
   const isCurrentMonth = visibleMonth.getFullYear() === new Date().getFullYear() && visibleMonth.getMonth() === new Date().getMonth()
   const changeMonth = (offset: number) => {
@@ -470,7 +475,7 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
             {todayIndex >= 0 && <div className="timeline-today-line" aria-label={`Hoy: ${formatTimelineDay(todayKey).day} de ${formatTimelineMonth(visibleMonth)}`}><span>Hoy</span></div>}
             {groupedCommunities.length ? groupedCommunities.map((community) => <div className="timeline-community-row" key={community.id}>
               <div className="timeline-community-label" style={timelineStyle(community.color)}><span className="timeline-community-dot" /><CommunityLogo path={community.logoPath} name={community.name} size="small" decorative /><strong>{community.name}</strong><small>{community.segments.length} {community.segments.length === 1 ? 'evento' : 'eventos'}</small></div>
-              <div className="timeline-track" style={{ minHeight: `${Math.max(68, community.laneCount * 38 + 20)}px` }}>
+              <div className="timeline-track" style={{ minHeight: `${Math.max(timelineCommunityRowHeight, community.laneCount * timelineLaneHeight + timelineTrackPadding)}px` }}>
                 <div className="timeline-day-grid" aria-hidden="true">{visibleDays.map((key) => <span className={`${key < range.monthStartKey || key > range.monthEndKey ? 'outside-month' : ''} ${new Date(`${key}T12:00:00-05:00`).getDay() === 0 || new Date(`${key}T12:00:00-05:00`).getDay() === 6 ? 'weekend' : ''}`} key={key} />)}</div>
                 {community.segments.map((segment) => {
                   const privateEvent = showVisibility && segment.event.visibility === 'network'
@@ -478,7 +483,7 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
                   const labelBefore = segment.isSingleDay && segment.endIndex >= visibleDays.length - singleDayLabelWidthDays
                   const segmentWidth = segment.isSingleDay ? Math.min(28, dayWidth - 8) : (segment.endIndex - segment.startIndex + 1) * dayWidth - 8
                   const segmentLeft = segment.isSingleDay ? segment.startIndex * dayWidth + (dayWidth - segmentWidth) / 2 : segment.startIndex * dayWidth + 4
-                  const segmentStyle = { ...timelineStyle(community.color), left: `${segmentLeft}px`, width: `${segmentWidth}px`, top: `${segment.lane * 38 + 10}px` }
+                  const segmentStyle = { ...timelineStyle(community.color), left: `${segmentLeft}px`, width: `${segmentWidth}px`, top: `${segment.lane * timelineLaneHeight + 10}px` }
                   const label = `${segment.event.title}, ${segment.event.communityName}, ${formatEventDateRange(segment.event.startsAt, segment.event.endsAt, segment.event.isAllDay)}${privateEvent ? ', Solo Comunidades' : ''}`
                   return <button className={`timeline-event-bar ${segment.isSingleDay ? 'single-day' : ''} ${labelBefore ? 'label-before' : ''} ${privateEvent ? 'private' : 'public'} ${isEventPast(segment.event) ? 'past' : ''} ${segment.continuesBefore ? 'continues-before' : ''} ${segment.continuesAfter ? 'continues-after' : ''}`} data-event-focus-id={segment.event.id} style={segmentStyle} type="button" data-lane={segment.lane} title={`${label} · ${formatTimeRange(segment.event.startsAt, segment.event.endsAt, segment.event.isAllDay)}`} aria-label={label} onClick={() => onEventOpen(segment.event)} key={segment.event.id}><span className="timeline-event-diamond" aria-hidden="true" />{privateEvent && !segment.isSingleDay && <LockKeyhole size={12} aria-hidden="true" />}<span className="timeline-event-label">{segment.event.title}</span>{isEventPast(segment.event) && <span className="sr-only">Ya pasó</span>}<CalendarEventHoverPreview event={segment.event} coverUrl={coverUrl} /></button>
                 })}

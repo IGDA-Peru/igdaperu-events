@@ -33,7 +33,7 @@ Esta configuración debe hacerse en la cuenta de Cloudflare que administra la zo
 3. Usa `main` como rama de producción.
 4. Configura Node.js `22`, comando `pnpm build` y directorio de salida `dist`.
 5. En **Custom domains**, agrega `eventos.igda.pe` desde el propio proyecto Pages.
-6. Agrega las variables `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` y `VITE_APP_URL=https://eventos.igda.pe` en producción.
+6. En **Production**, agrega `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_APP_URL=https://eventos.igda.pe`, `VITE_GOOGLE_MAPS_BROWSER_KEY` y `VITE_GOOGLE_MAPS_MAP_ID`. La clave de Maps debe estar restringida por HTTP referrer a `https://eventos.igda.pe/*` y tener habilitadas Maps JavaScript API, Places API (New) y Geocoding API.
 7. En **Settings → Variables and Secrets**, agrega también `SUPABASE_URL` y `SUPABASE_PUBLISHABLE_KEY` como variables de runtime para Production y Preview. La Pages Function usa la clave publicable y sigue protegida por RLS; nunca agregues `service_role` al frontend ni a esta función.
 8. Agrega `VITE_TURNSTILE_SITE_KEY` con la clave pública del widget de Turnstile para mostrar el formulario público de propuestas.
 
@@ -51,9 +51,12 @@ El contrato de base de datos está en `supabase/migrations/20260903000000_initia
 pnpm exec supabase login
 pnpm exec supabase link --project-ref <PROJECT_REF>
 pnpm exec supabase db push
+pnpm exec supabase secrets set CORS_ALLOWED_ORIGIN=https://eventos.igda.pe
+pnpm exec supabase secrets set TURNSTILE_HOSTNAMES=eventos.igda.pe
 pnpm exec supabase functions deploy create-invitation
 pnpm exec supabase functions deploy accept-invitation
 pnpm exec supabase functions deploy create-event-report
+pnpm exec supabase functions deploy cleanup-orphaned-assets
 pnpm exec supabase functions deploy submit-event-proposal --no-verify-jwt
 pnpm exec supabase functions deploy sync-communities
 pnpm exec supabase functions deploy sync-google-calendar
@@ -71,9 +74,10 @@ En el dashboard de Supabase:
 - SMTP propio configurado antes de enviar invitaciones en producción.
 - Secret `APP_URL=https://eventos.igda.pe` para las Edge Functions.
 - Secret `PUBLIC_APP_URL=https://eventos.igda.pe` para los enlaces de invitación. Esta variable es la URL pública canónica y no debe reutilizarse para pruebas OAuth locales.
-- Las Edge Functions restringen CORS a los orígenes configurados en `CORS_ALLOWED_ORIGIN` (separados por comas); si no existe, usan `PUBLIC_APP_URL` y luego `APP_URL`. En producción conserva `https://eventos.igda.pe`; para desarrollo local puedes agregar temporalmente el origen exacto, por ejemplo `http://localhost:5174,http://127.0.0.1:5174`.
-- Turnstile configurado en Cloudflare con un widget para `eventos.igda.pe` y, si se prueba localmente, otro widget para `localhost`/`127.0.0.1`, usando modo `Managed`.
-- Secretos de Turnstile en Supabase Edge Functions: `TURNSTILE_SECRET` y `TURNSTILE_HOSTNAMES=eventos.igda.pe` en producción. Para desarrollo local se puede agregar temporalmente `localhost,127.0.0.1`; nunca mezcles hostnames de desarrollo en el secret de producción. La `VITE_TURNSTILE_SITE_KEY` es pública y solo se usa en el frontend.
+- Las Edge Functions restringen CORS a los orígenes configurados en `CORS_ALLOWED_ORIGIN`. Para este proyecto conserva únicamente `https://eventos.igda.pe`; el sitio principal puede incrustar el evento sin convertirse en origen de las solicitudes del iframe. Para desarrollo local puedes agregar temporalmente los orígenes exactos, por ejemplo `http://localhost:5174,http://127.0.0.1:5174`.
+- Define explícitamente `CORS_ALLOWED_ORIGIN=https://eventos.igda.pe` en los secrets de Supabase para evitar que un valor local heredado bloquee las solicitudes de producción.
+- Turnstile debe tener un widget con `eventos.igda.pe` como hostname permitido, usando modo `Managed`.
+- Secretos de Turnstile en Supabase Edge Functions: `TURNSTILE_SECRET` y `TURNSTILE_HOSTNAMES=eventos.igda.pe`. Para desarrollo local se pueden agregar temporalmente `localhost,127.0.0.1`; nunca mezcles hostnames de desarrollo local en el secret de producción. La `VITE_TURNSTILE_SITE_KEY` es pública y solo se usa en el frontend.
 - El formulario `/proponer-evento` no requiere cuenta ni comunidad: guarda la propuesta pendiente y el admin de plataforma la revisa en `/app/admin/propuestas`. Debes aplicar la migración `20260907120000_event_proposals.sql` y desplegar `submit-event-proposal` antes de habilitarlo en producción.
 - Password recovery también debe tener Turnstile habilitado en Authentication → Settings/CAPTCHA de Supabase, con el mismo proveedor y secret; el formulario envía el token mediante `captchaToken`.
 

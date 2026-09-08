@@ -104,6 +104,18 @@ describe('TimelineView', () => {
     expect(screen.getByRole('button', { name: /Evento Godot/ })).toBeInTheDocument()
   })
 
+  it('reserves the height of three community rows and grows for additional communities', () => {
+    const first = timelineEvent({ id: 'first', communityId: 'igda', communityName: 'IGDA Perú' })
+    const second = timelineEvent({ id: 'second', communityId: 'godot', communityName: 'Godot Lima' })
+    const third = timelineEvent({ id: 'third', communityId: 'unity', communityName: 'Unity Perú' })
+    const fourth = timelineEvent({ id: 'fourth', communityId: 'unreal', communityName: 'Unreal Perú' })
+    const { container, rerender } = render(<MemoryRouter><TimelineView events={[first]} showVisibility={false} onEventOpen={vi.fn()} /></MemoryRouter>)
+
+    expect(container.querySelector('.timeline-body')).toHaveStyle({ minHeight: '204px' })
+    rerender(<MemoryRouter><TimelineView events={[first, second, third, fourth]} showVisibility={false} onEventOpen={vi.fn()} /></MemoryRouter>)
+    expect(container.querySelector('.timeline-body')).toHaveStyle({ minHeight: '272px' })
+  })
+
   it('uses the normal timeline density and paginates sections with arrows in the timeline header', () => {
     const first = timelineEvent({ id: 'first', title: 'Evento primera sección' })
     const later = timelineEvent({ id: 'later', title: 'Evento segunda sección', startsAt: '2026-09-25T09:00:00-05:00', endsAt: '2026-09-25T18:00:00-05:00' })

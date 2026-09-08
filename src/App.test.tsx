@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthContext, type AuthContextValue } from './auth/auth-context'
 import App from './App'
 import { SiteHeader } from './components/SiteHeader'
-import { CommunityEventsPage, CommunitySettingsPage, DashboardPage, EventEditorPage } from './pages/AppPages'
+import { CommunityEventsPage, CommunitySettingsPage, DashboardPage, EventEditorPage, PlatformAdminPage } from './pages/AppPages'
 import { ConversationsPage } from './pages/ChatPage'
 import { CommunityDetailPage } from './pages/PublicPages'
 
@@ -216,6 +216,30 @@ describe('public events', () => {
     expect(screen.getByRole('option', { name: 'Editor de comunidad', selected: true })).toBeInTheDocument()
   })
 
+  it('organizes the IGDA administration panel around its operational areas', async () => {
+    const authValue = {
+      configured: false,
+      loading: false,
+      session: null,
+      user: { id: 'admin-1', email: 'admin@igda.pe' } as NonNullable<AuthContextValue['user']>,
+      profile: { id: 'profile-1', displayName: 'Admin' },
+      memberships: [],
+      roles: ['platform_admin'],
+      signOut: vi.fn().mockResolvedValue(undefined),
+      refreshUserData: vi.fn().mockResolvedValue(undefined),
+    } as AuthContextValue
+
+    render(<AuthContext.Provider value={authValue}><MemoryRouter initialEntries={['/app/admin']}><PlatformAdminPage /></MemoryRouter></AuthContext.Provider>)
+
+    expect(await screen.findByRole('heading', { name: 'Administración IGDA' })).toBeInTheDocument()
+    expect(screen.getByText('Comunidades activas')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Reportes pendientes' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Nueva comunidad' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Mantenimiento y sincronización' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Comunidades' })).toBeInTheDocument()
+    expect(document.querySelector('.admin-management-grid')).toBeInTheDocument()
+  })
+
   it('lets authenticated users browse the community event network from the panel', async () => {
     render(<MemoryRouter initialEntries={['/app/eventos/comunidad']}><CommunityEventsPage /></MemoryRouter>)
 
@@ -278,6 +302,7 @@ describe('public events', () => {
     expect(screen.getByText('Borrador / Solo Comunidades')).toBeInTheDocument()
     expect(screen.getByText('Falta:')).toBeInTheDocument()
     expect(screen.queryByText('El banner es opcional para cualquiera de las tres opciones.')).not.toBeInTheDocument()
+    expect(document.querySelector('.editor-required-note')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Ocultar resumen' }))
     expect(summaryToggle).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('heading', { name: 'Información principal' })).not.toBeInTheDocument()
@@ -295,6 +320,7 @@ describe('public events', () => {
     expect(screen.getByRole('tab', { name: /Fecha y hora/ })).toHaveAttribute('aria-selected', 'true')
     expect(screen.queryByRole('heading', { name: 'Fecha y hora' })).not.toBeInTheDocument()
     expect(screen.getByLabelText(/Fecha del evento/)).toBeInTheDocument()
+    expect(screen.getByText('Duración del evento').parentElement?.querySelector('.field-required')).toBeNull()
     fireEvent.change(screen.getByLabelText(/Fecha del evento/), { target: { value: '2026-09-18' } })
     expect(await screen.findByText(/No encontramos eventos cruzados/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: /Varias fechas/ }))
@@ -322,6 +348,7 @@ describe('public events', () => {
     expect(screen.getByRole('heading', { name: 'Inscripción' })).toBeInTheDocument()
     expect(screen.getByText(/gestiona las inscripciones desde tu comunidad.*activa las opciones de ubicación y conexión/)).toBeInTheDocument()
     expect(screen.getByLabelText(/Enlace de inscripción/)).toBeInTheDocument()
+    expect(screen.getByText('¿Qué quieres gestionar en este evento?').parentElement?.querySelector('.field-required')).toBeNull()
     expect(screen.getByRole('radio', { name: /Solo inscripción/ })).toBeChecked()
     expect(screen.getByRole('tab', { name: /Inscripción/ }).querySelector('span')).toHaveTextContent('03')
     expect(screen.getByRole('tab', { name: /Publicación/ }).querySelector('svg')).toBeInTheDocument()
