@@ -1,5 +1,5 @@
 import { CalendarDays, ChevronLeft, ChevronRight, LocateFixed, LockKeyhole } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { getEventCoverUrl } from '../lib/data'
 import { formatEventDateRange, formatEventLocation, formatTimeRange, isEventPast } from '../lib/format'
 import { findNextEvent } from '../lib/eventFocus'
@@ -132,6 +132,39 @@ function CalendarEventHoverPreview({ event, coverUrl }: { event: EventItem; cove
   )
 }
 
+function calendarHoverPlacement(element: HTMLElement) {
+  const bounds = element.getBoundingClientRect()
+  const gap = 10
+  const rightSpace = window.innerWidth - bounds.right
+  const leftSpace = bounds.left
+  const idealWidth = Math.min(310, Math.max(180, window.innerWidth - 48))
+  const fitsRight = rightSpace >= idealWidth + gap
+  const fitsLeft = leftSpace >= idealWidth + gap
+  const side = fitsRight || (!fitsLeft && rightSpace >= leftSpace) ? 'right' : 'left'
+  const availableSpace = Math.max(0, (side === 'right' ? rightSpace : leftSpace) - gap)
+  return { side: side as 'left' | 'right', width: Math.min(idealWidth, availableSpace) }
+}
+
+function CalendarEventBar({ segment, coverUrl, onEventOpen }: { segment: CalendarEventSegment; coverUrl: string | null; onEventOpen?: (event: EventItem) => void }) {
+  const [hoverPlacement, setHoverPlacement] = useState({ side: 'right' as 'left' | 'right', width: 310 })
+  const barRef = useRef<HTMLButtonElement>(null)
+  const { event } = segment
+
+  const updateHoverSide = useCallback((element: HTMLButtonElement) => setHoverPlacement(calendarHoverPlacement(element)), [])
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => { if (barRef.current) updateHoverSide(barRef.current) })
+    return () => window.cancelAnimationFrame(frame)
+  }, [updateHoverSide])
+
+  return <button ref={barRef} className={`calendar-event-bar ${segment.isSingleDay ? 'single-day' : 'multi-day'} ${event.visibility === 'network' ? 'private' : 'public'} ${isEventPast(event) ? 'past' : ''} hover-${hoverPlacement.side} ${segment.continuesBefore ? 'continues-before' : ''} ${segment.continuesAfter ? 'continues-after' : ''}`} data-event-focus-id={event.id} type="button" style={{ gridColumn: `${segment.startColumn + 1} / ${segment.endColumn + 2}`, gridRow: segment.lane + 1, '--calendar-hover-width': `${hoverPlacement.width}px` } as CSSProperties} title={`${event.title} · ${formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)} · ${formatTimeRange(event.startsAt, event.endsAt, event.isAllDay)}`} aria-label={`${event.title}, ${formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)}`} onPointerEnter={(pointerEvent) => updateHoverSide(pointerEvent.currentTarget)} onFocus={(focusEvent) => updateHoverSide(focusEvent.currentTarget)} onClick={() => onEventOpen?.(event)}>
+    {!segment.continuesBefore && <CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative />}
+    {!segment.continuesBefore && <span className="calendar-event-dot" aria-hidden="true" />}
+    <span className="calendar-event-title">{event.title}</span>
+    <CalendarEventHoverPreview event={event} coverUrl={coverUrl} />
+  </button>
+}
+
 export function CalendarView({ events, onEventOpen, focusRequest }: { events: EventItem[]; onEventOpen?: (event: EventItem) => void; focusRequest?: EventFocusRequest | null }) {
   const scheduledEvents = useMemo(() => events.filter((event) => event.startsAt), [events])
   const [visibleMonth, setVisibleMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1))
@@ -191,13 +224,7 @@ export function CalendarView({ events, onEventOpen, focusRequest }: { events: Ev
                 {segments.map((segment) => {
                   const event = segment.event
                   const coverUrl = getEventCoverUrl(event.coverPath)
-                  const hoverAlignment = segment.endColumn >= 5 ? 'hover-right' : ''
-                  return <button className={`calendar-event-bar ${segment.isSingleDay ? 'single-day' : 'multi-day'} ${event.visibility === 'network' ? 'private' : 'public'} ${isEventPast(event) ? 'past' : ''} ${hoverAlignment} ${segment.continuesBefore ? 'continues-before' : ''} ${segment.continuesAfter ? 'continues-after' : ''}`} data-event-focus-id={event.id} type="button" style={{ gridColumn: `${segment.startColumn + 1} / ${segment.endColumn + 2}`, gridRow: segment.lane + 1 }} title={`${event.title} · ${formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)} · ${formatTimeRange(event.startsAt, event.endsAt, event.isAllDay)}`} aria-label={`${event.title}, ${formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)}`} onClick={() => onEventOpen?.(event)} key={`${event.id}-${week[0].key}`}>
-                    {!segment.continuesBefore && <CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative />}
-                    {!segment.continuesBefore && <span className="calendar-event-dot" aria-hidden="true" />}
-                    <span className="calendar-event-title">{event.title}</span>
-                    <CalendarEventHoverPreview event={event} coverUrl={coverUrl} />
-                  </button>
+                  return <CalendarEventBar key={`${event.id}-${week[0].key}`} segment={segment} coverUrl={coverUrl} onEventOpen={onEventOpen} />
                 })}
               </div>
             </div>
