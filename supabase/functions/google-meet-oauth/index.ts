@@ -66,25 +66,26 @@ Deno.serve(async (request) => {
   if (request.method === 'GET') return handleCallback(request)
   const preflight = options(request)
   if (preflight) return preflight
-  if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
+  const respond = (body: unknown, status = 200) => json(body, status, request)
+  if (request.method !== 'POST') return respond({ error: 'Method not allowed' }, 405)
 
   try {
     const user = await getUser(request)
-    if (!user) return json({ error: 'Authentication required' }, 401)
+    if (!user) return respond({ error: 'Authentication required' }, 401)
     const limit = await enforceRateLimit(admin, request, 'google-meet-oauth', user.id, { windowSeconds: 600, maxRequests: 20 })
-    if (!limit.allowed) return rateLimitResponse(limit, 'Demasiadas solicitudes para conectar Google Meet. Intenta nuevamente más tarde.')
+    if (!limit.allowed) return rateLimitResponse(limit, 'Demasiadas solicitudes para conectar Google Meet. Intenta nuevamente más tarde.', request)
 
     const parsed = await readJsonBody<{ action?: unknown; communityId?: unknown; returnPath?: unknown }>(request)
-    if (parsed.tooLarge) return json({ error: 'La solicitud es demasiado grande.' }, 413)
-    if (parsed.invalid || !parsed.value) return json({ error: 'La solicitud no es válida.' }, 400)
+    if (parsed.tooLarge) return respond({ error: 'La solicitud es demasiado grande.' }, 413)
+    if (parsed.invalid || !parsed.value) return respond({ error: 'La solicitud no es válida.' }, 400)
     const body = parsed.value
     const communityId = typeof body.communityId === 'string' ? body.communityId.trim() : ''
-    if (!communityId || !(await canManageCommunity(user.id, communityId))) return json({ error: 'No tienes permisos para conectar Google Meet en esta comunidad.' }, 403)
+    if (!communityId || !(await canManageCommunity(user.id, communityId))) return respond({ error: 'No tienes permisos para conectar Google Meet en esta comunidad.' }, 403)
 
     const { data: connection, error: connectionError } = await admin.from('google_meet_connections').select('google_email,status').eq('community_id', communityId).maybeSingle()
-    if (connectionError) return json({ error: connectionError.message }, 500)
-    if (body.action === 'status') return json({ connected: connection?.status === 'active', email: connection?.google_email || null, status: connection?.status || null })
-    if (connection?.status === 'active') return json({ connected: true, email: connection.google_email })
+    if (connectionError) return respond({ error: connectionError.message }, 500)
+    if (body.action === 'status') return respond({ connected: connection?.status === 'active', email: connection?.google_email || null, status: connection?.status || null })
+    if (connection?.status === 'active') return respond({ connected: true, email: connection.google_email })
 
     const rawState = randomToken()
     const { error: stateError } = await admin.from('google_meet_oauth_states').insert({
@@ -94,9 +95,9 @@ Deno.serve(async (request) => {
       return_path: safeReturnPath(body.returnPath),
       expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     })
-    if (stateError) return json({ error: stateError.message }, 500)
-    return json({ connected: false, authorizationUrl: authorizationUrl(rawState) })
+    if (stateError) return respond({ error: stateError.message }, 500)
+    return respond({ connected: false, authorizationUrl: authorizationUrl(rawState) })
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : 'No pudimos iniciar la conexión con Google.' }, 500)
+    return respond({ error: error instanceof Error ? error.message : 'No pudimos iniciar la conexión con Google.' }, 500)
   }
 })

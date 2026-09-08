@@ -482,7 +482,7 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
           </div>
         </div>
       </div>
-      <div className="timeline-legend" aria-label="Leyenda de comunidades">{communities.slice(0, 6).map((community) => <span key={community.id}><i style={timelineStyle(community.color)} />{community.name}</span>)}{showVisibility && <span><LockKeyhole size={13} aria-hidden="true" /> Solo la red</span>}</div>
+      <div className="timeline-legend" aria-label="Leyenda de comunidades">{communities.slice(0, 6).map((community) => <span key={community.id}><i style={timelineStyle(community.color)} />{community.name}</span>)}{showVisibility && <span><LockKeyhole size={13} aria-hidden="true" /> Solo Comunidades</span>}</div>
       <div className={`timeline-scroll ${shouldUseHorizontalScroll ? 'is-scrollable' : ''}`} ref={timelineScrollRef} style={canvasStyle}>
         <div className="timeline-canvas">
           <div className="timeline-header-row timeline-week-header">
@@ -506,7 +506,7 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
                   const segmentWidth = segment.isSingleDay ? Math.min(28, dayWidth - 8) : (segment.endIndex - segment.startIndex + 1) * dayWidth - 8
                   const segmentLeft = segment.isSingleDay ? segment.startIndex * dayWidth + (dayWidth - segmentWidth) / 2 : segment.startIndex * dayWidth + 4
                   const segmentStyle = { ...timelineStyle(community.color), left: `${segmentLeft}px`, width: `${segmentWidth}px`, top: `${segment.lane * 38 + 10}px` }
-                  const label = `${segment.event.title}, ${segment.event.communityName}, ${formatEventDateRange(segment.event.startsAt, segment.event.endsAt, segment.event.isAllDay)}${privateEvent ? ', Solo la red' : ''}`
+                  const label = `${segment.event.title}, ${segment.event.communityName}, ${formatEventDateRange(segment.event.startsAt, segment.event.endsAt, segment.event.isAllDay)}${privateEvent ? ', Solo Comunidades' : ''}`
                   return <button className={`timeline-event-bar ${segment.isSingleDay ? 'single-day' : ''} ${labelBefore ? 'label-before' : ''} ${privateEvent ? 'private' : 'public'} ${isEventPast(segment.event) ? 'past' : ''} ${segment.continuesBefore ? 'continues-before' : ''} ${segment.continuesAfter ? 'continues-after' : ''}`} data-event-focus-id={segment.event.id} style={segmentStyle} type="button" data-lane={segment.lane} title={`${label} · ${formatTimeRange(segment.event.startsAt, segment.event.endsAt, segment.event.isAllDay)}`} aria-label={label} onClick={() => onEventOpen(segment.event)} key={segment.event.id}><span className="timeline-event-diamond" aria-hidden="true" />{privateEvent && !segment.isSingleDay && <LockKeyhole size={12} aria-hidden="true" />}<span className="timeline-event-label">{segment.event.title}</span>{isEventPast(segment.event) && <span className="sr-only">Ya pasó</span>}<CalendarEventHoverPreview event={segment.event} coverUrl={coverUrl} /></button>
                 })}
               </div>

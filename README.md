@@ -71,7 +71,7 @@ En el dashboard de Supabase:
 - SMTP propio configurado antes de enviar invitaciones en producción.
 - Secret `APP_URL=https://eventos.igda.pe` para las Edge Functions.
 - Secret `PUBLIC_APP_URL=https://eventos.igda.pe` para los enlaces de invitación. Esta variable es la URL pública canónica y no debe reutilizarse para pruebas OAuth locales.
-- Las Edge Functions restringen CORS a `CORS_ALLOWED_ORIGIN`; si no existe, usan `PUBLIC_APP_URL` y luego `APP_URL`. Si se usa otro origen local, define temporalmente `CORS_ALLOWED_ORIGIN` con el origen exacto, por ejemplo `http://localhost:5174`.
+- Las Edge Functions restringen CORS a los orígenes configurados en `CORS_ALLOWED_ORIGIN` (separados por comas); si no existe, usan `PUBLIC_APP_URL` y luego `APP_URL`. En producción conserva `https://eventos.igda.pe`; para desarrollo local puedes agregar temporalmente el origen exacto, por ejemplo `http://localhost:5174,http://127.0.0.1:5174`.
 - Turnstile configurado en Cloudflare con un widget para `eventos.igda.pe` y, si se prueba localmente, otro widget para `localhost`/`127.0.0.1`, usando modo `Managed`.
 - Secretos de Turnstile en Supabase Edge Functions: `TURNSTILE_SECRET` y `TURNSTILE_HOSTNAMES=eventos.igda.pe` en producción. Para desarrollo local se puede agregar temporalmente `localhost,127.0.0.1`; nunca mezcles hostnames de desarrollo en el secret de producción. La `VITE_TURNSTILE_SITE_KEY` es pública y solo se usa en el frontend.
 - El formulario `/proponer-evento` no requiere cuenta ni comunidad: guarda la propuesta pendiente y el admin de plataforma la revisa en `/app/admin/propuestas`. Debes aplicar la migración `20260907120000_event_proposals.sql` y desplegar `submit-event-proposal` antes de habilitarlo en producción.

@@ -275,7 +275,7 @@ describe('public events', () => {
     fireEvent.click(summaryToggle)
     expect(summaryToggle).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('complementary', { name: 'Resumen del evento' })).toBeInTheDocument()
-    expect(screen.getByText('Borrador / Red privada')).toBeInTheDocument()
+    expect(screen.getByText('Borrador / Solo Comunidades')).toBeInTheDocument()
     expect(screen.getByText('Falta:')).toBeInTheDocument()
     expect(screen.queryByText('El banner es opcional para cualquiera de las tres opciones.')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Ocultar resumen' }))

@@ -18,31 +18,32 @@ async function canManageEvent(userId: string, communityId: string) {
 Deno.serve(async (request) => {
   const preflight = options(request)
   if (preflight) return preflight
-  if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
+  const respond = (body: unknown, status = 200) => json(body, status, request)
+  if (request.method !== 'POST') return respond({ error: 'Method not allowed' }, 405)
 
   try {
     const accessToken = bearerToken(request)
-    if (!accessToken) return json({ error: 'Authentication required' }, 401)
+    if (!accessToken) return respond({ error: 'Authentication required' }, 401)
     const { data: authData, error: authError } = await admin.auth.getUser(accessToken)
-    if (authError || !authData.user) return json({ error: 'Invalid session' }, 401)
+    if (authError || !authData.user) return respond({ error: 'Invalid session' }, 401)
 
     const limit = await enforceRateLimit(admin, request, 'google-meet-create', authData.user.id, { windowSeconds: 600, maxRequests: 10 })
-    if (!limit.allowed) return rateLimitResponse(limit, 'Demasiadas solicitudes para crear enlaces. Intenta nuevamente más tarde.')
+    if (!limit.allowed) return rateLimitResponse(limit, 'Demasiadas solicitudes para crear enlaces. Intenta nuevamente más tarde.', request)
 
     const parsed = await readJsonBody<{ eventId?: unknown }>(request)
-    if (parsed.tooLarge) return json({ error: 'La solicitud es demasiado grande.' }, 413)
-    if (parsed.invalid || !parsed.value) return json({ error: 'La solicitud no es válida.' }, 400)
+    if (parsed.tooLarge) return respond({ error: 'La solicitud es demasiado grande.' }, 413)
+    if (parsed.invalid || !parsed.value) return respond({ error: 'La solicitud no es válida.' }, 400)
     const eventId = typeof parsed.value.eventId === 'string' ? parsed.value.eventId.trim() : ''
-    if (!eventId) return json({ error: 'eventId es obligatorio' }, 400)
-    if (!/^[0-9a-f-]{36}$/i.test(eventId)) return json({ error: 'eventId no es válido' }, 400)
+    if (!eventId) return respond({ error: 'eventId es obligatorio' }, 400)
+    if (!/^[0-9a-f-]{36}$/i.test(eventId)) return respond({ error: 'eventId no es válido' }, 400)
 
     const { data: event, error: eventError } = await admin.from('events').select('id,community_id,meeting_provider,meeting_url,meeting_connection_id').eq('id', eventId).maybeSingle()
-    if (eventError || !event) return json({ error: eventError?.message || 'Evento no encontrado' }, 404)
-    if (!(await canManageEvent(authData.user.id, event.community_id)) || event.meeting_provider !== 'google_meet') return json({ error: 'No tienes permisos para crear el enlace de este evento.' }, 403)
-    if (event.meeting_url) return json({ meetingUrl: event.meeting_url, reused: true })
+    if (eventError || !event) return respond({ error: eventError?.message || 'Evento no encontrado' }, 404)
+    if (!(await canManageEvent(authData.user.id, event.community_id)) || event.meeting_provider !== 'google_meet') return respond({ error: 'No tienes permisos para crear el enlace de este evento.' }, 403)
+    if (event.meeting_url) return respond({ meetingUrl: event.meeting_url, reused: true })
 
     const { data: connection, error: connectionError } = await admin.from('google_meet_connections').select('id,google_email,refresh_token_ciphertext,status').eq('community_id', event.community_id).eq('status', 'active').maybeSingle()
-    if (connectionError || !connection) return json({ error: 'Conecta primero una cuenta de Google Meet para esta comunidad.' }, 409)
+    if (connectionError || !connection) return respond({ error: 'Conecta primero una cuenta de Google Meet para esta comunidad.' }, 409)
 
     let googleAccessToken: string
     try {
@@ -57,8 +58,8 @@ Deno.serve(async (request) => {
     const space = await createGoogleMeetSpace(googleAccessToken)
     const { error: updateError } = await admin.from('events').update({ meeting_provider: 'google_meet', meeting_url: space.meetingUri, meeting_external_id: space.name, meeting_connection_id: connection.id }).eq('id', event.id)
     if (updateError) throw updateError
-    return json({ meetingUrl: space.meetingUri, provider: 'google_meet', googleEmail: connection.google_email, reused: false })
+    return respond({ meetingUrl: space.meetingUri, provider: 'google_meet', googleEmail: connection.google_email, reused: false })
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : 'No pudimos crear el enlace de Google Meet.' }, 500)
+    return respond({ error: error instanceof Error ? error.message : 'No pudimos crear el enlace de Google Meet.' }, 500)
   }
 })

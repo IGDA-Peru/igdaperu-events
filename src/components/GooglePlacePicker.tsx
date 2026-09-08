@@ -67,10 +67,11 @@ export function GooglePlacePicker({ address, latitude, longitude, venueName, onC
           setOptions({ key: apiKey, v: 'weekly', language: 'es', region: 'PE' })
           googleMapsLoaderState.__igdaperuMapsLoaderConfigured = true
         }
-        const [{ Map }, { AdvancedMarkerElement }, { PlaceAutocompleteElement }] = await Promise.all([
+        const [{ Map }, { AdvancedMarkerElement }, { PlaceAutocompleteElement }, { Geocoder }] = await Promise.all([
           importLibrary('maps'),
           importLibrary('marker'),
           importLibrary('places'),
+          importLibrary('geocoding'),
         ])
         if (cancelled) return
 
@@ -83,6 +84,7 @@ export function GooglePlacePicker({ address, latitude, longitude, venueName, onC
           mapTypeControl: false,
           fullscreenControl: false,
           clickableIcons: false,
+          draggableCursor: 'crosshair',
         })
         const marker = new AdvancedMarkerElement({
           map,
@@ -91,6 +93,8 @@ export function GooglePlacePicker({ address, latitude, longitude, venueName, onC
           title: 'Ubicación del evento',
         })
         createdMarker = marker
+        const geocoder = new Geocoder()
+        let mapSelectionRequest = 0
         const autocomplete = new PlaceAutocompleteElement()
         autocomplete.placeholder = 'Busca un lugar o dirección'
         autocomplete.setAttribute('aria-label', 'Buscar lugar o dirección')
@@ -129,13 +133,53 @@ export function GooglePlacePicker({ address, latitude, longitude, venueName, onC
           }
         })
 
+        const selectCoordinates = (coordinates: { latitude: number; longitude: number }) => {
+          const request = ++mapSelectionRequest
+          marker.position = { lat: coordinates.latitude, lng: coordinates.longitude }
+          setSelectedPlace(null)
+          setMessage('Buscando la dirección de este punto…')
+          void geocoder.geocode({ location: { lat: coordinates.latitude, lng: coordinates.longitude } }).then(({ results }) => {
+            if (cancelled || request !== mapSelectionRequest) return
+            const result = results[0]
+            const selectedAddress = result?.formatted_address || ''
+            const next = {
+              placeId: result?.place_id || '',
+              formattedAddress: selectedAddress,
+              venueName: '',
+              address: selectedAddress,
+              latitude: coordinates.latitude,
+              longitude: coordinates.longitude,
+              mapUrl: mapUrlFor({ placeId: result?.place_id || '', venueName: '', address: selectedAddress, latitude: coordinates.latitude, longitude: coordinates.longitude }),
+            }
+            setSelectedPlace({ name: 'Punto seleccionado', address: selectedAddress || `${coordinates.latitude.toFixed(6)}, ${coordinates.longitude.toFixed(6)}` })
+            setMessage(selectedAddress ? 'Ubicación seleccionada desde el mapa.' : 'Seleccionamos el punto, pero no encontramos una dirección. Puedes completarla manualmente.')
+            latestPropsRef.current.onChange(next)
+          }).catch(() => {
+            if (cancelled || request !== mapSelectionRequest) return
+            const next = {
+              placeId: '',
+              formattedAddress: '',
+              venueName: '',
+              address: '',
+              latitude: coordinates.latitude,
+              longitude: coordinates.longitude,
+              mapUrl: mapUrlFor({ placeId: '', venueName: '', address: '', latitude: coordinates.latitude, longitude: coordinates.longitude }),
+            }
+            setSelectedPlace({ name: 'Punto seleccionado', address: `${coordinates.latitude.toFixed(6)}, ${coordinates.longitude.toFixed(6)}` })
+            setMessage('No pudimos identificar la dirección. El punto quedó seleccionado; puedes completar la dirección manualmente.')
+            latestPropsRef.current.onChange(next)
+          })
+        }
+
+        map.addListener('click', (event: google.maps.MapMouseEvent) => {
+          const coordinates = coordinatesFor(event.latLng)
+          if (coordinates) selectCoordinates(coordinates)
+        })
+
         marker.addListener('dragend', (event: google.maps.MapMouseEvent) => {
           const coordinates = coordinatesFor(event.latLng)
           if (!coordinates) return
-          const current = latestPropsRef.current
-          const next = { placeId: '', formattedAddress: current.address, venueName: current.venueName, address: current.address, latitude: coordinates.latitude, longitude: coordinates.longitude, mapUrl: mapUrlFor({ placeId: '', venueName: current.venueName, address: current.address, latitude: coordinates.latitude, longitude: coordinates.longitude }) }
-          setMessage('Pin ajustado. Revisa la dirección antes de guardar.')
-          latestPropsRef.current.onChange(next)
+          selectCoordinates(coordinates)
         })
 
         setState('ready')
@@ -175,8 +219,8 @@ export function GooglePlacePicker({ address, latitude, longitude, venueName, onC
   }
 
   if (!apiKey) return <div className="google-place-picker google-place-picker-manual" data-state="manual">
-    <div className="map-picker-manual-input"><input aria-label="Buscar lugar o dirección" value={address} onChange={(event) => onManualAddressChange?.(event.target.value)} placeholder="Av. / calle, distrito, ciudad" /><span className="field-help">La búsqueda de Google Maps aparecerá cuando se configure la clave del proyecto.</span></div>
-    <div className="map-picker-unavailable"><MapPin size={19} aria-hidden="true" /><div><strong>Mapa pendiente de configuración</strong><p>Al activar Google Maps verás las sugerencias y el pin aquí. Por ahora puedes completar la dirección manualmente.</p></div></div>
+    <div className="map-picker-manual-input"><input aria-label="Buscar lugar o dirección" value={address} onChange={(event) => onManualAddressChange?.(event.target.value)} placeholder="Av. / calle, distrito, ciudad" /><span className="field-help">La búsqueda y la selección directa en el mapa aparecerán cuando se configure la clave del proyecto.</span></div>
+    <div className="map-picker-unavailable"><MapPin size={19} aria-hidden="true" /><div><strong>Mapa pendiente de configuración</strong><p>Al activar Google Maps podrás buscar, mover el pin o hacer clic para seleccionar una dirección. Por ahora puedes completar la dirección manualmente.</p></div></div>
   </div>
 
   return <div className="google-place-picker-shell">
@@ -186,6 +230,7 @@ export function GooglePlacePicker({ address, latitude, longitude, venueName, onC
       {selectedPlace && <div className="map-picker-selection"><MapPin size={17} aria-hidden="true" /><span><strong>{selectedPlace.name}</strong><small>{selectedPlace.address}</small></span></div>}
       <div className="map-picker-canvas" aria-label="Mapa para seleccionar la ubicación" role="application">
         <div className="map-picker-map" ref={mapRef} aria-hidden="true" />
+        {state === 'ready' && <span className="map-picker-click-hint">Haz clic en el mapa para seleccionar la dirección</span>}
         {state === 'loading' && <div className="map-picker-loading"><RotateCcw className="spin" size={18} aria-hidden="true" /> Cargando mapa…</div>}
         {state === 'error' && <div className="map-picker-loading"><LocateFixed size={18} aria-hidden="true" /> Mapa no disponible</div>}
       </div>

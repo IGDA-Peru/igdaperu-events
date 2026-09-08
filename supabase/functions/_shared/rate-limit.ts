@@ -15,9 +15,9 @@ export type RateLimitResult = {
   storageError?: string
 }
 
-export function rateLimitResponse(result: RateLimitResult, message = 'Demasiadas solicitudes. Intenta nuevamente más tarde.') {
-  if (result.storageError) return json({ error: 'No pudimos verificar el límite de solicitudes. Intenta nuevamente.' }, 503)
-  const response = json({ error: message }, 429)
+export function rateLimitResponse(result: RateLimitResult, message = 'Demasiadas solicitudes. Intenta nuevamente más tarde.', request?: Request) {
+  if (result.storageError) return json({ error: 'No pudimos verificar el límite de solicitudes. Intenta nuevamente.' }, 503, request)
+  const response = json({ error: message }, 429, request)
   response.headers.set('Retry-After', String(result.retryAfterSeconds || 60))
   return response
 }

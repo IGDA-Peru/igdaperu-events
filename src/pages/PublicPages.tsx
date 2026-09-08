@@ -15,6 +15,7 @@ import { filterEvents, type TimeFilter } from '../lib/eventFilters'
 import { findNextEvent } from '../lib/eventFocus'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { listCommunities, listEvents, listHomeEmbedEvents, submitEventProposal, type EventProposalSubmission, type EventQueryOptions } from '../lib/data'
+import { limaNowDateTimeInput } from '../lib/eventSchedule'
 import type { Community, EventItem } from '../types'
 
 const notionCommunitiesEmbedUrl = 'https://igdape.notion.site/ebd/3b425d4453e08301bcef018ab661544a?v=12d25d4453e0825883398852a794ef21'
@@ -65,6 +66,7 @@ export function EventProposalPage() {
   const [submitted, setSubmitted] = useState(false)
   const [saving, setSaving] = useState(false)
   const [resetSignal, setResetSignal] = useState(0)
+  const minimumDateTime = limaNowDateTimeInput()
 
   const update = <K extends keyof ProposalFormState>(key: K, value: ProposalFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }))
@@ -86,6 +88,10 @@ export function EventProposalPage() {
     }
     if (new Date(endsAt) <= new Date(startsAt)) {
       setError('La hora de fin debe ser posterior a la hora de inicio.')
+      return
+    }
+    if (new Date(startsAt) < new Date()) {
+      setError('La fecha y hora de inicio no pueden estar en el pasado.')
       return
     }
     if (form.locationType !== 'venue' && !form.meetingUrl.trim()) {
@@ -129,8 +135,8 @@ export function EventProposalPage() {
 
         <div className="proposal-section-heading proposal-section-heading--spaced"><CalendarDays size={19} aria-hidden="true" /><div><h2>Fecha, hora y modalidad</h2><p>La fecha ayuda al equipo a ubicar tu actividad en la agenda.</p></div></div>
         <div className="proposal-grid proposal-grid--two">
-          <ProposalFormField label="Fecha y hora de inicio" required><div className="proposal-input-icon"><CalendarDays size={17} aria-hidden="true" /><input required type="datetime-local" value={form.startsAt} onChange={(event) => update('startsAt', event.target.value)} /></div></ProposalFormField>
-          <ProposalFormField label="Fecha y hora de fin" required><div className="proposal-input-icon"><Clock3 size={17} aria-hidden="true" /><input required type="datetime-local" value={form.endsAt} onChange={(event) => update('endsAt', event.target.value)} /></div></ProposalFormField>
+          <ProposalFormField label="Fecha y hora de inicio" required><div className="proposal-input-icon"><CalendarDays size={17} aria-hidden="true" /><input required type="datetime-local" min={minimumDateTime} value={form.startsAt} onChange={(event) => update('startsAt', event.target.value)} /></div></ProposalFormField>
+          <ProposalFormField label="Fecha y hora de fin" required><div className="proposal-input-icon"><Clock3 size={17} aria-hidden="true" /><input required type="datetime-local" min={form.startsAt || minimumDateTime} value={form.endsAt} onChange={(event) => update('endsAt', event.target.value)} /></div></ProposalFormField>
         </div>
         <fieldset className="proposal-choice-field"><legend>Modalidad <b aria-hidden="true">*</b></legend><div className="proposal-choice-grid">{([['venue', 'Presencial', 'El evento será presencial.'], ['online', 'Online', 'El evento se realizará en línea.'], ['hybrid', 'Híbrido', 'Combina actividades presenciales y en línea.']] as const).map(([value, label, description]) => <label className={`proposal-choice ${form.locationType === value ? 'selected' : ''}`} key={value}><input type="radio" name="proposal-location" value={value} checked={form.locationType === value} onChange={() => update('locationType', value)} /><span><strong>{label}</strong><small>{description}</small></span></label>)}</div></fieldset>
 

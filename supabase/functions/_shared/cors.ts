@@ -1,22 +1,32 @@
-const configuredOrigin = Deno.env.get('CORS_ALLOWED_ORIGIN') || Deno.env.get('PUBLIC_APP_URL') || Deno.env.get('APP_URL') || 'https://eventos.igda.pe'
-const allowedOrigin = /^https?:\/\/[^\s/]+$/i.test(configuredOrigin) ? configuredOrigin.replace(/\/$/, '') : 'https://eventos.igda.pe'
+const productionOrigin = 'https://eventos.igda.pe'
+const configuredOrigins = (Deno.env.get('CORS_ALLOWED_ORIGIN') || Deno.env.get('PUBLIC_APP_URL') || Deno.env.get('APP_URL') || productionOrigin)
+  .split(',')
+  .map((origin) => origin.trim().replace(/\/$/, ''))
+  .filter((origin) => /^https?:\/\/[^\s/]+$/i.test(origin))
+const allowedOrigins = new Set([productionOrigin, ...configuredOrigins])
 
-export const corsHeaders = {
-  'Access-Control-Allow-Origin': allowedOrigin,
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Vary': 'Origin',
+function corsHeadersFor(request?: Request) {
+  const requestOrigin = request?.headers.get('Origin')?.replace(/\/$/, '')
+  const allowedOrigin = requestOrigin && allowedOrigins.has(requestOrigin) ? requestOrigin : configuredOrigins[0] || productionOrigin
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin',
+  }
 }
 
-export function json(body: unknown, status = 200) {
+export const corsHeaders = corsHeadersFor()
+
+export function json(body: unknown, status = 200, request?: Request) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...corsHeadersFor(request), 'Content-Type': 'application/json' },
   })
 }
 
 export function options(request: Request) {
-  return request.method === 'OPTIONS' ? new Response('ok', { headers: corsHeaders }) : null
+  return request.method === 'OPTIONS' ? new Response('ok', { headers: corsHeadersFor(request) }) : null
 }
 
 export async function readJsonBody<T>(request: Request, maxBytes = 16 * 1024): Promise<{ value: T | null; tooLarge: boolean; invalid: boolean }> {

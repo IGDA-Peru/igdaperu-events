@@ -18,6 +18,32 @@ export const emptyEventSchedule: EventSchedule = {
   isAllDay: false,
 }
 
+const limaDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Lima',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+const limaDateTimeFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Lima',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
+export function limaTodayDateKey(now = new Date()) {
+  return limaDateFormatter.format(now)
+}
+
+export function limaNowDateTimeInput(now = new Date()) {
+  const parts = Object.fromEntries(limaDateTimeFormatter.formatToParts(now).map((part) => [part.type, part.value]))
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`
+}
+
 function isValidDateKey(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value)
 }

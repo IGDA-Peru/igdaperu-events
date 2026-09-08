@@ -7,7 +7,7 @@ import { CommunityLogo } from './CommunityLogo'
 
 export function VisibilityBadge({ visibility }: { visibility: EventVisibility }) {
   const isPrivate = visibility === 'network'
-  return <span className={`visibility-badge ${isPrivate ? 'private' : 'public'}`}>{isPrivate ? <LockKeyhole size={13} aria-hidden="true" /> : <Globe2 size={13} aria-hidden="true" />}{isPrivate ? 'Solo la red' : 'Público'}</span>
+  return <span className={`visibility-badge ${isPrivate ? 'private' : 'public'}`}>{isPrivate ? <LockKeyhole size={13} aria-hidden="true" /> : <Globe2 size={13} aria-hidden="true" />}{isPrivate ? 'Solo Comunidades' : 'Público'}</span>
 }
 
 type EventCardActions = { onArchive: () => void; onDelete: () => void; canDelete?: boolean }
@@ -16,7 +16,7 @@ function panelState(event: EventItem, isPast: boolean) {
   if (event.status === 'draft') return { label: 'Borrador', tone: 'draft' }
   if (isPast) return { label: 'Ya pasó', tone: 'archived' }
   if (event.status === 'archived') return { label: 'Archivado', tone: 'archived' }
-  if (event.visibility === 'network') return { label: 'Solo la red', tone: 'private' }
+  if (event.visibility === 'network') return { label: 'Solo Comunidades', tone: 'private' }
   return { label: 'Público', tone: 'public' }
 }
 

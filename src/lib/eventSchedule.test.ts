@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { emptyEventSchedule, eventScheduleFromLocalDateTimes, eventScheduleToLocalDateTimes } from './eventSchedule'
+import { emptyEventSchedule, eventScheduleFromLocalDateTimes, eventScheduleToLocalDateTimes, limaNowDateTimeInput, limaTodayDateKey } from './eventSchedule'
 
 describe('event schedule helpers', () => {
   it('serializes a one-day timed event', () => {
@@ -21,5 +21,12 @@ describe('event schedule helpers', () => {
 
   it('converts stored UTC timestamps back to Lima date and time', () => {
     expect(eventScheduleFromLocalDateTimes('2026-10-02T04:00:00.000Z', '2026-10-02T06:00:00.000Z')).toEqual({ ...emptyEventSchedule, mode: 'range', startDate: '2026-10-01', endDate: '2026-10-02', startTime: '23:00', endTime: '01:00' })
+  })
+
+  it('calculates date and datetime minimums using Lima time', () => {
+    const now = new Date('2026-09-08T04:30:00.000Z')
+
+    expect(limaTodayDateKey(now)).toBe('2026-09-07')
+    expect(limaNowDateTimeInput(now)).toBe('2026-09-07T23:30')
   })
 })
