@@ -1,5 +1,5 @@
-import { CalendarDays, Clock3, ExternalLink, MapPin, X } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { CalendarDays, Clock3, ExternalLink, MapPin, Share2, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { getEventCoverUrl } from '../lib/data'
@@ -9,6 +9,12 @@ import { VisibilityBadge } from './EventCard'
 import { CommunityLogo } from './CommunityLogo'
 
 type EventPreviewPresentation = 'drawer' | 'modal'
+
+function eventShareUrl(event: EventItem) {
+  const url = new URL('/', window.location.origin)
+  url.searchParams.set('evento', event.slug || event.id)
+  return url.toString()
+}
 
 export function EventPreviewDrawer({
   event,
@@ -20,6 +26,11 @@ export function EventPreviewDrawer({
   presentation?: EventPreviewPresentation
 }) {
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const [shareMessage, setShareMessage] = useState('')
+
+  useEffect(() => {
+    setShareMessage('')
+  }, [event])
 
   useEffect(() => {
     if (!event) return
@@ -38,6 +49,36 @@ export function EventPreviewDrawer({
       previousActiveElement?.focus()
     }
   }, [event, onClose])
+
+  const shareEvent = async () => {
+    if (!event) return
+    const url = eventShareUrl(event)
+    try {
+      if (typeof navigator.share === 'function') {
+        await navigator.share({ title: event.title, text: event.description, url })
+        setShareMessage('Evento listo para compartir.')
+        return
+      }
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url)
+        setShareMessage('Enlace copiado.')
+        return
+      }
+      const textArea = document.createElement('textarea')
+      textArea.value = url
+      textArea.style.position = 'fixed'
+      textArea.style.opacity = '0'
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      document.execCommand('copy')
+      textArea.remove()
+      setShareMessage('Enlace copiado.')
+    } catch (reason) {
+      if (reason && typeof reason === 'object' && 'name' in reason && reason.name === 'AbortError') return
+      setShareMessage('No pudimos copiar el enlace.')
+    }
+  }
 
   if (!event) return null
   const isPast = isEventPast(event)
@@ -63,10 +104,12 @@ export function EventPreviewDrawer({
           <div><MapPin size={19} aria-hidden="true" /><span><strong>Ubicación</strong>{formatEventLocation(event)}{event.accessMode !== 'registration_only' && event.mapUrl && <a href={event.mapUrl} target="_blank" rel="noreferrer">Ver en Google Maps <ExternalLink size={14} /></a>}</span></div>
           <div><CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative /><span><strong>Organiza</strong>{event.communityId ? presentation === 'modal' ? <a href="https://igda.pe/comunidad/" target="_top" rel="noreferrer">{event.communityName}</a> : <Link to={`/comunidades/${event.communitySlug}`} onClick={onClose}>{event.communityName}</Link> : <span>{event.organizerName || event.communityName || 'Evento independiente'}</span>}</span></div>
         </div>
-        {!isPast && (event.registrationUrl || event.meetingUrl) && <div className="event-preview-actions">
-          {event.registrationUrl && <a className="primary-button event-preview-link" href={event.registrationUrl} target="_blank" rel="noreferrer">Inscribirme <ExternalLink size={17} /></a>}
-          {event.meetingUrl && <a className={`${event.registrationUrl ? 'secondary-button' : 'primary-button'} event-preview-link`} href={event.meetingUrl} target="_blank" rel="noreferrer">{meetingActionLabel(event.meetingProvider)} <ExternalLink size={17} /></a>}
-        </div>}
+        <div className="event-preview-actions">
+          {!isPast && event.registrationUrl && <a className="primary-button event-preview-link" href={event.registrationUrl} target="_blank" rel="noreferrer">Inscribirme <ExternalLink size={17} /></a>}
+          {!isPast && event.meetingUrl && <a className={`${event.registrationUrl ? 'secondary-button' : 'primary-button'} event-preview-link`} href={event.meetingUrl} target="_blank" rel="noreferrer">{meetingActionLabel(event.meetingProvider)} <ExternalLink size={17} /></a>}
+          <button className="secondary-button event-preview-link" type="button" onClick={shareEvent}><Share2 size={17} /> Compartir evento</button>
+          {shareMessage && <small className="event-share-message" role="status">{shareMessage}</small>}
+        </div>
       </aside>
     </div>,
     document.body,

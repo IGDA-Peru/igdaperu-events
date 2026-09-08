@@ -104,16 +104,14 @@ describe('TimelineView', () => {
     expect(screen.getByRole('button', { name: /Evento Godot/ })).toBeInTheDocument()
   })
 
-  it('shows the full month in compact mode and paginates with arrow-only controls at wider zoom levels', () => {
+  it('uses the normal timeline density and paginates sections with arrows in the timeline header', () => {
     const first = timelineEvent({ id: 'first', title: 'Evento primera sección' })
     const later = timelineEvent({ id: 'later', title: 'Evento segunda sección', startsAt: '2026-09-25T09:00:00-05:00', endsAt: '2026-09-25T18:00:00-05:00' })
     render(<MemoryRouter><TimelineView events={[first, later]} showVisibility={false} onEventOpen={vi.fn()} /></MemoryRouter>)
 
     expect(screen.getByRole('button', { name: /Evento primera sección/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Evento segunda sección/ })).toBeInTheDocument()
-    expect(screen.queryByText(/Parte \d+ de \d+/)).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Aumentar zoom' }))
+    expect(screen.queryByRole('button', { name: /Evento segunda sección/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /Zoom/ })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Ver semanas anteriores' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'Ver semanas siguientes' }))
     expect(screen.getByRole('button', { name: /Evento segunda sección/ })).toBeInTheDocument()

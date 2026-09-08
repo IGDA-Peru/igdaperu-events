@@ -56,13 +56,26 @@ function localProposalDateTimeToIso(value: string) {
   return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString()
 }
 
-function ProposalFormField({ label, children, required = false }: { label: string; children: ReactNode; required?: boolean }) {
-  return <label className="proposal-field"><span>{label}{required && <b aria-hidden="true"> *</b>}</span>{children}</label>
+function isHttpUrl(value: string) {
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+type ProposalErrorKey = 'organizerName' | 'contactEmail' | 'title' | 'description' | 'startsAt' | 'endsAt' | 'meetingUrl' | 'registrationUrl'
+type ProposalFieldErrors = Partial<Record<ProposalErrorKey, string>>
+
+function ProposalFormField({ label, children, required = false, error }: { label: string; children: ReactNode; required?: boolean; error?: string }) {
+  return <label className="proposal-field"><span>{label}{required && <b aria-hidden="true"> *</b>}</span>{children}{error && <small className="proposal-field-error" role="alert">{error}</small>}</label>
 }
 
 export function EventProposalPage() {
   const [form, setForm] = useState(initialProposalForm)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<ProposalFieldErrors>({})
   const [submitted, setSubmitted] = useState(false)
   const [saving, setSaving] = useState(false)
   const [resetSignal, setResetSignal] = useState(0)
@@ -71,31 +84,56 @@ export function EventProposalPage() {
   const update = <K extends keyof ProposalFormState>(key: K, value: ProposalFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }))
     setError('')
+    if (key in fieldErrors) setFieldErrors((current) => { const next = { ...current }; delete next[key as ProposalErrorKey]; return next })
   }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     setError('')
+    setFieldErrors({})
     const startsAt = localProposalDateTimeToIso(form.startsAt)
     const endsAt = localProposalDateTimeToIso(form.endsAt)
-    if (!form.organizerName.trim() || !form.contactEmail.trim() || !form.title.trim() || !form.description.trim() || !startsAt || !endsAt) {
-      setError('Completa los campos obligatorios antes de enviar la propuesta.')
-      return
-    }
-    if (!/^\S+@\S+\.\S+$/.test(form.contactEmail.trim())) {
-      setError('Escribe un correo válido para poder contactarte si necesitamos aclarar algo.')
+    const nextFieldErrors: ProposalFieldErrors = {}
+    if (!form.organizerName.trim()) nextFieldErrors.organizerName = 'Falta este dato.'
+    else if (form.organizerName.trim().length < 2) nextFieldErrors.organizerName = 'El nombre no es válido.'
+    if (!form.contactEmail.trim()) nextFieldErrors.contactEmail = 'Falta este dato.'
+    else if (!/^\S+@\S+\.\S+$/.test(form.contactEmail.trim())) nextFieldErrors.contactEmail = 'El correo no es válido.'
+    if (!form.title.trim()) nextFieldErrors.title = 'Falta este dato.'
+    else if (form.title.trim().length < 3) nextFieldErrors.title = 'El título no es válido.'
+    if (!form.description.trim()) nextFieldErrors.description = 'Falta este dato.'
+    else if (form.description.trim().length < 3) nextFieldErrors.description = 'La descripción no es válida.'
+    if (!form.startsAt) nextFieldErrors.startsAt = 'Falta este dato.'
+    else if (!startsAt) nextFieldErrors.startsAt = 'La fecha no es válida.'
+    if (!form.endsAt) nextFieldErrors.endsAt = 'Falta este dato.'
+    else if (!endsAt) nextFieldErrors.endsAt = 'La fecha no es válida.'
+    if (Object.keys(nextFieldErrors).length) {
+      setFieldErrors(nextFieldErrors)
+      setError('Revisa los campos marcados: falta un dato obligatorio o hay un dato inválido.')
       return
     }
     if (new Date(endsAt) <= new Date(startsAt)) {
-      setError('La hora de fin debe ser posterior a la hora de inicio.')
+      setFieldErrors({ endsAt: 'La hora de fin debe ser posterior a la de inicio.' })
+      setError('Revisa los campos marcados: hay un dato inválido.')
       return
     }
     if (new Date(startsAt) < new Date()) {
-      setError('La fecha y hora de inicio no pueden estar en el pasado.')
+      setFieldErrors({ startsAt: 'La fecha y hora de inicio no pueden estar en el pasado.' })
+      setError('Revisa los campos marcados: hay un dato inválido.')
       return
     }
     if (form.locationType !== 'venue' && !form.meetingUrl.trim()) {
-      setError('Añade el enlace para unirse al evento online o híbrido.')
+      setFieldErrors({ meetingUrl: 'Falta el enlace para unirse al evento.' })
+      setError('Revisa los campos marcados: falta un dato obligatorio.')
+      return
+    }
+    if (form.registrationUrl.trim() && !isHttpUrl(form.registrationUrl.trim())) {
+      setFieldErrors({ registrationUrl: 'El enlace debe comenzar con http:// o https://.' })
+      setError('Revisa los campos marcados: hay un dato inválido.')
+      return
+    }
+    if (form.meetingUrl.trim() && !isHttpUrl(form.meetingUrl.trim())) {
+      setFieldErrors({ meetingUrl: 'El enlace debe comenzar con http:// o https://.' })
+      setError('Revisa los campos marcados: hay un dato inválido.')
       return
     }
     if (isSupabaseConfigured && !form.turnstileToken) {
@@ -119,29 +157,29 @@ export function EventProposalPage() {
 
   return <div className="proposal-page">
     <section className="proposal-intro"><h1>Propón tu evento</h1><p>Cuéntanos sobre la actividad y el equipo de IGDA Perú la revisará antes de publicarla.</p></section>
-    <form className="proposal-layout" onSubmit={(event) => void submit(event)}>
+    <form className="proposal-layout" noValidate onSubmit={(event) => void submit(event)}>
       <div className="proposal-form-panel">
         <div className="proposal-section-heading"><UserRound size={19} aria-hidden="true" /><div><h2>Información principal</h2><p>Comparte los datos que las personas necesitarán para conocer la actividad.</p></div></div>
         <div className="proposal-grid proposal-grid--two">
-          <ProposalFormField label="Nombre del organizador o equipo" required><input required value={form.organizerName} onChange={(event) => update('organizerName', event.target.value)} placeholder="Ej. GameDev Lima" /></ProposalFormField>
-          <ProposalFormField label="Correo de contacto" required><input required type="email" value={form.contactEmail} onChange={(event) => update('contactEmail', event.target.value)} placeholder="tucorreo@ejemplo.com" /></ProposalFormField>
+          <ProposalFormField label="Nombre del organizador o equipo" required error={fieldErrors.organizerName}><input required aria-invalid={Boolean(fieldErrors.organizerName)} value={form.organizerName} onChange={(event) => update('organizerName', event.target.value)} placeholder="Ej. GameDev Lima" /></ProposalFormField>
+          <ProposalFormField label="Correo de contacto" required error={fieldErrors.contactEmail}><input required aria-invalid={Boolean(fieldErrors.contactEmail)} type="email" value={form.contactEmail} onChange={(event) => update('contactEmail', event.target.value)} placeholder="tucorreo@ejemplo.com" /></ProposalFormField>
         </div>
-        <ProposalFormField label="Título del evento" required><input required maxLength={180} value={form.title} onChange={(event) => update('title', event.target.value)} placeholder="Ej. Charla: Diseño de sistemas para videojuegos" /></ProposalFormField>
+        <ProposalFormField label="Título del evento" required error={fieldErrors.title}><input required aria-invalid={Boolean(fieldErrors.title)} maxLength={180} value={form.title} onChange={(event) => update('title', event.target.value)} placeholder="Ej. Charla: Diseño de sistemas para videojuegos" /></ProposalFormField>
         <div className="proposal-grid proposal-grid--two">
-          <ProposalFormField label="Tipo de evento" required><select value={form.type} onChange={(event) => update('type', event.target.value)}><option>CHARLA</option><option>TALLER</option><option>MEETUP</option><option>GAME JAM</option><option>CONFERENCIA</option></select></ProposalFormField>
-          <ProposalFormField label="Enlace de inscripción"><div className="proposal-input-icon"><Link2 size={17} aria-hidden="true" /><input type="url" value={form.registrationUrl} onChange={(event) => update('registrationUrl', event.target.value)} placeholder="https://ejemplo.com/registro" /></div></ProposalFormField>
+          <ProposalFormField label="Tipo de evento"><select value={form.type} onChange={(event) => update('type', event.target.value)}><option>CHARLA</option><option>TALLER</option><option>MEETUP</option><option>GAME JAM</option><option>CONFERENCIA</option></select></ProposalFormField>
+          <ProposalFormField label="Enlace de inscripción" error={fieldErrors.registrationUrl}><div className="proposal-input-icon"><Link2 size={17} aria-hidden="true" /><input aria-invalid={Boolean(fieldErrors.registrationUrl)} type="url" value={form.registrationUrl} onChange={(event) => update('registrationUrl', event.target.value)} placeholder="https://ejemplo.com/registro" /></div></ProposalFormField>
         </div>
-        <ProposalFormField label="Descripción del evento" required><textarea required rows={6} maxLength={5000} value={form.description} onChange={(event) => update('description', event.target.value)} placeholder="Cuéntanos de qué trata tu evento, a quién está dirigido y qué encontrarán las personas asistentes." /><small className="proposal-counter">{form.description.length}/5000</small></ProposalFormField>
+        <ProposalFormField label="Descripción del evento" required error={fieldErrors.description}><textarea required aria-invalid={Boolean(fieldErrors.description)} rows={6} maxLength={5000} value={form.description} onChange={(event) => update('description', event.target.value)} placeholder="Cuéntanos de qué trata tu evento, a quién está dirigido y qué encontrarán las personas asistentes." /><small className="proposal-counter">{form.description.length}/5000</small></ProposalFormField>
 
         <div className="proposal-section-heading proposal-section-heading--spaced"><CalendarDays size={19} aria-hidden="true" /><div><h2>Fecha, hora y modalidad</h2><p>La fecha ayuda al equipo a ubicar tu actividad en la agenda.</p></div></div>
         <div className="proposal-grid proposal-grid--two">
-          <ProposalFormField label="Fecha y hora de inicio" required><div className="proposal-input-icon"><CalendarDays size={17} aria-hidden="true" /><input required type="datetime-local" min={minimumDateTime} value={form.startsAt} onChange={(event) => update('startsAt', event.target.value)} /></div></ProposalFormField>
-          <ProposalFormField label="Fecha y hora de fin" required><div className="proposal-input-icon"><Clock3 size={17} aria-hidden="true" /><input required type="datetime-local" min={form.startsAt || minimumDateTime} value={form.endsAt} onChange={(event) => update('endsAt', event.target.value)} /></div></ProposalFormField>
+          <ProposalFormField label="Fecha y hora de inicio" required error={fieldErrors.startsAt}><div className="proposal-input-icon"><CalendarDays size={17} aria-hidden="true" /><input required aria-invalid={Boolean(fieldErrors.startsAt)} type="datetime-local" min={minimumDateTime} value={form.startsAt} onChange={(event) => update('startsAt', event.target.value)} /></div></ProposalFormField>
+          <ProposalFormField label="Fecha y hora de fin" required error={fieldErrors.endsAt}><div className="proposal-input-icon"><Clock3 size={17} aria-hidden="true" /><input required aria-invalid={Boolean(fieldErrors.endsAt)} type="datetime-local" min={form.startsAt || minimumDateTime} value={form.endsAt} onChange={(event) => update('endsAt', event.target.value)} /></div></ProposalFormField>
         </div>
         <fieldset className="proposal-choice-field"><legend>Modalidad <b aria-hidden="true">*</b></legend><div className="proposal-choice-grid">{([['venue', 'Presencial', 'El evento será presencial.'], ['online', 'Online', 'El evento se realizará en línea.'], ['hybrid', 'Híbrido', 'Combina actividades presenciales y en línea.']] as const).map(([value, label, description]) => <label className={`proposal-choice ${form.locationType === value ? 'selected' : ''}`} key={value}><input type="radio" name="proposal-location" value={value} checked={form.locationType === value} onChange={() => update('locationType', value)} /><span><strong>{label}</strong><small>{description}</small></span></label>)}</div></fieldset>
 
         {form.locationType !== 'online' && <div className="proposal-grid proposal-grid--two"><ProposalFormField label="Nombre del lugar"><div className="proposal-input-icon"><MapPin size={17} aria-hidden="true" /><input value={form.venueName} onChange={(event) => update('venueName', event.target.value)} placeholder="Ej. Centro Cultural de España" /></div></ProposalFormField><ProposalFormField label="Dirección"><input value={form.address} onChange={(event) => update('address', event.target.value)} placeholder="Distrito, ciudad o dirección" /></ProposalFormField></div>}
-        {form.locationType !== 'venue' && <ProposalFormField label="Enlace para unirse"><div className="proposal-input-icon"><Link2 size={17} aria-hidden="true" /><input type="url" value={form.meetingUrl} onChange={(event) => update('meetingUrl', event.target.value)} placeholder="https://meet.google.com/..." /></div></ProposalFormField>}
+        {form.locationType !== 'venue' && <ProposalFormField label="Enlace para unirse" required error={fieldErrors.meetingUrl}><div className="proposal-input-icon"><Link2 size={17} aria-hidden="true" /><input required aria-invalid={Boolean(fieldErrors.meetingUrl)} type="url" value={form.meetingUrl} onChange={(event) => update('meetingUrl', event.target.value)} placeholder="https://meet.google.com/..." /></div></ProposalFormField>}
 
         <div className="proposal-antispam"><TurnstileWidget action="event-proposal" value={form.turnstileToken} onChange={(value) => update('turnstileToken', value)} resetSignal={resetSignal} /></div>
         <label className="proposal-honeypot" aria-hidden="true">Sitio web<input tabIndex={-1} autoComplete="off" value={form.honeypot} onChange={(event) => update('honeypot', event.target.value)} /></label>
@@ -240,12 +278,26 @@ function getRecentCommunities(events: EventItem[]) {
 
 export function PublicAgendaPage() {
   const { user, configured } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
   const [locationFilter, setLocationFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<EventViewMode>('cards')
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const { events, loading, error } = useEvents({ network: Boolean(user) })
+  const sharedEventKey = searchParams.get('evento')
+
+  useEffect(() => {
+    if (loading || !sharedEventKey) return
+    const sharedEvent = events.find((event) => event.id === sharedEventKey || event.slug === sharedEventKey)
+    if (!sharedEvent) return
+    setSelectedEvent(sharedEvent)
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.delete('evento')
+      return next
+    }, { replace: true })
+  }, [events, loading, setSearchParams, sharedEventKey])
 
   const visibleEvents = useMemo(() => {
     return filterEvents(events, { search, timeFilter, locationFilter })

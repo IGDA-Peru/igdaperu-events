@@ -51,19 +51,20 @@ type ProposalBody = {
 Deno.serve(async (request) => {
   const preflight = options(request)
   if (preflight) return preflight
-  if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
+  const respond = (body: unknown, status = 200) => json(body, status, request)
+  if (request.method !== 'POST') return respond({ error: 'Method not allowed' }, 405)
 
   try {
     const limit = await enforceRateLimit(admin, request, 'event-proposal', null, { windowSeconds: 3600, maxRequests: 5 })
-    if (!limit.allowed) return rateLimitResponse(limit, 'Recibimos muchas propuestas desde esta conexión. Intenta nuevamente más tarde.')
+    if (!limit.allowed) return rateLimitResponse(limit, 'Recibimos muchas propuestas desde esta conexión. Intenta nuevamente más tarde.', request)
 
     const parsed = await readJsonBody<ProposalBody>(request, 32 * 1024)
-    if (parsed.tooLarge || parsed.invalid || !parsed.value) return json({ error: 'La propuesta no es válida.' }, 400)
+    if (parsed.tooLarge || parsed.invalid || !parsed.value) return respond({ error: 'La propuesta no es válida.' }, 400)
     const body = parsed.value
-    if (text(body.honeypot, 100)) return json({ ok: true })
+    if (text(body.honeypot, 100)) return respond({ ok: true })
 
     const turnstileToken = text(body.turnstileToken, 2048)
-    if (!(await verifyTurnstile(turnstileToken, request, 'event-proposal'))) return json({ error: 'No pudimos verificar que eres una persona. Recarga el formulario e inténtalo nuevamente.' }, 403)
+    if (!(await verifyTurnstile(turnstileToken, request, 'event-proposal'))) return respond({ error: 'No pudimos verificar que eres una persona. Recarga el formulario e inténtalo nuevamente.' }, 403)
 
     const organizerName = text(body.organizerName, 160)
     const contactEmail = text(body.contactEmail, 254).toLowerCase()
@@ -81,19 +82,19 @@ Deno.serve(async (request) => {
     const mapUrl = text(body.mapUrl, 2048)
 
     if (organizerName.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail) || title.length < 3 || description.length < 3) {
-      return json({ error: 'Completa el nombre, correo, título y descripción de la propuesta.' }, 400)
+      return respond({ error: 'Completa el nombre, correo, título y descripción de la propuesta.' }, 400)
     }
     if (!startsAt || !endsAt || Number.isNaN(new Date(startsAt).getTime()) || Number.isNaN(new Date(endsAt).getTime()) || new Date(endsAt) <= new Date(startsAt)) {
-      return json({ error: 'La fecha y hora del evento no son válidas.' }, 400)
+      return respond({ error: 'La fecha y hora del evento no son válidas.' }, 400)
     }
     if (!['venue', 'online', 'hybrid'].includes(locationType) || !['registration_only', 'location_access'].includes(accessMode) || !['none', 'department', 'province', 'exact'].includes(locationPrecision)) {
-      return json({ error: 'La modalidad o ubicación no son válidas.' }, 400)
+      return respond({ error: 'La modalidad o ubicación no son válidas.' }, 400)
     }
-    if (locationType !== 'venue' && !meetingUrl) return json({ error: 'Añade el enlace para unirse al evento online o híbrido.' }, 400)
-    if (!['google_meet', 'zoom', 'discord', 'other'].includes(meetingProvider)) return json({ error: 'El proveedor de conexión no es válido.' }, 400)
-    if (registrationUrl && !isHttpUrl(registrationUrl)) return json({ error: 'El enlace de registro debe comenzar con http:// o https://.' }, 400)
-    if (meetingUrl && !isHttpUrl(meetingUrl)) return json({ error: 'El enlace de conexión debe comenzar con http:// o https://.' }, 400)
-    if (mapUrl && !isHttpUrl(mapUrl)) return json({ error: 'El enlace del mapa debe comenzar con http:// o https://.' }, 400)
+    if (locationType !== 'venue' && !meetingUrl) return respond({ error: 'Añade el enlace para unirse al evento online o híbrido.' }, 400)
+    if (!['google_meet', 'zoom', 'discord', 'other'].includes(meetingProvider)) return respond({ error: 'El proveedor de conexión no es válido.' }, 400)
+    if (registrationUrl && !isHttpUrl(registrationUrl)) return respond({ error: 'El enlace de registro debe comenzar con http:// o https://.' }, 400)
+    if (meetingUrl && !isHttpUrl(meetingUrl)) return respond({ error: 'El enlace de conexión debe comenzar con http:// o https://.' }, 400)
+    if (mapUrl && !isHttpUrl(mapUrl)) return respond({ error: 'El enlace del mapa debe comenzar con http:// o https://.' }, 400)
 
     const { data: proposal, error } = await admin.from('event_proposals').insert({
       organizer_name: organizerName,
@@ -121,11 +122,11 @@ Deno.serve(async (request) => {
       meeting_provider: meetingProvider,
       registration_url: registrationUrl || null,
     }).select('id').single()
-    if (error || !proposal) return json({ error: 'No pudimos guardar la propuesta.' }, 500)
+    if (error || !proposal) return respond({ error: 'No pudimos guardar la propuesta.' }, 500)
 
     await admin.from('audit_log').insert({ action: 'event_proposal.submitted', entity_type: 'event_proposal', entity_id: proposal.id, metadata: { source: 'public_form', email_hash: await sha256(contactEmail) } })
-    return json({ ok: true })
+    return respond({ ok: true })
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : 'No pudimos registrar la propuesta.' }, 500)
+    return respond({ error: error instanceof Error ? error.message : 'No pudimos registrar la propuesta.' }, 500)
   }
 })

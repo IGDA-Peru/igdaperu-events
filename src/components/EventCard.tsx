@@ -29,12 +29,14 @@ export function EventCard({ event, compact = false, showCover = false, showVisib
   const state = panelState(event, isPast)
   const coverUrl = getEventCoverUrl(event.coverPath)
   const hasCover = Boolean(coverUrl) && (!compact || showCover)
+  const audienceClass = managed || showVisibility ? (isPrivate ? 'private-event' : 'public-event') : ''
+  const statusClass = managed && event.status === 'draft' ? 'draft-event' : managed && event.status === 'archived' ? 'archived-event' : ''
   const openPreview = (clickEvent: React.MouseEvent) => {
     clickEvent.stopPropagation()
     onOpen?.()
   }
   return (
-    <article className={`event-row ${compact ? 'compact' : ''} ${hasCover ? 'has-cover' : ''} ${managed ? 'managed-event-card' : ''} ${previewable ? 'previewable-event' : ''} ${isPast ? 'past-event' : ''} ${showVisibility ? (isPrivate ? 'private-event' : 'public-event') : ''}`} data-event-focus-id={event.id} tabIndex={previewable ? -1 : undefined} onClick={previewable ? onOpen : undefined}>
+    <article className={`event-row ${compact ? 'compact' : ''} ${hasCover ? 'has-cover' : ''} ${managed ? 'managed-event-card' : ''} ${previewable ? 'previewable-event' : ''} ${isPast ? 'past-event' : ''} ${audienceClass} ${statusClass}`} data-event-focus-id={event.id} tabIndex={previewable ? -1 : undefined} onClick={previewable ? onOpen : undefined}>
       <div className="event-date">
         <span>{parts.month}</span>
         <strong>{parts.date}</strong>

@@ -41,24 +41,27 @@ describe('EventCard visibility', () => {
   it('uses panel state and management actions instead of event navigation', () => {
     const onArchive = vi.fn()
     const onDelete = vi.fn()
-    render(<MemoryRouter><EventCard event={{ ...event, status: 'draft' }} compact panelActions={{ onArchive, onDelete }} /></MemoryRouter>)
+    const { container } = render(<MemoryRouter><EventCard event={{ ...event, status: 'draft' }} compact panelActions={{ onArchive, onDelete }} /></MemoryRouter>)
 
     expect(screen.getByRole('link', { name: 'Editar Evento de prueba' })).toHaveAttribute('href', '/app/eventos/event-1')
     expect(screen.getByText('Borrador')).toBeInTheDocument()
+    expect(container.querySelector('.event-row')).toHaveClass('draft-event')
     expect(screen.getByRole('button', { name: 'Archivar Evento de prueba' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Eliminar Evento de prueba' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Ver Evento de prueba' })).not.toBeInTheDocument()
   })
 
   it('shows the effective audience for published panel events', () => {
-    const { rerender } = render(<MemoryRouter><EventCard event={event} compact panelActions={{ onArchive: vi.fn(), onDelete: vi.fn() }} /></MemoryRouter>)
+    const { container, rerender } = render(<MemoryRouter><EventCard event={event} compact panelActions={{ onArchive: vi.fn(), onDelete: vi.fn() }} /></MemoryRouter>)
 
     expect(screen.getByText('Público')).toBeInTheDocument()
     expect(screen.queryByText('CHARLA')).not.toBeInTheDocument()
+    expect(container.querySelector('.event-row')).toHaveClass('public-event')
 
     rerender(<MemoryRouter><EventCard event={{ ...event, visibility: 'network' }} compact panelActions={{ onArchive: vi.fn(), onDelete: vi.fn() }} /></MemoryRouter>)
 
     expect(screen.getByText('Solo Comunidades')).toBeInTheDocument()
+    expect(container.querySelector('.event-row')).toHaveClass('private-event')
   })
 
   it('shows the creator email only in managed event cards', () => {
