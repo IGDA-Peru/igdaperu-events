@@ -4,9 +4,11 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthContext, type AuthContextValue } from './auth/auth-context'
 import App from './App'
 import { SiteHeader } from './components/SiteHeader'
+import { EventPreviewDrawer } from './components/EventPreviewDrawer'
 import { CommunityEventsPage, CommunitySettingsPage, DashboardPage, EventEditorPage, PlatformAdminPage } from './pages/AppPages'
 import { ConversationsPage } from './pages/ChatPage'
 import { CommunityDetailPage } from './pages/PublicPages'
+import { demoEvents } from './lib/demo-data'
 
 vi.mock('./lib/supabase', () => ({
   appUrl: 'http://localhost:5173',
@@ -419,5 +421,18 @@ describe('public events', () => {
     expect(screen.getByRole('button', { name: 'Guardar borrador y salir' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Seguir editando' }))
     expect(screen.queryByRole('dialog', { name: '¿Salir del editor?' })).not.toBeInTheDocument()
+  })
+})
+
+describe('event preview layout', () => {
+  it('keeps the Google Maps action in a compact metadata control', () => {
+    const event = { ...demoEvents[0], mapUrl: 'https://maps.google.com/?q=Miraflores' }
+    render(<MemoryRouter><EventPreviewDrawer event={event} onClose={vi.fn()} presentation="modal" /></MemoryRouter>)
+
+    const mapLink = screen.getByRole('link', { name: /Ver en Google Maps/ })
+    expect(mapLink).toHaveClass('event-preview-map-link')
+    expect(mapLink).toHaveAttribute('href', event.mapUrl)
+    expect(mapLink.querySelector('svg')).toBeInTheDocument()
+    expect(screen.getByText('Fecha').closest('.event-preview-meta-item')).toBeInTheDocument()
   })
 })

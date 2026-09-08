@@ -99,10 +99,35 @@ export function EventPreviewDrawer({
         <h2 id="event-preview-title">{event.title}</h2>
         <p className="event-preview-description">{event.description}</p>
         <div className="event-preview-meta">
-          <div><CalendarDays size={19} aria-hidden="true" /><span><strong>Fecha</strong>{formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)}</span></div>
-          <div><Clock3 size={19} aria-hidden="true" /><span><strong>Hora</strong>{formatTimeRange(event.startsAt, event.endsAt, event.isAllDay)}</span></div>
-          <div><MapPin size={19} aria-hidden="true" /><span><strong>Ubicación</strong>{formatEventLocation(event)}{event.accessMode !== 'registration_only' && event.mapUrl && <a href={event.mapUrl} target="_blank" rel="noreferrer">Ver en Google Maps <ExternalLink size={14} /></a>}</span></div>
-          <div><CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative /><span><strong>Organiza</strong>{event.communityId ? presentation === 'modal' ? <a href="https://igda.pe/comunidad/" target="_top" rel="noreferrer">{event.communityName}</a> : <Link to={`/comunidades/${event.communitySlug}`} onClick={onClose}>{event.communityName}</Link> : <span>{event.organizerName || event.communityName || 'Evento independiente'}</span>}</span></div>
+          <div className="event-preview-meta-item">
+            <CalendarDays size={19} aria-hidden="true" />
+            <div className="event-preview-meta-copy">
+              <strong>Fecha</strong>
+              <span className="event-preview-meta-value">{formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)}</span>
+            </div>
+          </div>
+          <div className="event-preview-meta-item">
+            <Clock3 size={19} aria-hidden="true" />
+            <div className="event-preview-meta-copy">
+              <strong>Hora</strong>
+              <span className="event-preview-meta-value">{formatTimeRange(event.startsAt, event.endsAt, event.isAllDay)}</span>
+            </div>
+          </div>
+          <div className="event-preview-meta-item">
+            <MapPin size={19} aria-hidden="true" />
+            <div className="event-preview-meta-copy">
+              <strong>Ubicación</strong>
+              <span className="event-preview-meta-value">{formatEventLocation(event)}</span>
+              {event.accessMode !== 'registration_only' && event.mapUrl && <a className="event-preview-map-link" href={event.mapUrl} target="_blank" rel="noreferrer">Ver en Google Maps <ExternalLink size={14} aria-hidden="true" /></a>}
+            </div>
+          </div>
+          <div className="event-preview-meta-item">
+            <CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative />
+            <div className="event-preview-meta-copy">
+              <strong>Organiza</strong>
+              <span className="event-preview-meta-value">{event.communityId ? presentation === 'modal' ? <a href="https://igda.pe/comunidad/" target="_top" rel="noreferrer">{event.communityName}</a> : <Link to={`/comunidades/${event.communitySlug}`} onClick={onClose}>{event.communityName}</Link> : (event.organizerName || event.communityName || 'Evento independiente')}</span>
+            </div>
+          </div>
         </div>
         <div className="event-preview-actions">
           {!isPast && event.registrationUrl && <a className="primary-button event-preview-link" href={event.registrationUrl} target="_blank" rel="noreferrer">Inscribirme <ExternalLink size={17} /></a>}
