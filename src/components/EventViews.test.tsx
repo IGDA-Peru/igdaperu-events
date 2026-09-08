@@ -112,8 +112,12 @@ describe('TimelineView', () => {
     const { container, rerender } = render(<MemoryRouter><TimelineView events={[first]} showVisibility={false} onEventOpen={vi.fn()} /></MemoryRouter>)
 
     expect(container.querySelector('.timeline-body')).toHaveStyle({ minHeight: '204px' })
+    expect(container.querySelectorAll('.timeline-community-row')).toHaveLength(3)
+    expect(container.querySelectorAll('.timeline-community-row--placeholder')).toHaveLength(2)
+    expect(container.querySelectorAll('.timeline-community-row--placeholder .community-logo')).toHaveLength(0)
     rerender(<MemoryRouter><TimelineView events={[first, second, third, fourth]} showVisibility={false} onEventOpen={vi.fn()} /></MemoryRouter>)
     expect(container.querySelector('.timeline-body')).toHaveStyle({ minHeight: '272px' })
+    expect(container.querySelectorAll('.timeline-community-row--placeholder')).toHaveLength(0)
   })
 
   it('uses the normal timeline density and paginates sections with arrows in the timeline header', () => {

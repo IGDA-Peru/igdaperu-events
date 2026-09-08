@@ -355,6 +355,19 @@ function timelineStyle(color: typeof timelinePalette[number]): CSSProperties {
   return { '--timeline-color': color.color, '--timeline-tint': color.tint } as CSSProperties
 }
 
+function TimelineDayGrid({ visibleDays, range }: { visibleDays: string[]; range: TimelineRange }) {
+  return <div className="timeline-day-grid" aria-hidden="true">{visibleDays.map((key) => <span className={`${key < range.monthStartKey || key > range.monthEndKey ? 'outside-month' : ''} ${new Date(`${key}T12:00:00-05:00`).getDay() === 0 || new Date(`${key}T12:00:00-05:00`).getDay() === 6 ? 'weekend' : ''}`} key={key} />)}</div>
+}
+
+function TimelinePlaceholderRow({ visibleDays, range }: { visibleDays: string[]; range: TimelineRange }) {
+  return <div className="timeline-community-row timeline-community-row--placeholder" aria-hidden="true">
+    <div className="timeline-community-label" />
+    <div className="timeline-track" style={{ minHeight: `${timelineCommunityRowHeight}px` }}>
+      <TimelineDayGrid visibleDays={visibleDays} range={range} />
+    </div>
+  </div>
+}
+
 export function TimelineView({ events, showVisibility, onEventOpen, focusRequest }: { events: EventItem[]; showVisibility: boolean; onEventOpen: (event: EventItem) => void; focusRequest?: EventFocusRequest | null }) {
   const scheduledEvents = useMemo(() => events.filter((event) => event.startsAt), [events])
   const communities = useMemo(() => stableCommunities(scheduledEvents), [scheduledEvents])
@@ -389,6 +402,7 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
   const fittedDayWidth = availableAxisWidth > 0 ? availableAxisWidth / visibleDays.length : timelineNormalDayWidth
   const dayWidth = Math.max(18, fittedDayWidth)
   const canvasStyle = timelineCssVariables(dayWidth, visibleDays.length, currentLabelWidth)
+  const reservedCommunityRows = groupedCommunities.length ? Math.max(0, timelineDefaultCommunityRows - groupedCommunities.length) : 0
   const contentHeight = groupedCommunities.reduce((total, community) => total + Math.max(timelineCommunityRowHeight, community.laneCount * timelineLaneHeight + timelineTrackPadding), 0)
   const bodyStyle = { '--timeline-day-width': `${dayWidth}px`, '--timeline-day-count': String(visibleDays.length), '--timeline-axis-width': `${dayWidth * visibleDays.length}px`, '--timeline-today-offset': todayIndex >= 0 ? `${todayIndex * dayWidth + dayWidth / 2}px` : '0px', minHeight: `${Math.max(timelineDefaultCommunityRows * timelineCommunityRowHeight, contentHeight)}px` } as CSSProperties
   const singleDayLabelWidthDays = Math.ceil(160 / dayWidth) + 1
@@ -473,10 +487,11 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
           </div>
           <div className="timeline-body" style={bodyStyle}>
             {todayIndex >= 0 && <div className="timeline-today-line" aria-label={`Hoy: ${formatTimelineDay(todayKey).day} de ${formatTimelineMonth(visibleMonth)}`}><span>Hoy</span></div>}
-            {groupedCommunities.length ? groupedCommunities.map((community) => <div className="timeline-community-row" key={community.id}>
+            {groupedCommunities.length ? <>
+              {groupedCommunities.map((community) => <div className="timeline-community-row" key={community.id}>
               <div className="timeline-community-label" style={timelineStyle(community.color)}><span className="timeline-community-dot" /><CommunityLogo path={community.logoPath} name={community.name} size="small" decorative /><strong>{community.name}</strong><small>{community.segments.length} {community.segments.length === 1 ? 'evento' : 'eventos'}</small></div>
               <div className="timeline-track" style={{ minHeight: `${Math.max(timelineCommunityRowHeight, community.laneCount * timelineLaneHeight + timelineTrackPadding)}px` }}>
-                <div className="timeline-day-grid" aria-hidden="true">{visibleDays.map((key) => <span className={`${key < range.monthStartKey || key > range.monthEndKey ? 'outside-month' : ''} ${new Date(`${key}T12:00:00-05:00`).getDay() === 0 || new Date(`${key}T12:00:00-05:00`).getDay() === 6 ? 'weekend' : ''}`} key={key} />)}</div>
+                <TimelineDayGrid visibleDays={visibleDays} range={range} />
                 {community.segments.map((segment) => {
                   const privateEvent = showVisibility && segment.event.visibility === 'network'
                   const coverUrl = getEventCoverUrl(segment.event.coverPath)
@@ -488,7 +503,9 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
                   return <button className={`timeline-event-bar ${segment.isSingleDay ? 'single-day' : ''} ${labelBefore ? 'label-before' : ''} ${privateEvent ? 'private' : 'public'} ${isEventPast(segment.event) ? 'past' : ''} ${segment.continuesBefore ? 'continues-before' : ''} ${segment.continuesAfter ? 'continues-after' : ''}`} data-event-focus-id={segment.event.id} style={segmentStyle} type="button" data-lane={segment.lane} title={`${label} · ${formatTimeRange(segment.event.startsAt, segment.event.endsAt, segment.event.isAllDay)}`} aria-label={label} onClick={() => onEventOpen(segment.event)} key={segment.event.id}><span className="timeline-event-diamond" aria-hidden="true" />{privateEvent && !segment.isSingleDay && <LockKeyhole size={12} aria-hidden="true" />}<span className="timeline-event-label">{segment.event.title}</span>{isEventPast(segment.event) && <span className="sr-only">Ya pasó</span>}<CalendarEventHoverPreview event={segment.event} coverUrl={coverUrl} /></button>
                 })}
               </div>
-            </div>) : <div className="timeline-empty"><CalendarDays size={24} aria-hidden="true" /><strong>No hay eventos en esta sección</strong><span>{sectionCount > 1 ? 'Usa las flechas junto al mes para ver las semanas siguientes.' : 'Prueba con otro mes o cambia el filtro de comunidad.'}</span></div>}
+              </div>)}
+              {Array.from({ length: reservedCommunityRows }, (_, index) => <TimelinePlaceholderRow key={`placeholder-${index}`} visibleDays={visibleDays} range={range} />)}
+            </> : <div className="timeline-empty"><CalendarDays size={24} aria-hidden="true" /><strong>No hay eventos en esta sección</strong><span>{sectionCount > 1 ? 'Usa las flechas junto al mes para ver las semanas siguientes.' : 'Prueba con otro mes o cambia el filtro de comunidad.'}</span></div>}
           </div>
         </div>
       </div>
