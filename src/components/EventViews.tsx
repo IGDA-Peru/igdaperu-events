@@ -368,6 +368,8 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
   const [zoom, setZoom] = useState<TimelineZoom>('compact')
   const [communityFilter, setCommunityFilter] = useState('all')
   const [timelineSection, setTimelineSection] = useState(0)
+  const [timelineViewportWidth, setTimelineViewportWidth] = useState(0)
+  const timelineScrollRef = useRef<HTMLDivElement>(null)
   const handledFocusNonce = useRef<number | null>(null)
   useEffect(() => {
     if (communityFilter !== 'all' && !communities.some((community) => community.id === communityFilter)) setCommunityFilter('all')
@@ -392,9 +394,19 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
   }).filter((community) => community.segments.length), [communities, communityFilter, scheduledEvents, sectionRange])
   const todayKey = limaDateKey(new Date())
   const todayIndex = visibleDays.indexOf(todayKey)
-  const canvasStyle = timelineCssVariables(zoomConfig.dayWidth, visibleDays.length)
-  const bodyStyle = { '--timeline-day-width': `${zoomConfig.dayWidth}px`, '--timeline-day-count': String(visibleDays.length), '--timeline-axis-width': `${zoomConfig.dayWidth * visibleDays.length}px`, '--timeline-today-offset': todayIndex >= 0 ? `${todayIndex * zoomConfig.dayWidth + zoomConfig.dayWidth / 2}px` : '0px' } as CSSProperties
-  const singleDayLabelWidthDays = Math.ceil(160 / zoomConfig.dayWidth) + 1
+  const availableAxisWidth = Math.max(0, timelineViewportWidth - timelineLabelWidth)
+  const fittedDayWidth = availableAxisWidth > 0 ? availableAxisWidth / visibleDays.length : zoomConfig.dayWidth
+  // Normal fills the available space; compact fits the whole month until the
+  // viewport becomes too narrow to keep individual days readable.
+  const dayWidth = zoom === 'normal'
+    ? Math.max(30, fittedDayWidth)
+    : zoom === 'compact'
+      ? Math.max(18, Math.min(zoomConfig.dayWidth, fittedDayWidth))
+      : zoomConfig.dayWidth
+  const shouldUseHorizontalScroll = timelineViewportWidth > 0 && timelineLabelWidth + dayWidth * visibleDays.length > timelineViewportWidth
+  const canvasStyle = timelineCssVariables(dayWidth, visibleDays.length)
+  const bodyStyle = { '--timeline-day-width': `${dayWidth}px`, '--timeline-day-count': String(visibleDays.length), '--timeline-axis-width': `${dayWidth * visibleDays.length}px`, '--timeline-today-offset': todayIndex >= 0 ? `${todayIndex * dayWidth + dayWidth / 2}px` : '0px' } as CSSProperties
+  const singleDayLabelWidthDays = Math.ceil(160 / dayWidth) + 1
   const changeZoom = (direction: -1 | 1) => {
     setZoom((current) => timelineZoomOrder[Math.min(timelineZoomOrder.length - 1, Math.max(0, timelineZoomOrder.indexOf(current) + direction))])
     setTimelineSection(0)
@@ -412,6 +424,17 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
   }
 
   useEffect(() => {
+    const viewport = timelineScrollRef.current
+    if (!viewport) return
+    const updateViewportWidth = () => setTimelineViewportWidth(viewport.clientWidth)
+    updateViewportWidth()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(updateViewportWidth)
+    observer.observe(viewport)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
     const focusEventId = focusRequest?.eventId
     const focusNonce = focusRequest?.nonce
     if (!focusEventId || focusNonce == null || handledFocusNonce.current === focusNonce) return
@@ -425,7 +448,7 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
     }
     const targetDayIndex = range.days.indexOf(limaDateKey(target.startsAt))
     if (targetDayIndex < 0) return
-    const targetSection = Math.min(sectionCount - 1, Math.floor(Math.floor(targetDayIndex / 7) / timelineWeeksPerSection))
+    const targetSection = Math.min(sectionCount - 1, Math.floor(Math.floor(targetDayIndex / 7) / weeksPerSection))
     if (currentSection !== targetSection) {
       setTimelineSection(targetSection)
       return
@@ -433,7 +456,7 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
     const frame = window.requestAnimationFrame(() => focusEventElement(focusEventId))
     handledFocusNonce.current = focusNonce
     return () => window.cancelAnimationFrame(frame)
-  }, [currentSection, focusRequest, range, scheduledEvents, sectionCount, visibleMonth])
+  }, [currentSection, focusRequest, range, scheduledEvents, sectionCount, visibleMonth, weeksPerSection])
 
   return (
     <section className="timeline-view" aria-label={`Línea de tiempo de ${formatTimelineMonth(visibleMonth)}`}>
@@ -460,7 +483,7 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
         </div>
       </div>
       <div className="timeline-legend" aria-label="Leyenda de comunidades">{communities.slice(0, 6).map((community) => <span key={community.id}><i style={timelineStyle(community.color)} />{community.name}</span>)}{showVisibility && <span><LockKeyhole size={13} aria-hidden="true" /> Solo la red</span>}</div>
-      <div className="timeline-scroll" style={canvasStyle}>
+      <div className={`timeline-scroll ${shouldUseHorizontalScroll ? 'is-scrollable' : ''}`} ref={timelineScrollRef} style={canvasStyle}>
         <div className="timeline-canvas">
           <div className="timeline-header-row timeline-week-header">
             <div className="timeline-label-header">Comunidad</div>
@@ -480,8 +503,8 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
                   const privateEvent = showVisibility && segment.event.visibility === 'network'
                   const coverUrl = getEventCoverUrl(segment.event.coverPath)
                   const labelBefore = segment.isSingleDay && segment.endIndex >= visibleDays.length - singleDayLabelWidthDays
-                  const segmentWidth = segment.isSingleDay ? Math.min(28, zoomConfig.dayWidth - 8) : (segment.endIndex - segment.startIndex + 1) * zoomConfig.dayWidth - 8
-                  const segmentLeft = segment.isSingleDay ? segment.startIndex * zoomConfig.dayWidth + (zoomConfig.dayWidth - segmentWidth) / 2 : segment.startIndex * zoomConfig.dayWidth + 4
+                  const segmentWidth = segment.isSingleDay ? Math.min(28, dayWidth - 8) : (segment.endIndex - segment.startIndex + 1) * dayWidth - 8
+                  const segmentLeft = segment.isSingleDay ? segment.startIndex * dayWidth + (dayWidth - segmentWidth) / 2 : segment.startIndex * dayWidth + 4
                   const segmentStyle = { ...timelineStyle(community.color), left: `${segmentLeft}px`, width: `${segmentWidth}px`, top: `${segment.lane * 38 + 10}px` }
                   const label = `${segment.event.title}, ${segment.event.communityName}, ${formatEventDateRange(segment.event.startsAt, segment.event.endsAt, segment.event.isAllDay)}${privateEvent ? ', Solo la red' : ''}`
                   return <button className={`timeline-event-bar ${segment.isSingleDay ? 'single-day' : ''} ${labelBefore ? 'label-before' : ''} ${privateEvent ? 'private' : 'public'} ${isEventPast(segment.event) ? 'past' : ''} ${segment.continuesBefore ? 'continues-before' : ''} ${segment.continuesAfter ? 'continues-after' : ''}`} data-event-focus-id={segment.event.id} style={segmentStyle} type="button" data-lane={segment.lane} title={`${label} · ${formatTimeRange(segment.event.startsAt, segment.event.endsAt, segment.event.isAllDay)}`} aria-label={label} onClick={() => onEventOpen(segment.event)} key={segment.event.id}><span className="timeline-event-diamond" aria-hidden="true" />{privateEvent && !segment.isSingleDay && <LockKeyhole size={12} aria-hidden="true" />}<span className="timeline-event-label">{segment.event.title}</span>{isEventPast(segment.event) && <span className="sr-only">Ya pasó</span>}<CalendarEventHoverPreview event={segment.event} coverUrl={coverUrl} /></button>

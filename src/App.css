@@ -438,7 +438,8 @@ html:has(.embed-page), body:has(.embed-page) { background: var(--surface); }
 .timeline-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .timeline-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--timeline-color); }
 .timeline-legend svg { color: var(--ink); }
-.timeline-scroll { overflow: auto; min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-md); background: rgb(255 255 255 / 86%); box-shadow: 0 1px 0 rgb(16 19 26 / 5%); overscroll-behavior-x: contain; scrollbar-color: rgb(85 77 68 / 32%) transparent; -webkit-overflow-scrolling: touch; }
+.timeline-scroll { overflow: visible; min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-md); background: rgb(255 255 255 / 86%); box-shadow: 0 1px 0 rgb(16 19 26 / 5%); }
+.timeline-scroll.is-scrollable { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-color: rgb(85 77 68 / 32%) transparent; -webkit-overflow-scrolling: touch; }
 .timeline-canvas { width: max-content; min-width: calc(var(--timeline-label-width) + var(--timeline-axis-width)); }
 .timeline-header-row, .timeline-community-row { display: grid; grid-template-columns: var(--timeline-label-width) var(--timeline-axis-width); }
 .timeline-label-header { position: sticky; left: 0; z-index: 5; display: flex; align-items: center; min-height: 44px; padding: 0 16px; border-right: 1px solid var(--line); color: var(--ink); background: var(--bone); font-size: .76rem; font-weight: 900; }
