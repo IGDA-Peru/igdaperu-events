@@ -38,6 +38,14 @@ describe('event validation', () => {
     expect(result.missing).toEqual([])
   })
 
+  it('requires a custom label when the event type is OTRO', () => {
+    const result = validateEvent({ ...baseEvent, type: 'OTRO', startsAt: '2026-10-01T19:00', endsAt: '2026-10-01T21:00' }, 'draft')
+
+    expect(result.valid).toBe(false)
+    expect(result.errors.type).toContain('tipo de evento')
+    expect(validateEvent({ ...baseEvent, type: 'Festival', startsAt: '2026-10-01T19:00', endsAt: '2026-10-01T21:00' }, 'draft').errors.type).toBeUndefined()
+  })
+
   it('requires community, a meaningful title and dates for drafts', () => {
     const result = validateEvent({ ...baseEvent, communityId: '', title: 'a' }, 'draft')
 

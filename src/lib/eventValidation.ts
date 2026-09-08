@@ -1,7 +1,7 @@
 import type { EventInput } from '../types'
 
 export type EventValidationMode = 'draft' | 'publish'
-export type EventField = 'communityId' | 'organizerName' | 'title' | 'description' | 'startsAt' | 'endsAt' | 'location' | 'meetingUrl' | 'registrationUrl' | 'mapUrl'
+export type EventField = 'communityId' | 'organizerName' | 'title' | 'type' | 'description' | 'startsAt' | 'endsAt' | 'location' | 'meetingUrl' | 'registrationUrl' | 'mapUrl'
 
 export type EventValidationResult = {
   errors: Partial<Record<EventField, string>>
@@ -13,6 +13,7 @@ export const eventFieldLabels: Record<EventField, string> = {
   communityId: 'Comunidad',
   organizerName: 'Organizador',
   title: 'Título del evento',
+  type: 'Tipo de evento',
   description: 'Descripción',
   startsAt: 'Fecha y hora de inicio',
   endsAt: 'Fecha y hora de fin',
@@ -40,6 +41,9 @@ export function validateEvent(input: EventInput, mode: EventValidationMode, opti
   if (!input.communityId && options.allowIndependent && !input.organizerName?.trim()) errors.organizerName = 'Indica quién organiza el evento independiente.'
   if (!title) errors.title = 'Añade un título para identificar el evento.'
   else if (title.length < 3) errors.title = 'El título debe tener al menos 3 caracteres.'
+  const eventType = input.type.trim()
+  if (!eventType || eventType.toUpperCase() === 'OTRO') errors.type = 'Especifica el tipo de evento.'
+  else if (eventType.length > 40) errors.type = 'El tipo de evento no puede superar 40 caracteres.'
 
   const minimalRequirements = mode === 'draft' || input.visibility === 'network'
 

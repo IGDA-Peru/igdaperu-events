@@ -15,6 +15,7 @@ import { TurnstileWidget } from '../components/TurnstileWidget'
 import { ConversationSummary } from './ChatPage'
 import { approveEventProposal, archiveEvent, cancelCommunityInvitation, createCommunity, createGoogleMeetLink, createInvitation, deleteEvent, getEventCoverUrl, getGoogleMeetConnection, listCommunities, listCommunityEvents, listCommunityMembers, listEventConflicts, listEventProposals, listEventReports, listManagedEvents, migrateExistingAssets, rejectEventProposal, removeEventBanner, resolveEventReport, revokeCommunityMember, saveEvent, startGoogleMeetConnection, syncCommunitiesFromSheet, syncEventsToGoogleCalendar, updateCommunityStatus, updateEventProposal, uploadCommunityLogo, uploadEventBanner } from '../lib/data'
 import { eventFieldLabels, validateEvent, type EventField } from '../lib/eventValidation'
+import { eventTypeOptions, isStandardEventType } from '../lib/eventTypes'
 import { filterEvents, type TimeFilter } from '../lib/eventFilters'
 import { eventSlug, formatEventDateRange, formatEventLocation, formatTimeRange, isEventPast, meetingActionLabel, slugify } from '../lib/format'
 import { peruDepartments, peruLocations } from '../lib/peruLocations'
@@ -449,7 +450,7 @@ export function EventEditorPage() {
     setFieldErrors(validation.errors)
     if (!validation.valid) {
       const firstMissing = validation.missing[0]
-      if (firstMissing === 'communityId' || firstMissing === 'organizerName' || firstMissing === 'title' || firstMissing === 'description') setActiveSection('information')
+      if (firstMissing === 'communityId' || firstMissing === 'organizerName' || firstMissing === 'title' || firstMissing === 'type' || firstMissing === 'description') setActiveSection('information')
       else if (firstMissing === 'startsAt' || firstMissing === 'endsAt') setActiveSection('datetime')
       else if (firstMissing === 'registrationUrl') setActiveSection('registration')
       else if (firstMissing === 'location' || firstMissing === 'meetingUrl' || firstMissing === 'mapUrl') setActiveSection('location')
@@ -521,8 +522,8 @@ export function EventEditorPage() {
               <label className="editor-field"><FieldLabel required>Título del evento</FieldLabel><input aria-invalid={Boolean(fieldErrors.title)} aria-describedby={fieldErrors.title ? 'event-title-error' : undefined} value={form.title} onChange={(event) => update('title', event.target.value)} placeholder="Ej. Meetup de desarrollo indie" /><FieldError id="event-title-error" message={fieldErrors.title} /></label>
             </div>
             <div className="form-grid">
-              <label className="editor-field"><FieldLabel required={false}>Tipo de actividad</FieldLabel><select value={form.type} onChange={(event) => update('type', event.target.value)}><option>CHARLA</option><option>TALLER</option><option>MEETUP</option><option>GAME JAM</option><option>CONFERENCIA</option></select></label>
-              <div className="field-spacer" aria-hidden="true" />
+              <label className="editor-field"><FieldLabel required={false}>Tipo de actividad</FieldLabel><select value={isStandardEventType(form.type) ? form.type : 'OTRO'} onChange={(event) => update('type', event.target.value === 'OTRO' ? 'OTRO' : event.target.value)}>{eventTypeOptions.map((type) => <option key={type}>{type}</option>)}</select></label>
+              {!isStandardEventType(form.type) ? <label className="editor-field"><FieldLabel required>Especifica el tipo de evento</FieldLabel><input required maxLength={40} aria-invalid={Boolean(fieldErrors.type)} aria-describedby={fieldErrors.type ? 'event-type-error-custom' : undefined} value={form.type === 'OTRO' ? '' : form.type} onChange={(event) => update('type', event.target.value)} placeholder="Ej. Networking, festival, torneo…" /><FieldError id="event-type-error-custom" message={fieldErrors.type} /></label> : <div className="field-spacer" aria-hidden="true" />}
             </div>
             <div className="event-banner-field">
               <div className="event-banner-heading"><div><strong>Banner del evento</strong><p>Se mostrará recortado en formato horizontal 16:9.</p></div></div>

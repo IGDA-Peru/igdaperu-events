@@ -7,7 +7,7 @@ import { SiteHeader } from './components/SiteHeader'
 import { EventPreviewDrawer } from './components/EventPreviewDrawer'
 import { CommunityEventsPage, CommunitySettingsPage, DashboardPage, EventEditorPage, PlatformAdminPage } from './pages/AppPages'
 import { ConversationsPage } from './pages/ChatPage'
-import { CommunityDetailPage } from './pages/PublicPages'
+import { CommunityDetailPage, EventProposalPage } from './pages/PublicPages'
 import { demoEvents } from './lib/demo-data'
 
 vi.mock('./lib/supabase', () => ({
@@ -17,6 +17,16 @@ vi.mock('./lib/supabase', () => ({
 }))
 
 describe('public events', () => {
+  it('lets proposal authors specify a custom event type', () => {
+    render(<MemoryRouter initialEntries={['/proponer-evento']}><EventProposalPage /></MemoryRouter>)
+
+    const typeSelect = screen.getByRole('combobox', { name: 'Tipo de evento' })
+    fireEvent.change(typeSelect, { target: { value: 'OTRO' } })
+    expect(screen.getByRole('textbox', { name: 'Especifica el tipo de evento' })).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Especifica el tipo de evento' }), { target: { value: 'Festival' } })
+    expect(screen.getByRole('textbox', { name: 'Especifica el tipo de evento' })).toHaveValue('Festival')
+  })
+
   it('shows public events using the local demo fallback', async () => {
     render(<App />)
     expect(screen.getByRole('heading', { name: 'Próximos eventos' })).toBeInTheDocument()
@@ -296,6 +306,10 @@ describe('public events', () => {
     expect(screen.getByText('Banner del evento')).toBeInTheDocument()
     expect(screen.getByText(/se optimiza automáticamente.*1600 × 900/)).toBeInTheDocument()
     expect(document.querySelector('.event-banner-dropzone')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Tipo de actividad' }), { target: { value: 'OTRO' } })
+    expect(screen.getByRole('textbox', { name: /Especifica el tipo de evento/ })).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox', { name: /Especifica el tipo de evento/ }), { target: { value: 'Feria' } })
+    expect(screen.getByRole('textbox', { name: /Especifica el tipo de evento/ })).toHaveValue('Feria')
     const summaryToggle = screen.getByRole('button', { name: 'Resumen' })
     expect(summaryToggle).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(summaryToggle)

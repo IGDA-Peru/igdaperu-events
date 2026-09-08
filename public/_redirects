@@ -2,6 +2,7 @@
 /comunidades/* /index.html 200
 /invitaciones/* /index.html 200
 /login/* /index.html 200
+/proponer-evento/* /index.html 200
 /registro/* /index.html 200
 /recuperar/* /index.html 200
 /restablecer/* /index.html 200

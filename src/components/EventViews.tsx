@@ -132,32 +132,62 @@ function CalendarEventHoverPreview({ event, coverUrl }: { event: EventItem; cove
   )
 }
 
-function calendarHoverPlacement(element: HTMLElement) {
+type HoverSide = 'left' | 'right' | 'inside'
+type HoverPlacement = { side: HoverSide; width: number; offsetY: number; offsetX: number }
+
+function calendarHoverPlacement(element: HTMLElement, containerSelector: string): HoverPlacement {
   const bounds = element.getBoundingClientRect()
+  const container = element.closest<HTMLElement>(containerSelector)
+  const containerBounds = container?.getBoundingClientRect()
   const gap = 10
-  const rightSpace = window.innerWidth - bounds.right
-  const leftSpace = bounds.left
+  const edgePadding = 8
+  const containerLeft = containerBounds?.left ?? 0
+  const containerRight = containerBounds?.right ?? window.innerWidth
+  const containerTop = containerBounds?.top ?? 0
+  const containerBottom = containerBounds?.bottom ?? window.innerHeight
+  const rightSpace = Math.max(0, containerRight - edgePadding - bounds.right - gap)
+  const leftSpace = Math.max(0, bounds.left - (containerLeft + edgePadding) - gap)
   const idealWidth = Math.min(310, Math.max(180, window.innerWidth - 48))
-  const fitsRight = rightSpace >= idealWidth + gap
-  const fitsLeft = leftSpace >= idealWidth + gap
-  const side = fitsRight || (!fitsLeft && rightSpace >= leftSpace) ? 'right' : 'left'
-  const availableSpace = Math.max(0, (side === 'right' ? rightSpace : leftSpace) - gap)
-  return { side: side as 'left' | 'right', width: Math.min(idealWidth, availableSpace) }
+  const fitsRight = rightSpace >= idealWidth
+  const fitsLeft = leftSpace >= idealWidth
+  const side: HoverSide = fitsRight || (!fitsLeft && rightSpace >= leftSpace) ? 'right' : 'left'
+  const sideSpace = side === 'right' ? rightSpace : leftSpace
+  const boardWidth = Math.max(0, containerRight - containerLeft - edgePadding * 2)
+  const inside = sideSpace < 150
+  const resolvedSide: HoverSide = inside ? 'inside' : side
+  const width = Math.max(0, Math.min(idealWidth, inside ? boardWidth : sideSpace))
+  const card = element.querySelector<HTMLElement>('.calendar-event-hover-card')
+  const cardHeight = card?.getBoundingClientRect().height || 120
+  const desiredTop = bounds.top + bounds.height / 2 - cardHeight / 2
+  const minTop = containerTop + edgePadding
+  const maxTop = Math.max(minTop, containerBottom - edgePadding - cardHeight)
+  const clampedTop = Math.min(maxTop, Math.max(minTop, desiredTop))
+  const offsetY = clampedTop - desiredTop
+  const desiredLeft = bounds.left + bounds.width / 2 - width / 2
+  const minLeft = containerLeft + edgePadding
+  const maxLeft = Math.max(minLeft, containerRight - edgePadding - width)
+  const offsetX = resolvedSide === 'inside' ? Math.min(maxLeft, Math.max(minLeft, desiredLeft)) - bounds.left : 0
+  return { side: resolvedSide, width, offsetY, offsetX }
+}
+
+function useContainedHoverPlacement(containerSelector: string) {
+  const [hoverPlacement, setHoverPlacement] = useState<HoverPlacement>({ side: 'right', width: 310, offsetY: 0, offsetX: 0 })
+  const barRef = useRef<HTMLButtonElement>(null)
+  const updateHoverPlacement = useCallback((element: HTMLButtonElement) => setHoverPlacement(calendarHoverPlacement(element, containerSelector)), [containerSelector])
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => { if (barRef.current) updateHoverPlacement(barRef.current) })
+    return () => window.cancelAnimationFrame(frame)
+  }, [updateHoverPlacement])
+
+  return { barRef, hoverPlacement, updateHoverPlacement }
 }
 
 function CalendarEventBar({ segment, coverUrl, onEventOpen }: { segment: CalendarEventSegment; coverUrl: string | null; onEventOpen?: (event: EventItem) => void }) {
-  const [hoverPlacement, setHoverPlacement] = useState({ side: 'right' as 'left' | 'right', width: 310 })
-  const barRef = useRef<HTMLButtonElement>(null)
+  const { barRef, hoverPlacement, updateHoverPlacement } = useContainedHoverPlacement('.calendar-view')
   const { event } = segment
 
-  const updateHoverSide = useCallback((element: HTMLButtonElement) => setHoverPlacement(calendarHoverPlacement(element)), [])
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => { if (barRef.current) updateHoverSide(barRef.current) })
-    return () => window.cancelAnimationFrame(frame)
-  }, [updateHoverSide])
-
-  return <button ref={barRef} className={`calendar-event-bar ${segment.isSingleDay ? 'single-day' : 'multi-day'} ${event.visibility === 'network' ? 'private' : 'public'} ${isEventPast(event) ? 'past' : ''} hover-${hoverPlacement.side} ${segment.continuesBefore ? 'continues-before' : ''} ${segment.continuesAfter ? 'continues-after' : ''}`} data-event-focus-id={event.id} type="button" style={{ gridColumn: `${segment.startColumn + 1} / ${segment.endColumn + 2}`, gridRow: segment.lane + 1, '--calendar-hover-width': `${hoverPlacement.width}px` } as CSSProperties} title={`${event.title} · ${formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)} · ${formatTimeRange(event.startsAt, event.endsAt, event.isAllDay)}`} aria-label={`${event.title}, ${formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)}`} onPointerEnter={(pointerEvent) => updateHoverSide(pointerEvent.currentTarget)} onFocus={(focusEvent) => updateHoverSide(focusEvent.currentTarget)} onClick={() => onEventOpen?.(event)}>
+  return <button ref={barRef} className={`calendar-event-bar ${segment.isSingleDay ? 'single-day' : 'multi-day'} ${event.visibility === 'network' ? 'private' : 'public'} ${isEventPast(event) ? 'past' : ''} hover-${hoverPlacement.side} ${segment.continuesBefore ? 'continues-before' : ''} ${segment.continuesAfter ? 'continues-after' : ''}`} data-event-focus-id={event.id} type="button" style={{ gridColumn: `${segment.startColumn + 1} / ${segment.endColumn + 2}`, gridRow: segment.lane + 1, '--calendar-hover-width': `${hoverPlacement.width}px`, '--calendar-hover-offset-y': `${hoverPlacement.offsetY}px`, '--calendar-hover-offset-x': `${hoverPlacement.offsetX}px` } as CSSProperties} title={`${event.title} · ${formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)} · ${formatTimeRange(event.startsAt, event.endsAt, event.isAllDay)}`} aria-label={`${event.title}, ${formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)}`} onPointerEnter={(pointerEvent) => updateHoverPlacement(pointerEvent.currentTarget)} onFocus={(focusEvent) => updateHoverPlacement(focusEvent.currentTarget)} onClick={() => onEventOpen?.(event)}>
     {!segment.continuesBefore && <CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative />}
     {!segment.continuesBefore && <span className="calendar-event-dot" aria-hidden="true" />}
     <span className="calendar-event-title">{event.title}</span>
@@ -395,6 +425,12 @@ function TimelinePlaceholderRow({ visibleDays, range }: { visibleDays: string[];
   </div>
 }
 
+function TimelineEventBar({ segment, segmentStyle, labelBefore, privateEvent, label, coverUrl, onEventOpen }: { segment: TimelineSegment; segmentStyle: CSSProperties; labelBefore: boolean; privateEvent: boolean; label: string; coverUrl: string | null; onEventOpen: (event: EventItem) => void }) {
+  const { barRef, hoverPlacement, updateHoverPlacement } = useContainedHoverPlacement('.timeline-scroll')
+  const { event } = segment
+  return <button ref={barRef} className={`timeline-event-bar ${segment.isSingleDay ? 'single-day' : ''} ${labelBefore ? 'label-before' : ''} ${privateEvent ? 'private' : 'public'} ${isEventPast(event) ? 'past' : ''} ${segment.continuesBefore ? 'continues-before' : ''} ${segment.continuesAfter ? 'continues-after' : ''} hover-${hoverPlacement.side}`} data-event-focus-id={event.id} style={{ ...segmentStyle, '--calendar-hover-width': `${hoverPlacement.width}px`, '--calendar-hover-offset-y': `${hoverPlacement.offsetY}px`, '--calendar-hover-offset-x': `${hoverPlacement.offsetX}px` } as CSSProperties} type="button" data-lane={segment.lane} title={`${label} · ${formatTimeRange(segment.event.startsAt, segment.event.endsAt, segment.event.isAllDay)}`} aria-label={label} onPointerEnter={(pointerEvent) => updateHoverPlacement(pointerEvent.currentTarget)} onFocus={(focusEvent) => updateHoverPlacement(focusEvent.currentTarget)} onClick={() => onEventOpen(event)}><span className="timeline-event-diamond" aria-hidden="true" />{privateEvent && !segment.isSingleDay && <LockKeyhole size={12} aria-hidden="true" />}<span className="timeline-event-label">{event.title}</span>{isEventPast(event) && <span className="sr-only">Ya pasó</span>}<CalendarEventHoverPreview event={event} coverUrl={coverUrl} /></button>
+}
+
 export function TimelineView({ events, showVisibility, onEventOpen, focusRequest }: { events: EventItem[]; showVisibility: boolean; onEventOpen: (event: EventItem) => void; focusRequest?: EventFocusRequest | null }) {
   const scheduledEvents = useMemo(() => events.filter((event) => event.startsAt), [events])
   const communities = useMemo(() => stableCommunities(scheduledEvents), [scheduledEvents])
@@ -527,7 +563,7 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
                   const segmentLeft = segment.isSingleDay ? segment.startIndex * dayWidth + (dayWidth - segmentWidth) / 2 : segment.startIndex * dayWidth + 4
                   const segmentStyle = { ...timelineStyle(community.color), left: `${segmentLeft}px`, width: `${segmentWidth}px`, top: `${segment.lane * timelineLaneHeight + 10}px` }
                   const label = `${segment.event.title}, ${segment.event.communityName}, ${formatEventDateRange(segment.event.startsAt, segment.event.endsAt, segment.event.isAllDay)}${privateEvent ? ', Solo Comunidades' : ''}`
-                  return <button className={`timeline-event-bar ${segment.isSingleDay ? 'single-day' : ''} ${labelBefore ? 'label-before' : ''} ${privateEvent ? 'private' : 'public'} ${isEventPast(segment.event) ? 'past' : ''} ${segment.continuesBefore ? 'continues-before' : ''} ${segment.continuesAfter ? 'continues-after' : ''}`} data-event-focus-id={segment.event.id} style={segmentStyle} type="button" data-lane={segment.lane} title={`${label} · ${formatTimeRange(segment.event.startsAt, segment.event.endsAt, segment.event.isAllDay)}`} aria-label={label} onClick={() => onEventOpen(segment.event)} key={segment.event.id}><span className="timeline-event-diamond" aria-hidden="true" />{privateEvent && !segment.isSingleDay && <LockKeyhole size={12} aria-hidden="true" />}<span className="timeline-event-label">{segment.event.title}</span>{isEventPast(segment.event) && <span className="sr-only">Ya pasó</span>}<CalendarEventHoverPreview event={segment.event} coverUrl={coverUrl} /></button>
+                  return <TimelineEventBar key={segment.event.id} segment={segment} segmentStyle={segmentStyle} labelBefore={labelBefore} privateEvent={privateEvent} label={label} coverUrl={coverUrl} onEventOpen={onEventOpen} />
                 })}
               </div>
               </div>)}

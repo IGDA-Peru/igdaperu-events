@@ -12,6 +12,7 @@ import { TurnstileWidget } from '../components/TurnstileWidget'
 import { EventFocusButton, EventResults, EventViewSwitcher, type EventFocusRequest } from '../components/EventViews'
 import type { EventViewMode } from '../components/eventViewModes'
 import { filterEvents, type TimeFilter } from '../lib/eventFilters'
+import { eventTypeOptions, isStandardEventType } from '../lib/eventTypes'
 import { findNextEvent } from '../lib/eventFocus'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { listCommunities, listEvents, listHomeEmbedEvents, submitEventProposal, type EventProposalSubmission, type EventQueryOptions } from '../lib/data'
@@ -65,7 +66,7 @@ function isHttpUrl(value: string) {
   }
 }
 
-type ProposalErrorKey = 'organizerName' | 'contactEmail' | 'title' | 'description' | 'startsAt' | 'endsAt' | 'meetingUrl' | 'registrationUrl'
+type ProposalErrorKey = 'organizerName' | 'contactEmail' | 'title' | 'type' | 'description' | 'startsAt' | 'endsAt' | 'meetingUrl' | 'registrationUrl'
 type ProposalFieldErrors = Partial<Record<ProposalErrorKey, string>>
 
 function ProposalFormField({ label, children, required = false, error }: { label: string; children: ReactNode; required?: boolean; error?: string }) {
@@ -100,6 +101,8 @@ export function EventProposalPage() {
     else if (!/^\S+@\S+\.\S+$/.test(form.contactEmail.trim())) nextFieldErrors.contactEmail = 'El correo no es válido.'
     if (!form.title.trim()) nextFieldErrors.title = 'Falta este dato.'
     else if (form.title.trim().length < 3) nextFieldErrors.title = 'El título no es válido.'
+    if (!form.type.trim() || form.type.trim().toUpperCase() === 'OTRO') nextFieldErrors.type = 'Especifica el tipo de evento.'
+    else if (form.type.trim().length > 40) nextFieldErrors.type = 'El tipo de evento no puede superar 40 caracteres.'
     if (!form.description.trim()) nextFieldErrors.description = 'Falta este dato.'
     else if (form.description.trim().length < 3) nextFieldErrors.description = 'La descripción no es válida.'
     if (!form.startsAt) nextFieldErrors.startsAt = 'Falta este dato.'
@@ -166,9 +169,10 @@ export function EventProposalPage() {
         </div>
         <ProposalFormField label="Título del evento" required error={fieldErrors.title}><input required aria-invalid={Boolean(fieldErrors.title)} maxLength={180} value={form.title} onChange={(event) => update('title', event.target.value)} placeholder="Ej. Charla: Diseño de sistemas para videojuegos" /></ProposalFormField>
         <div className="proposal-grid proposal-grid--two">
-          <ProposalFormField label="Tipo de evento"><select value={form.type} onChange={(event) => update('type', event.target.value)}><option>CHARLA</option><option>TALLER</option><option>MEETUP</option><option>GAME JAM</option><option>CONFERENCIA</option></select></ProposalFormField>
+          <ProposalFormField label="Tipo de evento"><select value={isStandardEventType(form.type) ? form.type : 'OTRO'} onChange={(event) => update('type', event.target.value === 'OTRO' ? 'OTRO' : event.target.value)}>{eventTypeOptions.map((type) => <option key={type}>{type}</option>)}</select></ProposalFormField>
           <ProposalFormField label="Enlace de inscripción" error={fieldErrors.registrationUrl}><div className="proposal-input-icon"><Link2 size={17} aria-hidden="true" /><input aria-invalid={Boolean(fieldErrors.registrationUrl)} type="url" value={form.registrationUrl} onChange={(event) => update('registrationUrl', event.target.value)} placeholder="https://ejemplo.com/registro" /></div></ProposalFormField>
         </div>
+        {!isStandardEventType(form.type) && <ProposalFormField label="Especifica el tipo de evento" required error={fieldErrors.type}><input required maxLength={40} aria-invalid={Boolean(fieldErrors.type)} value={form.type === 'OTRO' ? '' : form.type} onChange={(event) => update('type', event.target.value)} placeholder="Ej. Networking, festival, torneo…" /></ProposalFormField>}
         <ProposalFormField label="Descripción del evento" required error={fieldErrors.description}><textarea required aria-invalid={Boolean(fieldErrors.description)} rows={6} maxLength={5000} value={form.description} onChange={(event) => update('description', event.target.value)} placeholder="Cuéntanos de qué trata tu evento, a quién está dirigido y qué encontrarán las personas asistentes." /><small className="proposal-counter">{form.description.length}/5000</small></ProposalFormField>
 
         <div className="proposal-section-heading proposal-section-heading--spaced"><CalendarDays size={19} aria-hidden="true" /><div><h2>Fecha, hora y modalidad</h2><p>La fecha ayuda al equipo a ubicar tu actividad en la agenda.</p></div></div>
