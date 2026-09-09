@@ -390,20 +390,20 @@ html:has(.embed-page), body:has(.embed-page) { background: var(--surface); }
 .calendar-cell.today .calendar-day-number { color: #fff; background: var(--red); }
 .calendar-day-number { display: grid; width: 27px; height: 27px; place-items: center; margin-left: auto; border-radius: 50%; color: var(--muted); font-size: .78rem; font-weight: 900; }
 .calendar-week-events { position: absolute; top: 44px; right: 0; left: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-auto-rows: 23px; gap: 4px 0; padding-inline: 2px; pointer-events: none; }
-.calendar-event-bar { position: relative; z-index: 1; display: flex; align-items: center; min-width: 0; gap: 5px; margin-inline: 3px; padding: 3px 6px; border: 0; border-radius: 4px; color: var(--ink); background: rgb(216 32 40 / 9%); font: inherit; font-size: .7rem; font-weight: 800; line-height: 1.15; text-align: left; text-decoration: none; pointer-events: auto; cursor: pointer; }
-.calendar-event-bar:focus-visible { z-index: 9; outline: 3px solid rgb(216 32 40 / 22%); outline-offset: 2px; }
+.calendar-event-bar { position: relative; z-index: 1; display: flex; align-items: center; min-width: 0; gap: 5px; margin-inline: 3px; padding: 3px 6px; border: 0; border-radius: 4px; color: var(--community-color, var(--ink)); background: color-mix(in srgb, var(--community-color, var(--red)) 14%, transparent); font: inherit; font-size: .7rem; font-weight: 800; line-height: 1.15; text-align: left; text-decoration: none; pointer-events: auto; cursor: pointer; }
+.calendar-event-bar:focus-visible { z-index: 9; outline: 3px solid color-mix(in srgb, var(--community-color, var(--red)) 22%, transparent); outline-offset: 2px; }
 .calendar-event-bar .community-logo-small { width: 16px; flex: 0 0 auto; border-radius: 3px; font-size: .4rem; }
-.calendar-event-bar:hover { z-index: 9; color: var(--red); background: rgb(216 32 40 / 15%); }
-.calendar-event-bar.private { color: var(--ink); border-left: 3px solid var(--ink); background: #ece7df; }
-.calendar-event-bar.private:hover { color: var(--ink); background: #e4ddd2; }
-.calendar-event-bar.past { color: var(--muted); opacity: .72; background: #eee8de; }
-.calendar-event-hover-card { position: absolute; top: calc(50% + var(--calendar-hover-offset-y, 0px)); left: calc(100% + 10px); z-index: 8; display: grid; grid-template-columns: 92px minmax(0, 1fr); width: min(var(--calendar-hover-width, 310px), calc(100vw - 24px)); min-height: 120px; overflow: hidden; border: 1px solid var(--red); border-radius: 10px; background: var(--surface); box-shadow: 0 14px 28px rgb(16 19 26 / 20%); opacity: 0; pointer-events: none; transform: translateY(calc(-50% + 5px)); transition: opacity 120ms ease, transform 120ms ease; }
+.calendar-event-bar:hover { z-index: 9; background: color-mix(in srgb, var(--community-color, var(--red)) 22%, transparent); }
+.calendar-event-bar.private { color: var(--community-color, var(--ink)); border-left: 3px solid var(--community-color, var(--ink)); background: color-mix(in srgb, var(--community-color, var(--ink)) 11%, transparent); }
+.calendar-event-bar.private:hover { background: color-mix(in srgb, var(--community-color, var(--ink)) 18%, transparent); }
+.calendar-event-bar.past { color: var(--community-color, var(--muted)); opacity: .72; background: color-mix(in srgb, var(--community-color, var(--muted)) 9%, transparent); }
+.calendar-event-hover-card { position: absolute; top: calc(50% + var(--calendar-hover-offset-y, 0px)); left: calc(100% + 10px); z-index: 8; display: grid; grid-template-columns: 92px minmax(0, 1fr); width: min(var(--calendar-hover-width, 310px), calc(100vw - 24px)); min-height: 120px; overflow: hidden; border: 1px solid var(--community-color, var(--red)); border-radius: 10px; background: var(--surface); box-shadow: 0 14px 28px rgb(16 19 26 / 20%); opacity: 0; pointer-events: none; transform: translateY(calc(-50% + 5px)); transition: opacity 120ms ease, transform 120ms ease; }
 .calendar-event-bar.hover-left .calendar-event-hover-card { right: calc(100% + 10px); left: auto; }
 .calendar-event-bar.hover-inside .calendar-event-hover-card { right: auto; left: var(--calendar-hover-offset-x, 0px); }
 .calendar-event-bar:hover .calendar-event-hover-card, .calendar-event-bar:focus-visible .calendar-event-hover-card { opacity: 1; transform: translateY(-50%); }
 .calendar-event-hover-media { display: grid; min-height: 0; place-items: center; overflow: hidden; background: var(--bone); }
 .calendar-event-hover-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.calendar-event-hover-media.fallback { background: linear-gradient(135deg, rgb(216 32 40 / 16%), rgb(248 184 48 / 25%)); }
+.calendar-event-hover-media.fallback { background: linear-gradient(135deg, color-mix(in srgb, var(--community-color, var(--red)) 18%, transparent), rgb(248 184 48 / 25%)); }
 .calendar-event-hover-media.fallback .community-logo { width: 48px; border-radius: 11px; }
 .calendar-event-hover-copy { display: grid; align-content: center; gap: 5px; min-width: 0; padding: 10px 12px; }
 .calendar-event-hover-copy strong { display: -webkit-box; overflow: hidden; color: var(--ink); font-size: .84rem; line-height: 1.12; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
@@ -412,8 +412,8 @@ html:has(.embed-page), body:has(.embed-page) { background: var(--surface); }
 .calendar-event-bar.continues-before { margin-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .calendar-event-bar.continues-after { margin-right: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .calendar-event-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.calendar-event-dot { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: var(--red); }
-.calendar-event-bar.private .calendar-event-dot { background: var(--ink); }
+.calendar-event-dot { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: var(--community-color, var(--red)); }
+.calendar-event-bar.private .calendar-event-dot { background: var(--community-color, var(--ink)); }
 .calendar-more { color: var(--muted); font-size: .68rem; font-weight: 800; }
 
 .timeline-view { display: grid; gap: 14px; padding: 7px 0; }

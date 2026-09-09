@@ -56,11 +56,13 @@ describe('CalendarView', () => {
 
   it('shows single-day events as compact bars with hover preview and opens the parent popup on click', () => {
     const onEventOpen = vi.fn()
-    const singleDayEvent = { ...multiDayEvent, id: 'single-day-event', title: 'Taller de prueba', startsAt: '2026-09-19T09:00:00-05:00', endsAt: '2026-09-19T12:00:00-05:00', coverPath: '/banners/taller.jpg' }
+    const singleDayEvent = { ...multiDayEvent, id: 'single-day-event', title: 'Taller de prueba', startsAt: '2026-09-19T09:00:00-05:00', endsAt: '2026-09-19T12:00:00-05:00', coverPath: '/banners/taller.jpg', communityColor: '#659b3c' }
     const { container } = render(<MemoryRouter><CalendarView events={[singleDayEvent]} onEventOpen={onEventOpen} /></MemoryRouter>)
 
     const card = screen.getByRole('button', { name: /Taller de prueba/ })
     expect(card).toHaveClass('single-day')
+    expect(card).toHaveStyle({ '--community-color': '#659b3c' })
+    expect(card.querySelector('.community-logo')).toHaveStyle({ '--community-color': '#659b3c' })
     expect(card).not.toHaveClass('calendar-event-card')
     expect(card.querySelector('.calendar-event-card-media')).not.toBeInTheDocument()
     expect(card.querySelector('.calendar-event-hover-card')).toBeInTheDocument()
