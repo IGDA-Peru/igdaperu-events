@@ -97,7 +97,7 @@ export function EventPreviewDrawer({
           <button className="event-preview-close" type="button" aria-label="Cerrar vista previa" ref={closeButtonRef} onClick={onClose}><X size={20} /></button>
         </div>
         <h2 id="event-preview-title">{event.title}</h2>
-        {coverUrl && <img className="event-preview-cover" src={coverUrl} alt="" />}
+        {coverUrl && <div className="event-preview-cover-frame"><img className="event-preview-cover" src={coverUrl} alt="" /></div>}
         <p className="event-preview-description">{event.description}</p>
         <div className="event-preview-meta">
           <div className="event-preview-meta-item">

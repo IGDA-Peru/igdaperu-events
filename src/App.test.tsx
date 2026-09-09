@@ -461,7 +461,7 @@ describe('event preview layout', () => {
     const drawer = document.querySelector('.event-preview-drawer--modal')
     expect(drawer).toBeInTheDocument()
     const children = Array.from(drawer?.children || [])
-    expect(children.findIndex((child) => child.tagName === 'H2')).toBeLessThan(children.findIndex((child) => child.classList.contains('event-preview-cover')))
+    expect(children.findIndex((child) => child.tagName === 'H2')).toBeLessThan(children.findIndex((child) => child.classList.contains('event-preview-cover-frame')))
   })
 })
 
