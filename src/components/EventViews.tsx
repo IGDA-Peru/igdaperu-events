@@ -154,7 +154,7 @@ function calendarHoverPlacement(element: HTMLElement, containerSelector: string)
   const side: HoverSide = fitsRight || (!fitsLeft && rightSpace >= leftSpace) ? 'right' : 'left'
   const sideSpace = side === 'right' ? rightSpace : leftSpace
   const boardWidth = Math.max(0, containerRight - containerLeft - edgePadding * 2)
-  const inside = sideSpace < 150
+  const inside = sideSpace < idealWidth
   const resolvedSide: HoverSide = inside ? 'inside' : side
   const width = Math.max(0, Math.min(idealWidth, inside ? boardWidth : sideSpace))
   const card = element.querySelector<HTMLElement>('.calendar-event-hover-card')
