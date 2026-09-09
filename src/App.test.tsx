@@ -5,6 +5,7 @@ import { AuthContext, type AuthContextValue } from './auth/auth-context'
 import App from './App'
 import { SiteHeader } from './components/SiteHeader'
 import { EventPreviewDrawer } from './components/EventPreviewDrawer'
+import { CommunitySetupPrompt } from './components/CommunitySetupPrompt'
 import { CommunityEventsPage, CommunitySettingsPage, DashboardPage, EventEditorPage, PlatformAdminPage } from './pages/AppPages'
 import { ConversationsPage } from './pages/ChatPage'
 import { CommunityDetailPage, EventProposalPage } from './pages/PublicPages'
@@ -197,6 +198,9 @@ describe('public events', () => {
     expect(screen.getByText(/heredados desde Google Sheets/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Logo de la comunidad' })).toBeInTheDocument()
     expect(screen.getByRole('img', { name: 'Logo de IGDA Perú' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Color de la comunidad' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Color de la comunidad')).toHaveValue('#d82028')
+    expect(screen.getByRole('button', { name: 'Guardar color' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Actualizar logo' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Invitar persona' })).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'Descripción' })).not.toBeInTheDocument()
@@ -448,5 +452,43 @@ describe('event preview layout', () => {
     expect(mapLink).toHaveAttribute('href', event.mapUrl)
     expect(mapLink.querySelector('svg')).toBeInTheDocument()
     expect(screen.getByText('Fecha').closest('.event-preview-meta-item')).toBeInTheDocument()
+  })
+
+  it('places the preview title before the banner slot', () => {
+    const event = { ...demoEvents[0], coverPath: '/events/demo-banner.webp' }
+    render(<MemoryRouter><EventPreviewDrawer event={event} onClose={vi.fn()} presentation="modal" /></MemoryRouter>)
+
+    const drawer = document.querySelector('.event-preview-drawer--modal')
+    expect(drawer).toBeInTheDocument()
+    const children = Array.from(drawer?.children || [])
+    expect(children.findIndex((child) => child.tagName === 'H2')).toBeLessThan(children.findIndex((child) => child.classList.contains('event-preview-cover')))
+  })
+})
+
+describe('community onboarding', () => {
+  it('shows the branding setup prompt once for an unconfigured community admin', async () => {
+    window.localStorage.clear()
+    const authValue = {
+      configured: false,
+      loading: false,
+      session: null,
+      user: { id: 'setup-user', email: 'admin@comunidad.pe' } as NonNullable<AuthContextValue['user']>,
+      profile: { id: 'profile-setup', displayName: 'Admin' },
+      memberships: [{ communityId: 'setup-community', communityName: 'Comunidad Demo', communitySlug: 'comunidad-demo', role: 'community_admin', status: 'active' }],
+      roles: ['community_admin'],
+      signOut: vi.fn().mockResolvedValue(undefined),
+      refreshUserData: vi.fn().mockResolvedValue(undefined),
+    } as AuthContextValue
+
+    const view = render(<AuthContext.Provider value={authValue}><MemoryRouter><CommunitySetupPrompt /></MemoryRouter></AuthContext.Provider>)
+
+    expect(await screen.findByRole('dialog', { name: 'Configura Comunidad Demo' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Color de la comunidad')).toHaveValue('#d82028')
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar' }))
+    expect(screen.queryByRole('dialog', { name: 'Configura Comunidad Demo' })).not.toBeInTheDocument()
+    expect(window.localStorage.getItem('igdaperu:community-setup-seen:setup-user:setup-community')).toBe('1')
+
+    view.rerender(<AuthContext.Provider value={authValue}><MemoryRouter><CommunitySetupPrompt /></MemoryRouter></AuthContext.Provider>)
+    expect(screen.queryByRole('dialog', { name: 'Configura Comunidad Demo' })).not.toBeInTheDocument()
   })
 })

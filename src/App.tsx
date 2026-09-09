@@ -8,13 +8,14 @@ import { AcceptInvitationPage, AuthCallbackPage, ChangePasswordPage, EditProfile
 import { CommunityDetailPage, CommunitiesPage, EmbedPage, EventProposalPage, HomeEventsEmbedPage, PublicAgendaPage } from './pages/PublicPages'
 import { CommunityEventsPage, CommunitySettingsPage, DashboardPage, EventEditorPage, EventProposalsPage, ManagedEventsPage, PlatformAdminPage } from './pages/AppPages'
 import { ConversationsPage } from './pages/ChatPage'
+import { CommunitySetupPrompt } from './components/CommunitySetupPrompt'
 
 function PublicLayout() {
   return <><SiteHeader /><main className="site-main"><Outlet /></main><SiteFooter /></>
 }
 
 function AppLayout() {
-  return <><SiteHeader /><main className="site-main"><Outlet /></main></>
+  return <><SiteHeader /><main className="site-main"><Outlet /></main><CommunitySetupPrompt /></>
 }
 
 function PrivacyPage() {

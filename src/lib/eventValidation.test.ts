@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { validateEvent } from './eventValidation'
+import { EVENT_DESCRIPTION_MAX_LENGTH } from './eventLimits'
 import type { EventInput } from '../types'
 
 const baseEvent: EventInput = {
@@ -36,6 +37,18 @@ describe('event validation', () => {
 
     expect(result.valid).toBe(true)
     expect(result.missing).toEqual([])
+  })
+
+  it('rejects descriptions longer than the editor limit', () => {
+    const result = validateEvent({
+      ...baseEvent,
+      description: 'x'.repeat(EVENT_DESCRIPTION_MAX_LENGTH + 1),
+      startsAt: '2026-10-01T19:00',
+      endsAt: '2026-10-01T21:00',
+    }, 'draft')
+
+    expect(result.valid).toBe(false)
+    expect(result.errors.description).toContain(`${EVENT_DESCRIPTION_MAX_LENGTH}`)
   })
 
   it('requires a custom label when the event type is OTRO', () => {

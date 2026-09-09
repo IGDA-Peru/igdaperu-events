@@ -19,9 +19,9 @@ let publicCommunitiesRequest: Promise<Community[]> | null = null
 const publicEventsCache = new Map<string, PublicCacheEntry<EventItem[]>>()
 const publicEventsRequests = new Map<string, Promise<EventItem[]>>()
 
-const COMMUNITY_SELECT = 'id,slug,name,description,logo_path,website_url,discord_url,status'
+const COMMUNITY_SELECT = 'id,slug,name,description,logo_path,brand_color,website_url,discord_url,status'
 const PROFILE_SELECT = 'id,display_name,first_name,last_name,avatar_path'
-const EVENT_SELECT = 'id,slug,community_id,organizer_name,title,description,type,starts_at,ends_at,is_all_day,timezone,location_type,access_mode,location_precision,location_department,location_province,venue_name,address,map_url,place_id,formatted_address,latitude,longitude,meeting_url,meeting_provider,registration_url,cover_path,visibility,status,community:communities(name,slug,status,logo_path)'
+const EVENT_SELECT = 'id,slug,community_id,organizer_name,title,description,type,starts_at,ends_at,is_all_day,timezone,location_type,access_mode,location_precision,location_department,location_province,venue_name,address,map_url,place_id,formatted_address,latitude,longitude,meeting_url,meeting_provider,registration_url,cover_path,visibility,status,community:communities(name,slug,status,logo_path,brand_color)'
 const PROPOSAL_SELECT = 'id,organizer_name,contact_email,title,description,type,starts_at,ends_at,is_all_day,timezone,location_type,access_mode,location_precision,location_department,location_province,venue_name,address,map_url,place_id,formatted_address,latitude,longitude,meeting_url,meeting_provider,registration_url,community_id,status,review_notes,rejection_reason,reviewed_at,approved_event_id,created_at,community:communities(name)'
 
 function getPublicEventsCacheKey(options: EventQueryOptions) {
@@ -47,6 +47,7 @@ const mapCommunity = (row: any): Community => ({
   name: row.name,
   description: row.description || '',
   logoPath: row.logo_path,
+  brandColor: row.brand_color,
   websiteUrl: row.website_url,
   discordUrl: row.discord_url,
   status: row.status,
@@ -62,6 +63,7 @@ const mapEvent = (row: any): EventItem => {
     communityName: community?.name || row.organizer_name || 'Evento independiente',
     communitySlug: community?.slug || '',
     communityLogoPath: community?.logo_path,
+    communityColor: community?.brand_color,
     organizerName: row.organizer_name || null,
     creatorEmail: row.creator_email || null,
     title: row.title,
@@ -515,11 +517,11 @@ export async function getProfile(userId: string): Promise<Profile | null> {
 
 export async function getMemberships(userId: string): Promise<Membership[]> {
   if (!supabase) return []
-  const { data, error } = await supabase.from('memberships').select('community_id,role,status,community:communities(name,slug,logo_path)').eq('user_id', userId).eq('status', 'active')
+  const { data, error } = await supabase.from('memberships').select('community_id,role,status,community:communities(name,slug,logo_path,brand_color)').eq('user_id', userId).eq('status', 'active')
   if (error) throw error
   return (data || []).map((row: any) => {
     const community = Array.isArray(row.community) ? row.community[0] : row.community
-    return { communityId: row.community_id, communityName: community?.name || '', communitySlug: community?.slug || '', communityLogoPath: community?.logo_path, role: row.role as Role, status: row.status }
+    return { communityId: row.community_id, communityName: community?.name || '', communitySlug: community?.slug || '', communityLogoPath: community?.logo_path, communityColor: community?.brand_color, role: row.role as Role, status: row.status }
   })
 }
 
@@ -849,6 +851,13 @@ export async function createCommunity(name: string, slug: string) {
 export async function updateCommunity(communityId: string, values: { description: string; websiteUrl?: string; discordUrl?: string }) {
   if (!supabase) throw new Error('Supabase no está configurado.')
   const { data, error } = await supabase.from('communities').update({ description: values.description, website_url: values.websiteUrl || null, discord_url: values.discordUrl || null }).eq('id', communityId).select(COMMUNITY_SELECT).single()
+  if (error) throw error
+  return mapCommunity(data)
+}
+
+export async function updateCommunityBranding(communityId: string, brandColor: string) {
+  if (!supabase) throw new Error('Supabase no está configurado.')
+  const { data, error } = await supabase.from('communities').update({ brand_color: brandColor }).eq('id', communityId).select(COMMUNITY_SELECT).single()
   if (error) throw error
   return mapCommunity(data)
 }

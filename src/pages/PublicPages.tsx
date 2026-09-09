@@ -17,6 +17,7 @@ import { findNextEvent } from '../lib/eventFocus'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { listCommunities, listEvents, listHomeEmbedEvents, submitEventProposal, type EventProposalSubmission, type EventQueryOptions } from '../lib/data'
 import { limaNowDateTimeInput } from '../lib/eventSchedule'
+import { EVENT_DESCRIPTION_MAX_LENGTH } from '../lib/eventLimits'
 import type { Community, EventItem } from '../types'
 
 const notionCommunitiesEmbedUrl = 'https://igdape.notion.site/ebd/3b425d4453e08301bcef018ab661544a?v=12d25d4453e0825883398852a794ef21'
@@ -105,6 +106,7 @@ export function EventProposalPage() {
     else if (form.type.trim().length > 40) nextFieldErrors.type = 'El tipo de evento no puede superar 40 caracteres.'
     if (!form.description.trim()) nextFieldErrors.description = 'Falta este dato.'
     else if (form.description.trim().length < 3) nextFieldErrors.description = 'La descripción no es válida.'
+    else if (form.description.trim().length > EVENT_DESCRIPTION_MAX_LENGTH) nextFieldErrors.description = `La descripción no puede superar ${EVENT_DESCRIPTION_MAX_LENGTH} caracteres.`
     if (!form.startsAt) nextFieldErrors.startsAt = 'Falta este dato.'
     else if (!startsAt) nextFieldErrors.startsAt = 'La fecha no es válida.'
     if (!form.endsAt) nextFieldErrors.endsAt = 'Falta este dato.'
@@ -173,7 +175,7 @@ export function EventProposalPage() {
           <ProposalFormField label="Enlace de inscripción" error={fieldErrors.registrationUrl}><div className="proposal-input-icon"><Link2 size={17} aria-hidden="true" /><input aria-invalid={Boolean(fieldErrors.registrationUrl)} type="url" value={form.registrationUrl} onChange={(event) => update('registrationUrl', event.target.value)} placeholder="https://ejemplo.com/registro" /></div></ProposalFormField>
         </div>
         {!isStandardEventType(form.type) && <ProposalFormField label="Especifica el tipo de evento" required error={fieldErrors.type}><input required maxLength={40} aria-invalid={Boolean(fieldErrors.type)} value={form.type === 'OTRO' ? '' : form.type} onChange={(event) => update('type', event.target.value)} placeholder="Ej. Networking, festival, torneo…" /></ProposalFormField>}
-        <ProposalFormField label="Descripción del evento" required error={fieldErrors.description}><textarea required aria-invalid={Boolean(fieldErrors.description)} rows={6} maxLength={5000} value={form.description} onChange={(event) => update('description', event.target.value)} placeholder="Cuéntanos de qué trata tu evento, a quién está dirigido y qué encontrarán las personas asistentes." /><small className="proposal-counter">{form.description.length}/5000</small></ProposalFormField>
+        <ProposalFormField label="Descripción del evento" required error={fieldErrors.description}><textarea required aria-invalid={Boolean(fieldErrors.description)} rows={6} maxLength={EVENT_DESCRIPTION_MAX_LENGTH} value={form.description} onChange={(event) => update('description', event.target.value)} placeholder="Cuéntanos de qué trata tu evento, a quién está dirigido y qué encontrarán las personas asistentes." /><small className="proposal-counter">{form.description.length}/{EVENT_DESCRIPTION_MAX_LENGTH}</small></ProposalFormField>
 
         <div className="proposal-section-heading proposal-section-heading--spaced"><CalendarDays size={19} aria-hidden="true" /><div><h2>Fecha, hora y modalidad</h2><p>La fecha ayuda al equipo a ubicar tu actividad en la agenda.</p></div></div>
         <div className="proposal-grid proposal-grid--two">
@@ -242,13 +244,13 @@ function useHomeEmbedEvents(communitySlug?: string) {
   return { events, loading, error }
 }
 
-function CommunityIcon({ index, logoPath, name, size = 'medium' }: { index: number; logoPath?: string | null; name?: string; size?: 'small' | 'medium' | 'large' }) {
-  if (logoPath && name) return <CommunityLogo path={logoPath} name={name} size={size} decorative />
+function CommunityIcon({ index, logoPath, name, brandColor, size = 'medium' }: { index: number; logoPath?: string | null; name?: string; brandColor?: string | null; size?: 'small' | 'medium' | 'large' }) {
+  if (logoPath && name) return <CommunityLogo path={logoPath} name={name} color={brandColor} size={size} decorative />
   const Icon = [Users, Gamepad2, Code2, Gamepad2, Users][index % 5]
   return <span className={`community-icon icon-${index % 2 ? 'yellow' : 'red'}`}><Icon size={24} strokeWidth={2.2} aria-hidden="true" /></span>
 }
 
-function CommunityRail({ communities }: { communities: Pick<Community, 'id' | 'slug' | 'name' | 'logoPath'>[] }) {
+function CommunityRail({ communities }: { communities: Pick<Community, 'id' | 'slug' | 'name' | 'logoPath' | 'brandColor'>[] }) {
   return (
     <aside className="communities-panel" aria-labelledby="communities-title">
       <h2 id="communities-title">Comunidades</h2>
@@ -256,7 +258,7 @@ function CommunityRail({ communities }: { communities: Pick<Community, 'id' | 's
       <div className="community-list">
         {communities.slice(0, 5).map((community, index) => (
           <Link className="community-item" to={`/comunidades/${community.slug}`} key={community.id}>
-            <CommunityIcon index={index} logoPath={community.logoPath} name={community.name} />
+            <CommunityIcon index={index} logoPath={community.logoPath} name={community.name} brandColor={community.brandColor} />
             <strong>{community.name}</strong>
           </Link>
         ))}
@@ -267,12 +269,12 @@ function CommunityRail({ communities }: { communities: Pick<Community, 'id' | 's
 }
 
 function getRecentCommunities(events: EventItem[]) {
-  const latestByCommunity = new Map<string, { id: string; slug: string; name: string; logoPath?: string | null; latestAt: string }>()
+  const latestByCommunity = new Map<string, { id: string; slug: string; name: string; logoPath?: string | null; brandColor?: string | null; latestAt: string }>()
   events.forEach((event) => {
     if (!event.startsAt || !event.communityId) return
     const current = latestByCommunity.get(event.communityId)
     if (!current || new Date(event.startsAt) > new Date(current.latestAt)) {
-      latestByCommunity.set(event.communityId, { id: event.communityId, slug: event.communitySlug, name: event.communityName, logoPath: event.communityLogoPath, latestAt: event.startsAt })
+      latestByCommunity.set(event.communityId, { id: event.communityId, slug: event.communitySlug, name: event.communityName, logoPath: event.communityLogoPath, brandColor: event.communityColor, latestAt: event.startsAt })
     }
   })
   return [...latestByCommunity.values()]
@@ -339,7 +341,7 @@ export function CommunityDetailPage() {
   const { events, loading, error } = useEvents({ communitySlug: slug })
   useEffect(() => { void listCommunities().then((items) => setCommunity(items.find((item) => item.slug === slug) || null)) }, [slug])
   if (!community) return <LoadingState label="Cargando comunidad" />
-  return <div className="page-wrap"><Link className="back-link" to="/comunidades"><ChevronRight size={18} className="back-icon" /> Todas las comunidades</Link><section className="community-hero"><CommunityIcon index={0} logoPath={community.logoPath} name={community.name} size="large" /><div className="community-hero-copy"><h1>{community.name}</h1><p>{community.description}</p>{community.websiteUrl && <a className="community-website-link" href={community.websiteUrl} target="_blank" rel="noreferrer">Visitar sitio principal <ExternalLink size={15} aria-hidden="true" /></a>}</div></section><div className="community-events"><h2>Eventos de {community.name}</h2>{loading ? <LoadingState /> : error ? <ErrorState message={error} /> : events.length ? <div className="event-list">{events.map((event) => <EventCard event={event} onOpen={() => setSelectedEvent(event)} key={event.id} />)}</div> : <EmptyEvents />}</div><EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" /></div>
+  return <div className="page-wrap"><Link className="back-link" to="/comunidades"><ChevronRight size={18} className="back-icon" /> Todas las comunidades</Link><section className="community-hero"><CommunityIcon index={0} logoPath={community.logoPath} name={community.name} brandColor={community.brandColor} size="large" /><div className="community-hero-copy"><h1>{community.name}</h1><p>{community.description}</p>{community.websiteUrl && <a className="community-website-link" href={community.websiteUrl} target="_blank" rel="noreferrer">Visitar sitio principal <ExternalLink size={15} aria-hidden="true" /></a>}</div></section><div className="community-events"><h2>Eventos de {community.name}</h2>{loading ? <LoadingState /> : error ? <ErrorState message={error} /> : events.length ? <div className="event-list">{events.map((event) => <EventCard event={event} onOpen={() => setSelectedEvent(event)} key={event.id} />)}</div> : <EmptyEvents />}</div><EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" /></div>
 }
 
 export function EmbedPage() {

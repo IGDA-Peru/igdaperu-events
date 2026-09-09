@@ -1,0 +1,1 @@
+export const EVENT_DESCRIPTION_MAX_LENGTH = 1000

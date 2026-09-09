@@ -1,4 +1,5 @@
 import type { EventInput } from '../types'
+import { EVENT_DESCRIPTION_MAX_LENGTH } from './eventLimits'
 
 export type EventValidationMode = 'draft' | 'publish'
 export type EventField = 'communityId' | 'organizerName' | 'title' | 'type' | 'description' | 'startsAt' | 'endsAt' | 'location' | 'meetingUrl' | 'registrationUrl' | 'mapUrl'
@@ -36,6 +37,8 @@ export function validateEvent(input: EventInput, mode: EventValidationMode, opti
   const errors: Partial<Record<EventField, string>> = {}
   const title = input.title.trim()
   const description = input.description.trim()
+
+  if (description.length > EVENT_DESCRIPTION_MAX_LENGTH) errors.description = `La descripción no puede superar ${EVENT_DESCRIPTION_MAX_LENGTH} caracteres.`
 
   if (!input.communityId && !options.allowIndependent) errors.communityId = 'Selecciona la comunidad que organiza el evento.'
   if (!input.communityId && options.allowIndependent && !input.organizerName?.trim()) errors.organizerName = 'Indica quién organiza el evento independiente.'

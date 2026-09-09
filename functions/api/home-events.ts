@@ -10,7 +10,7 @@ type HomeEventsEnv = {
 }
 
 const CACHE_CONTROL = 'public, max-age=60, s-maxage=120'
-const eventSelect = 'id,slug,community_id,organizer_name,title,description,type,starts_at,ends_at,is_all_day,timezone,location_type,access_mode,location_precision,location_department,location_province,venue_name,address,map_url,formatted_address,meeting_url,meeting_provider,registration_url,cover_path,visibility,status,community:communities(name,slug,status,logo_path)'
+const eventSelect = 'id,slug,community_id,organizer_name,title,description,type,starts_at,ends_at,is_all_day,timezone,location_type,access_mode,location_precision,location_department,location_province,venue_name,address,map_url,formatted_address,meeting_url,meeting_provider,registration_url,cover_path,visibility,status,community:communities(name,slug,status,logo_path,brand_color)'
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {

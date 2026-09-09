@@ -15,6 +15,7 @@ export type Community = {
   name: string
   description: string
   logoPath?: string | null
+  brandColor?: string | null
   websiteUrl?: string | null
   discordUrl?: string | null
   status: CommunityStatus
@@ -27,6 +28,7 @@ export type EventItem = {
   communityName: string
   communitySlug: string
   communityLogoPath?: string | null
+  communityColor?: string | null
   organizerName?: string | null
   creatorEmail?: string | null
   title: string
@@ -100,6 +102,7 @@ export type Membership = {
   communityName: string
   communitySlug: string
   communityLogoPath?: string | null
+  communityColor?: string | null
   role: Role
   status: 'active' | 'invited' | 'revoked'
 }

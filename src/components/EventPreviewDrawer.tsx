@@ -1,5 +1,6 @@
 import { CalendarDays, Clock3, ExternalLink, MapPin, Share2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { getEventCoverUrl } from '../lib/data'
@@ -86,7 +87,7 @@ export function EventPreviewDrawer({
 
   return createPortal(
     <div className={`event-preview-layer ${presentation === 'modal' ? 'event-preview-layer--modal' : ''}`} role="presentation" onMouseDown={(mouseEvent) => { if (mouseEvent.target === mouseEvent.currentTarget) onClose() }}>
-      <aside className={`event-preview-drawer ${presentation === 'modal' ? 'event-preview-drawer--modal' : ''}`} role="dialog" aria-modal="true" aria-labelledby="event-preview-title">
+      <aside className={`event-preview-drawer ${presentation === 'modal' ? 'event-preview-drawer--modal' : ''}`} style={{ '--community-color': event.communityColor || undefined } as CSSProperties} role="dialog" aria-modal="true" aria-labelledby="event-preview-title">
         <div className="event-preview-topline">
         <div className="event-flags">
           <span className={`event-type ${event.type === 'TALLER' ? 'yellow' : 'red'}`}>{event.type}</span>
@@ -95,8 +96,8 @@ export function EventPreviewDrawer({
           </div>
           <button className="event-preview-close" type="button" aria-label="Cerrar vista previa" ref={closeButtonRef} onClick={onClose}><X size={20} /></button>
         </div>
-        {coverUrl && <img className="event-preview-cover" src={coverUrl} alt="" />}
         <h2 id="event-preview-title">{event.title}</h2>
+        {coverUrl && <img className="event-preview-cover" src={coverUrl} alt="" />}
         <p className="event-preview-description">{event.description}</p>
         <div className="event-preview-meta">
           <div className="event-preview-meta-item">
@@ -122,7 +123,7 @@ export function EventPreviewDrawer({
             </div>
           </div>
           <div className="event-preview-meta-item">
-            <CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative />
+            <CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative />
             <div className="event-preview-meta-copy">
               <strong>Organiza</strong>
               <span className="event-preview-meta-value">{event.communityId ? presentation === 'modal' ? <a href="https://igda.pe/comunidad/" target="_top" rel="noreferrer">{event.communityName}</a> : <Link to={`/comunidades/${event.communitySlug}`} onClick={onClose}>{event.communityName}</Link> : (event.organizerName || event.communityName || 'Evento independiente')}</span>

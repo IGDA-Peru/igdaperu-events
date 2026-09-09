@@ -1,5 +1,6 @@
 import { Archive, CalendarDays, ChevronRight, Clock3, Edit3, Globe2, LockKeyhole, Mail, MapPin, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import type { CSSProperties } from 'react'
 import type { EventItem, EventVisibility } from '../types'
 import { getEventCoverUrl } from '../lib/data'
 import { formatDateParts, formatEventLocation, formatEventSchedule, isEventPast } from '../lib/format'
@@ -36,7 +37,7 @@ export function EventCard({ event, compact = false, showCover = false, showVisib
     onOpen?.()
   }
   return (
-    <article className={`event-row ${compact ? 'compact' : ''} ${hasCover ? 'has-cover' : ''} ${managed ? 'managed-event-card' : ''} ${previewable ? 'previewable-event' : ''} ${isPast ? 'past-event' : ''} ${audienceClass} ${statusClass}`} data-event-focus-id={event.id} tabIndex={previewable ? -1 : undefined} onClick={previewable ? onOpen : undefined}>
+    <article className={`event-row ${compact ? 'compact' : ''} ${hasCover ? 'has-cover' : ''} ${managed ? 'managed-event-card' : ''} ${previewable ? 'previewable-event' : ''} ${isPast ? 'past-event' : ''} ${audienceClass} ${statusClass}`} data-event-focus-id={event.id} style={{ '--community-color': event.communityColor || undefined } as CSSProperties} tabIndex={previewable ? -1 : undefined} onClick={previewable ? onOpen : undefined}>
       <div className="event-date">
         <span>{parts.month}</span>
         <strong>{parts.date}</strong>
@@ -51,7 +52,7 @@ export function EventCard({ event, compact = false, showCover = false, showVisib
         {!compact && <p>{event.description}</p>}
         <div className="event-meta">
           <span><MapPin size={15} aria-hidden="true" />{formatEventLocation(event)}</span>
-          <span><CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative />{event.communityName}</span>
+          <span><CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative />{event.communityName}</span>
           <span><Clock3 size={15} aria-hidden="true" />{formatEventSchedule(event.startsAt, event.endsAt, event.isAllDay)}</span>
           {managed && event.creatorEmail && <span className="event-creator-meta" title="Correo de la persona que creó el evento"><Mail size={15} aria-hidden="true" />Creado por {event.creatorEmail}</span>}
         </div>

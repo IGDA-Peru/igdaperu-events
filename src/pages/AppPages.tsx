@@ -13,13 +13,15 @@ import { LoadingState } from '../components/Feedback'
 import { GooglePlacePicker } from '../components/GooglePlacePicker'
 import { TurnstileWidget } from '../components/TurnstileWidget'
 import { ConversationSummary } from './ChatPage'
-import { approveEventProposal, archiveEvent, cancelCommunityInvitation, createCommunity, createGoogleMeetLink, createInvitation, deleteEvent, getEventCoverUrl, getGoogleMeetConnection, listCommunities, listCommunityEvents, listCommunityMembers, listEventConflicts, listEventProposals, listEventReports, listManagedEvents, migrateExistingAssets, rejectEventProposal, removeEventBanner, resolveEventReport, revokeCommunityMember, saveEvent, startGoogleMeetConnection, syncCommunitiesFromSheet, syncEventsToGoogleCalendar, updateCommunityStatus, updateEventProposal, uploadCommunityLogo, uploadEventBanner } from '../lib/data'
+import { approveEventProposal, archiveEvent, cancelCommunityInvitation, createCommunity, createGoogleMeetLink, createInvitation, deleteEvent, getEventCoverUrl, getGoogleMeetConnection, listCommunities, listCommunityEvents, listCommunityMembers, listEventConflicts, listEventProposals, listEventReports, listManagedEvents, migrateExistingAssets, rejectEventProposal, removeEventBanner, resolveEventReport, revokeCommunityMember, saveEvent, startGoogleMeetConnection, syncCommunitiesFromSheet, syncEventsToGoogleCalendar, updateCommunityBranding, updateCommunityStatus, updateEventProposal, uploadCommunityLogo, uploadEventBanner } from '../lib/data'
 import { eventFieldLabels, validateEvent, type EventField } from '../lib/eventValidation'
 import { eventTypeOptions, isStandardEventType } from '../lib/eventTypes'
 import { filterEvents, type TimeFilter } from '../lib/eventFilters'
 import { eventSlug, formatEventDateRange, formatEventLocation, formatTimeRange, isEventPast, meetingActionLabel, slugify } from '../lib/format'
 import { peruDepartments, peruLocations } from '../lib/peruLocations'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
+import { EVENT_DESCRIPTION_MAX_LENGTH } from '../lib/eventLimits'
+import { COMMUNITY_COLOR_PRESETS, DEFAULT_COMMUNITY_COLOR, normalizeCommunityColor } from '../lib/communityBranding'
 import { emptyEventSchedule, eventScheduleFromLocalDateTimes, eventScheduleToLocalDateTimes, limaNowDateTimeInput, limaTodayDateKey, type EventSchedule } from '../lib/eventSchedule'
 import type { Community, CommunityMember, CommunitySyncResult, EventConflict, EventInput, EventItem, EventProposal, EventReport, GoogleCalendarSyncResult, Membership, Role } from '../types'
 
@@ -530,7 +532,7 @@ export function EventEditorPage() {
               {bannerPreview ? <div className="event-banner-preview"><img src={bannerPreview} alt="Vista previa del banner del evento" /><div className="event-banner-actions"><label className="secondary-button event-banner-action"><ImagePlus size={16} aria-hidden="true" /> Cambiar banner<input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleBannerChange} /></label><button className="secondary-button event-banner-action" type="button" onClick={removeBanner}><X size={16} aria-hidden="true" /> Quitar banner</button></div></div> : <label className="event-banner-dropzone"><ImagePlus size={22} aria-hidden="true" /><span>Subir banner</span><small>JPG, PNG o WebP · se optimiza automáticamente · máximo 1600 × 900 px</small><input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleBannerChange} /></label>}
               {bannerError && <p className="form-message error" role="alert">{bannerError}</p>}
             </div>
-              <label className="editor-field"><FieldLabel required={form.visibility === 'public'}>Descripción</FieldLabel><textarea aria-invalid={Boolean(fieldErrors.description)} aria-describedby={fieldErrors.description ? 'event-description-error' : undefined} rows={5} maxLength={5000} value={form.description} onChange={(event) => update('description', event.target.value)} placeholder="Cuenta qué aprenderán o encontrarán las personas asistentes." /><div className="field-meta"><span aria-hidden="true" /><small className="field-count">{form.description.length}/5000</small></div><FieldError id="event-description-error" message={fieldErrors.description} /></label>
+              <label className="editor-field"><FieldLabel required={form.visibility === 'public'}>Descripción</FieldLabel><textarea aria-invalid={Boolean(fieldErrors.description)} aria-describedby={fieldErrors.description ? 'event-description-error' : undefined} rows={5} maxLength={EVENT_DESCRIPTION_MAX_LENGTH} value={form.description} onChange={(event) => update('description', event.target.value)} placeholder="Cuenta qué aprenderán o encontrarán las personas asistentes." /><div className="field-meta"><small className="field-help">Usa una descripción breve y concreta.</small><small className="field-count">{form.description.length}/{EVENT_DESCRIPTION_MAX_LENGTH}</small></div><FieldError id="event-description-error" message={fieldErrors.description} /></label>
           </section>}
 
           {activeSection === 'registration' && <section className="editor-section" id="editor-registration" role="tabpanel" aria-labelledby="editor-tab-registration" tabIndex={-1}>
@@ -837,6 +839,10 @@ export function CommunitySettingsPage() {
   const [logoUploading, setLogoUploading] = useState(false)
   const [logoMessage, setLogoMessage] = useState('')
   const [logoError, setLogoError] = useState('')
+  const [brandColorDraft, setBrandColorDraft] = useState(DEFAULT_COMMUNITY_COLOR)
+  const [brandColorSaving, setBrandColorSaving] = useState(false)
+  const [brandColorMessage, setBrandColorMessage] = useState('')
+  const [brandColorError, setBrandColorError] = useState('')
   useEffect(() => {
     if (!isPlatformAdmin && !manageableIds) { setCommunities([]); return }
     void listCommunities(isPlatformAdmin).then((items) => {
@@ -849,6 +855,9 @@ export function CommunitySettingsPage() {
   useEffect(() => {
     const selected = communities.find((item) => item.id === communityId) || null
     setCommunity(selected)
+    setBrandColorDraft(normalizeCommunityColor(selected?.brandColor))
+    setBrandColorMessage('')
+    setBrandColorError('')
   }, [communityId, communities])
   useEffect(() => {
     setActiveSection('members')
@@ -929,6 +938,21 @@ export function CommunitySettingsPage() {
       setLogoUploading(false)
     }
   }
+  const saveBrandColor = async () => {
+    if (!community) return
+    setBrandColorSaving(true)
+    setBrandColorError('')
+    setBrandColorMessage('')
+    try {
+      const saved = await updateCommunityBranding(community.id, normalizeCommunityColor(brandColorDraft))
+      setCommunities((current) => current.map((item) => item.id === saved.id ? saved : item))
+      setBrandColorMessage('Color actualizado.')
+    } catch (reason: unknown) {
+      setBrandColorError(reason instanceof Error ? reason.message : 'No pudimos actualizar el color.')
+    } finally {
+      setBrandColorSaving(false)
+    }
+  }
   if (!communities.length) return <div className="dashboard-page narrow-page community-settings-page"><div className="empty-state"><Users size={30} aria-hidden="true" /><h3>{isPlatformAdmin ? 'No hay comunidades aprobadas' : 'No tienes comunidades administrables'}</h3><p>{isPlatformAdmin ? 'Aprueba una comunidad desde Administración IGDA para gestionar sus accesos.' : 'Cuando una comunidad te asigne permisos de administración, aparecerá aquí.'}</p></div></div>
   if (!community) return <LoadingState label="Cargando comunidad" />
   return <div className="dashboard-page narrow-page community-settings-page">
@@ -946,7 +970,7 @@ export function CommunitySettingsPage() {
         {memberError && <FormError message={memberError} />}
         {!memberLoading && !memberError && (communityMembers.length ? <ul className="member-email-list">{communityMembers.map((member) => { const actionId = member.invitationId || member.membershipId; const removable = canRemoveCommunityMember(member, isPlatformAdmin); return <li className="member-email-row" key={actionId || member.email}><Mail size={16} aria-hidden="true" /><span className="member-email-content"><a className="member-email-link" href={`mailto:${member.email}`}>{member.email}</a><small className="member-email-meta">{member.status === 'invited' ? 'Invitación pendiente' : 'Acceso activo'} · {roleLabel(member.role)}</small></span>{removable && <button className="icon-button danger" type="button" disabled={memberActionId === actionId} onClick={() => void removeMember(member)} aria-label={member.status === 'invited' ? `Cancelar invitación a ${member.email}` : `Revocar acceso de ${member.email}`}>{memberActionId === actionId ? <RefreshCw size={16} className="spin" /> : <X size={16} />}</button>}</li> })}</ul> : <div className="members-empty"><Mail size={24} aria-hidden="true" /><p>Aún no hay personas registradas en esta comunidad.</p></div>)}
       </div> : <div className="community-tab-content" id="community-public-panel" role="tabpanel" aria-label="Información pública">
-        <div className="community-panel-heading"><div><h2>Información pública</h2><p className="muted-copy">Estos datos vienen heredados desde Google Sheets y son de solo lectura.</p></div><span className="readonly-badge">Solo lectura</span></div>
+        <div className="community-panel-heading"><div><h2>Información pública</h2><p className="muted-copy">Estos datos vienen heredados desde Google Sheets y son de solo lectura, excepto el logo y el color visual.</p></div><span className="readonly-badge">Solo lectura</span></div>
         <dl className="public-info-grid">
           <div><dt>Nombre</dt><dd>{community.name}</dd></div>
           <div><dt>Descripción</dt><dd>{community.description || 'Sin descripción registrada.'}</dd></div>
@@ -954,8 +978,18 @@ export function CommunitySettingsPage() {
           {community.discordUrl && <div><dt>Discord</dt><dd><a href={community.discordUrl} target="_blank" rel="noreferrer">{community.discordUrl}</a></dd></div>}
         </dl>
         <div className="community-logo-editor">
-          <CommunityLogo path={logoPreview || community.logoPath} name={community.name} size="large" />
+          <CommunityLogo path={logoPreview || community.logoPath} name={community.name} color={brandColorDraft} size="large" />
           <div className="community-logo-copy"><h3>Logo de la comunidad</h3><p className="muted-copy">Este es el único dato editable desde el panel. Usa una imagen cuadrada en formato JPG, PNG o WebP.</p><label className="logo-file-field">Seleccionar logo<input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Logo de la comunidad" onChange={(event) => void handleLogoChange(event)} /></label>{logoPreview && <button className="primary-button logo-save-button" type="button" disabled={logoUploading} onClick={() => void saveLogo()}>{logoUploading ? 'Actualizando…' : 'Actualizar logo'}</button>}{logoError && <FormError message={logoError} />}{logoMessage && <p className="form-message success" role="status">{logoMessage}</p>}<small className="field-help">Proporción obligatoria 1:1 · se optimiza automáticamente · máximo 1024 × 1024 px.</small></div>
+        </div>
+        <div className="community-color-editor">
+          <div><h3>Color de la comunidad</h3><p className="muted-copy">Se usará para identificar tus eventos en la agenda, el calendario y la vista previa.</p></div>
+          <div className="community-color-controls">
+            <label className="community-color-picker"><span>Elegir color</span><input type="color" aria-label="Color de la comunidad" value={brandColorDraft} onChange={(event) => { setBrandColorDraft(event.target.value); setBrandColorMessage(''); setBrandColorError('') }} /></label>
+            <div className="community-color-swatches" aria-label="Colores sugeridos">{COMMUNITY_COLOR_PRESETS.map((color) => <button className={brandColorDraft === color ? 'selected' : ''} type="button" key={color} aria-label={`Usar color ${color}`} title={color} style={{ backgroundColor: color }} onClick={() => { setBrandColorDraft(color); setBrandColorMessage(''); setBrandColorError('') }} />)}</div>
+            <button className="secondary-button logo-save-button" type="button" disabled={brandColorSaving || brandColorDraft === normalizeCommunityColor(community.brandColor)} onClick={() => void saveBrandColor()}>{brandColorSaving ? 'Guardando…' : 'Guardar color'}</button>
+          </div>
+          {brandColorError && <FormError message={brandColorError} />}
+          {brandColorMessage && <p className="form-message success" role="status">{brandColorMessage}</p>}
         </div>
       </div>}
     </section>

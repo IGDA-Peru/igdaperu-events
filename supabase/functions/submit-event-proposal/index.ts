@@ -69,7 +69,7 @@ Deno.serve(async (request) => {
     const organizerName = text(body.organizerName, 160)
     const contactEmail = text(body.contactEmail, 254).toLowerCase()
     const title = text(body.title, 180)
-    const description = text(body.description, 5000)
+    const description = text(body.description, 1001)
     const type = text(body.type, 40) || 'CHARLA'
     const startsAt = text(body.startsAt, 80)
     const endsAt = text(body.endsAt, 80)
@@ -84,6 +84,7 @@ Deno.serve(async (request) => {
     if (organizerName.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail) || title.length < 3 || description.length < 3) {
       return respond({ error: 'Completa el nombre, correo, título y descripción de la propuesta.' }, 400)
     }
+    if (description.length > 1000) return respond({ error: 'La descripción no puede superar los 1000 caracteres.' }, 400)
     if (!startsAt || !endsAt || Number.isNaN(new Date(startsAt).getTime()) || Number.isNaN(new Date(endsAt).getTime()) || new Date(endsAt) <= new Date(startsAt)) {
       return respond({ error: 'La fecha y hora del evento no son válidas.' }, 400)
     }

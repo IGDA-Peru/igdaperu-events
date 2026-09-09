@@ -4,6 +4,7 @@ import { getEventCoverUrl } from '../lib/data'
 import { formatEventDateRange, formatEventLocation, formatTimeRange, isEventPast } from '../lib/format'
 import { findNextEvent } from '../lib/eventFocus'
 import type { EventItem } from '../types'
+import { communityTint, normalizeCommunityColor } from '../lib/communityBranding'
 import { EmptyEvents, EventCard } from './EventCard'
 import { CommunityLogo } from './CommunityLogo'
 import { eventViewModes, type EventViewMode } from './eventViewModes'
@@ -120,7 +121,7 @@ function CalendarEventHoverPreview({ event, coverUrl }: { event: EventItem; cove
   return (
     <span className="calendar-event-hover-card" aria-hidden="true">
       <span className={`calendar-event-hover-media ${coverUrl ? '' : 'fallback'}`}>
-        {coverUrl ? <img src={coverUrl} alt="" /> : <CommunityLogo path={event.communityLogoPath} name={event.communityName} size="medium" decorative />}
+        {coverUrl ? <img src={coverUrl} alt="" /> : <CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="medium" decorative />}
       </span>
       <span className="calendar-event-hover-copy">
         <span className="calendar-event-type">{event.type}</span>
@@ -188,7 +189,7 @@ function CalendarEventBar({ segment, coverUrl, onEventOpen }: { segment: Calenda
   const { event } = segment
 
   return <button ref={barRef} className={`calendar-event-bar ${segment.isSingleDay ? 'single-day' : 'multi-day'} ${event.visibility === 'network' ? 'private' : 'public'} ${isEventPast(event) ? 'past' : ''} hover-${hoverPlacement.side} ${segment.continuesBefore ? 'continues-before' : ''} ${segment.continuesAfter ? 'continues-after' : ''}`} data-event-focus-id={event.id} type="button" style={{ gridColumn: `${segment.startColumn + 1} / ${segment.endColumn + 2}`, gridRow: segment.lane + 1, '--calendar-hover-width': `${hoverPlacement.width}px`, '--calendar-hover-offset-y': `${hoverPlacement.offsetY}px`, '--calendar-hover-offset-x': `${hoverPlacement.offsetX}px` } as CSSProperties} title={`${event.title} · ${formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)} · ${formatTimeRange(event.startsAt, event.endsAt, event.isAllDay)}`} aria-label={`${event.title}, ${formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)}`} onPointerEnter={(pointerEvent) => updateHoverPlacement(pointerEvent.currentTarget)} onFocus={(focusEvent) => updateHoverPlacement(focusEvent.currentTarget)} onClick={() => onEventOpen?.(event)}>
-    {!segment.continuesBefore && <CommunityLogo path={event.communityLogoPath} name={event.communityName} size="small" decorative />}
+    {!segment.continuesBefore && <CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative />}
     {!segment.continuesBefore && <span className="calendar-event-dot" aria-hidden="true" />}
     <span className="calendar-event-title">{event.title}</span>
     <CalendarEventHoverPreview event={event} coverUrl={coverUrl} />
@@ -388,15 +389,16 @@ function formatTimelineDay(key: string) {
   return { weekday: weekday.slice(0, 3), day }
 }
 
-type TimelineCommunity = { id: string; name: string; logoPath?: string | null; color: typeof timelinePalette[number] }
+type TimelineColor = { color: string; tint: string }
+type TimelineCommunity = { id: string; name: string; logoPath?: string | null; brandColor?: string | null; color: TimelineColor }
 
 function stableCommunities(events: EventItem[]): TimelineCommunity[] {
-  const communityMap = new Map<string, { id: string; name: string; logoPath?: string | null }>()
+  const communityMap = new Map<string, { id: string; name: string; logoPath?: string | null; brandColor?: string | null }>()
   events.forEach((event) => {
     const communityId = event.communityId || '__independent__'
-    if (!communityMap.has(communityId)) communityMap.set(communityId, { id: communityId, name: event.communityName, logoPath: event.communityLogoPath })
+    if (!communityMap.has(communityId)) communityMap.set(communityId, { id: communityId, name: event.communityName, logoPath: event.communityLogoPath, brandColor: event.communityColor })
   })
-  return [...communityMap.values()].sort((first, second) => first.name.localeCompare(second.name, 'es')).map((community, index) => ({ ...community, color: timelinePalette[index % timelinePalette.length] }))
+  return [...communityMap.values()].sort((first, second) => first.name.localeCompare(second.name, 'es')).map((community, index) => ({ ...community, color: community.brandColor ? { color: normalizeCommunityColor(community.brandColor), tint: communityTint(community.brandColor) } : timelinePalette[index % timelinePalette.length] }))
 }
 
 function timelineCssVariables(dayWidth: number, dayCount: number, labelWidth: number): CSSProperties {
@@ -408,7 +410,7 @@ function timelineCssVariables(dayWidth: number, dayCount: number, labelWidth: nu
   } as CSSProperties
 }
 
-function timelineStyle(color: typeof timelinePalette[number]): CSSProperties {
+function timelineStyle(color: TimelineColor): CSSProperties {
   return { '--timeline-color': color.color, '--timeline-tint': color.tint } as CSSProperties
 }
 
@@ -552,7 +554,7 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
             {todayIndex >= 0 && <div className="timeline-today-line" aria-label={`Hoy: ${formatTimelineDay(todayKey).day} de ${formatTimelineMonth(visibleMonth)}`}><span>Hoy</span></div>}
             {groupedCommunities.length ? <>
               {groupedCommunities.map((community) => <div className="timeline-community-row" key={community.id}>
-              <div className="timeline-community-label" style={timelineStyle(community.color)}><span className="timeline-community-dot" /><CommunityLogo path={community.logoPath} name={community.name} size="small" decorative /><strong>{community.name}</strong><small>{community.segments.length} {community.segments.length === 1 ? 'evento' : 'eventos'}</small></div>
+              <div className="timeline-community-label" style={timelineStyle(community.color)}><span className="timeline-community-dot" /><CommunityLogo path={community.logoPath} name={community.name} color={community.brandColor} size="small" decorative /><strong>{community.name}</strong><small>{community.segments.length} {community.segments.length === 1 ? 'evento' : 'eventos'}</small></div>
               <div className="timeline-track" style={{ minHeight: `${Math.max(timelineCommunityRowHeight, community.laneCount * timelineLaneHeight + timelineTrackPadding)}px` }}>
                 <TimelineDayGrid visibleDays={visibleDays} range={range} />
                 {community.segments.map((segment) => {
