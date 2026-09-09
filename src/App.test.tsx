@@ -454,14 +454,18 @@ describe('event preview layout', () => {
     expect(screen.getByText('Fecha').closest('.event-preview-meta-item')).toBeInTheDocument()
   })
 
-  it('places the preview title before the banner slot', () => {
+  it('keeps the preview columns in the intended content order', () => {
     const event = { ...demoEvents[0], coverPath: '/events/demo-banner.webp' }
     render(<MemoryRouter><EventPreviewDrawer event={event} onClose={vi.fn()} presentation="modal" /></MemoryRouter>)
 
     const drawer = document.querySelector('.event-preview-drawer--modal')
     expect(drawer).toBeInTheDocument()
     const children = Array.from(drawer?.children || [])
-    expect(children.findIndex((child) => child.tagName === 'H2')).toBeLessThan(children.findIndex((child) => child.classList.contains('event-preview-cover-frame')))
+    const indexOf = (selector: string) => children.findIndex((child) => child.matches(selector))
+    expect(indexOf('h2')).toBeLessThan(indexOf('.event-preview-cover-frame'))
+    expect(indexOf('.event-preview-cover-frame')).toBeLessThan(indexOf('.event-preview-description'))
+    expect(indexOf('.event-preview-description')).toBeLessThan(indexOf('.event-preview-meta'))
+    expect(indexOf('.event-preview-meta')).toBeLessThan(indexOf('.event-preview-actions'))
   })
 })
 
