@@ -99,42 +99,44 @@ export function EventPreviewDrawer({
         <h2 id="event-preview-title">{event.title}</h2>
         {coverUrl && <div className="event-preview-cover-frame"><img className="event-preview-cover" src={coverUrl} alt="" /></div>}
         <p className="event-preview-description">{event.description}</p>
-        <div className="event-preview-meta">
-          <div className="event-preview-meta-item">
-            <CalendarDays size={19} aria-hidden="true" />
-            <div className="event-preview-meta-copy">
-              <strong>Fecha</strong>
-              <span className="event-preview-meta-value">{formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)}</span>
+        <div className="event-preview-right-column">
+          <div className="event-preview-meta">
+            <div className="event-preview-meta-item">
+              <CalendarDays size={19} aria-hidden="true" />
+              <div className="event-preview-meta-copy">
+                <strong>Fecha</strong>
+                <span className="event-preview-meta-value">{formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)}</span>
+              </div>
+            </div>
+            <div className="event-preview-meta-item">
+              <Clock3 size={19} aria-hidden="true" />
+              <div className="event-preview-meta-copy">
+                <strong>Hora</strong>
+                <span className="event-preview-meta-value">{formatTimeRange(event.startsAt, event.endsAt, event.isAllDay)}</span>
+              </div>
+            </div>
+            <div className="event-preview-meta-item">
+              <MapPin size={19} aria-hidden="true" />
+              <div className="event-preview-meta-copy">
+                <strong>Ubicación</strong>
+                <span className="event-preview-meta-value">{formatEventLocation(event)}</span>
+                {event.accessMode !== 'registration_only' && event.mapUrl && <a className="event-preview-map-link" href={event.mapUrl} target="_blank" rel="noreferrer">Ver en Google Maps <ExternalLink size={14} aria-hidden="true" /></a>}
+              </div>
+            </div>
+            <div className="event-preview-meta-item">
+              <CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative />
+              <div className="event-preview-meta-copy">
+                <strong>Organiza</strong>
+                <span className="event-preview-meta-value">{event.communityId ? presentation === 'modal' ? <a href="https://igda.pe/comunidad/" target="_top" rel="noreferrer">{event.communityName}</a> : <Link to={`/comunidades/${event.communitySlug}`} onClick={onClose}>{event.communityName}</Link> : (event.organizerName || event.communityName || 'Evento independiente')}</span>
+              </div>
             </div>
           </div>
-          <div className="event-preview-meta-item">
-            <Clock3 size={19} aria-hidden="true" />
-            <div className="event-preview-meta-copy">
-              <strong>Hora</strong>
-              <span className="event-preview-meta-value">{formatTimeRange(event.startsAt, event.endsAt, event.isAllDay)}</span>
-            </div>
+          <div className="event-preview-actions">
+            {!isPast && event.registrationUrl && <a className="primary-button event-preview-link" href={event.registrationUrl} target="_blank" rel="noreferrer">Inscribirme <ExternalLink size={17} /></a>}
+            {!isPast && event.meetingUrl && <a className={`${event.registrationUrl ? 'secondary-button' : 'primary-button'} event-preview-link`} href={event.meetingUrl} target="_blank" rel="noreferrer">{meetingActionLabel(event.meetingProvider)} <ExternalLink size={17} /></a>}
+            <button className="secondary-button event-preview-link" type="button" onClick={shareEvent}><Share2 size={17} /> Compartir evento</button>
+            {shareMessage && <small className="event-share-message" role="status">{shareMessage}</small>}
           </div>
-          <div className="event-preview-meta-item">
-            <MapPin size={19} aria-hidden="true" />
-            <div className="event-preview-meta-copy">
-              <strong>Ubicación</strong>
-              <span className="event-preview-meta-value">{formatEventLocation(event)}</span>
-              {event.accessMode !== 'registration_only' && event.mapUrl && <a className="event-preview-map-link" href={event.mapUrl} target="_blank" rel="noreferrer">Ver en Google Maps <ExternalLink size={14} aria-hidden="true" /></a>}
-            </div>
-          </div>
-          <div className="event-preview-meta-item">
-            <CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative />
-            <div className="event-preview-meta-copy">
-              <strong>Organiza</strong>
-              <span className="event-preview-meta-value">{event.communityId ? presentation === 'modal' ? <a href="https://igda.pe/comunidad/" target="_top" rel="noreferrer">{event.communityName}</a> : <Link to={`/comunidades/${event.communitySlug}`} onClick={onClose}>{event.communityName}</Link> : (event.organizerName || event.communityName || 'Evento independiente')}</span>
-            </div>
-          </div>
-        </div>
-        <div className="event-preview-actions">
-          {!isPast && event.registrationUrl && <a className="primary-button event-preview-link" href={event.registrationUrl} target="_blank" rel="noreferrer">Inscribirme <ExternalLink size={17} /></a>}
-          {!isPast && event.meetingUrl && <a className={`${event.registrationUrl ? 'secondary-button' : 'primary-button'} event-preview-link`} href={event.meetingUrl} target="_blank" rel="noreferrer">{meetingActionLabel(event.meetingProvider)} <ExternalLink size={17} /></a>}
-          <button className="secondary-button event-preview-link" type="button" onClick={shareEvent}><Share2 size={17} /> Compartir evento</button>
-          {shareMessage && <small className="event-share-message" role="status">{shareMessage}</small>}
         </div>
       </aside>
     </div>,

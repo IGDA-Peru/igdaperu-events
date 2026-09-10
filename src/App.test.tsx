@@ -462,10 +462,18 @@ describe('event preview layout', () => {
     expect(drawer).toBeInTheDocument()
     const children = Array.from(drawer?.children || [])
     const indexOf = (selector: string) => children.findIndex((child) => child.matches(selector))
+    const rightColumn = drawer?.querySelector('.event-preview-right-column')
     expect(indexOf('h2')).toBeLessThan(indexOf('.event-preview-cover-frame'))
     expect(indexOf('.event-preview-cover-frame')).toBeLessThan(indexOf('.event-preview-description'))
-    expect(indexOf('.event-preview-description')).toBeLessThan(indexOf('.event-preview-meta'))
-    expect(indexOf('.event-preview-meta')).toBeLessThan(indexOf('.event-preview-actions'))
+    expect(indexOf('.event-preview-description')).toBeLessThan(indexOf('.event-preview-right-column'))
+    expect(rightColumn).toBeInTheDocument()
+    const meta = rightColumn?.querySelector('.event-preview-meta')
+    const actions = rightColumn?.querySelector('.event-preview-actions')
+    expect(meta).toBeInTheDocument()
+    expect(actions).toBeInTheDocument()
+    if (meta && actions) {
+      expect(meta.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
   })
 })
 
