@@ -1,5 +1,5 @@
 import { CalendarDays, ChevronLeft, ChevronRight, LocateFixed, LockKeyhole } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { getEventCoverUrl } from '../lib/data'
 import { formatEventDateRange, formatEventLocation, formatTimeRange, isEventPast } from '../lib/format'
 import { findNextEvent } from '../lib/eventFocus'
@@ -318,6 +318,15 @@ function timelineMonthDate(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1)
 }
 
+function timelineSectionForEvent(event: EventItem, month: Date, weeksPerSection: number) {
+  if (!event.startsAt) return 0
+  const range = timelineRangeForMonth(month)
+  const dayIndex = range.days.indexOf(limaDateKey(event.startsAt))
+  if (dayIndex < 0) return 0
+  const sectionCount = Math.max(1, Math.ceil((range.days.length / 7) / weeksPerSection))
+  return Math.min(sectionCount - 1, Math.floor(Math.floor(dayIndex / 7) / weeksPerSection))
+}
+
 export function timelineRangeForMonth(month: Date): TimelineRange {
   const monthStart = new Date(Date.UTC(month.getFullYear(), month.getMonth(), 1))
   const monthEnd = new Date(Date.UTC(month.getFullYear(), month.getMonth() + 1, 0))
@@ -529,8 +538,25 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
             <button className="timeline-control-button" type="button" aria-label="Mes siguiente" onClick={() => changeMonth(1)}><span>Siguiente</span> <ChevronRight size={17} /></button>
           </div>
           <div className="timeline-toolbar-filters">
-            <div className="timeline-view-controls">
-              <label className="timeline-community-filter"><span>Comunidad</span><select aria-label="Filtrar timeline por comunidad" value={communityFilter} onChange={(event) => { setCommunityFilter(event.target.value); setTimelineSection(0) }}><option value="all">Todas las comunidades</option>{communities.map((community) => <option value={community.id} key={community.id}>{community.name}</option>)}</select></label>
+          <div className="timeline-view-controls">
+              <label className="timeline-community-filter"><span>Comunidad</span><select aria-label="Filtrar timeline por comunidad" value={communityFilter} onChange={(event) => {
+                const nextCommunity = event.target.value
+                setCommunityFilter(nextCommunity)
+                if (nextCommunity === 'all') {
+                  setTimelineSection(0)
+                  return
+                }
+                const firstCommunityEvent = scheduledEvents
+                  .filter((item) => (item.communityId || '__independent__') === nextCommunity)
+                  .sort((first, second) => new Date(first.startsAt as string).getTime() - new Date(second.startsAt as string).getTime())[0]
+                if (!firstCommunityEvent?.startsAt) {
+                  setTimelineSection(0)
+                  return
+                }
+                const targetMonth = monthDateForEvent(firstCommunityEvent)
+                setVisibleMonth(targetMonth)
+                setTimelineSection(timelineSectionForEvent(firstCommunityEvent, targetMonth, weeksPerSection))
+              }}><option value="all">Todas las comunidades</option>{communities.map((community) => <option value={community.id} key={community.id}>{community.name}</option>)}</select></label>
             </div>
           </div>
         </div>
@@ -593,10 +619,24 @@ type EventResultsProps = {
   onFocusRequestChange?: (request: EventFocusRequest) => void
 }
 
+const EVENT_CARDS_PAGE_SIZE = 6
+
 export function EventResults({ events, viewMode, showVisibility, onEventOpen, showViewLabel = true, showFocusButton = true, focusRequest: controlledFocusRequest, onFocusRequestChange }: EventResultsProps) {
   const [internalFocusRequest, setInternalFocusRequest] = useState<EventFocusRequest | null>(null)
+  const [visibleCardCount, setVisibleCardCount] = useState(EVENT_CARDS_PAGE_SIZE)
+  const cardEvents = useMemo(() => {
+    const upcomingEvents = events.filter((event) => !isEventPast(event))
+    const pastEvents = events.filter((event) => isEventPast(event))
+    return [...upcomingEvents, ...pastEvents]
+  }, [events])
+  const visibleCardEvents = cardEvents.slice(0, visibleCardCount)
+  const pastDividerIndex = visibleCardEvents.findIndex((event) => isEventPast(event))
   const nextEvent = useMemo(() => findNextEvent(events), [events])
   const focusRequest = controlledFocusRequest === undefined ? internalFocusRequest : controlledFocusRequest
+
+  useEffect(() => {
+    setVisibleCardCount(EVENT_CARDS_PAGE_SIZE)
+  }, [events, viewMode])
 
   useEffect(() => {
     if (viewMode !== 'cards' || !focusRequest) return
@@ -620,6 +660,12 @@ export function EventResults({ events, viewMode, showVisibility, onEventOpen, sh
     </div>}
     {viewMode === 'calendar' && <CalendarView events={events} onEventOpen={onEventOpen} focusRequest={focusRequest} />}
     {viewMode === 'timeline' && <TimelineView events={events} showVisibility={showVisibility} onEventOpen={onEventOpen} focusRequest={focusRequest} />}
-    {viewMode === 'cards' && <div className="event-list">{events.map((event) => <EventCard event={event} showVisibility={showVisibility} onOpen={() => onEventOpen(event)} key={event.id} />)}</div>}
+    {viewMode === 'cards' && <>
+      <div className="event-list">{visibleCardEvents.map((event, index) => <Fragment key={event.id}>
+        {index === pastDividerIndex && <div className="event-list-divider" role="separator" aria-label="Eventos que ya pasaron"><span>Eventos que ya pasaron</span></div>}
+        <EventCard event={event} showVisibility={showVisibility} onOpen={() => onEventOpen(event)} />
+      </Fragment>)}</div>
+      {visibleCardCount < cardEvents.length && <div className="event-load-more"><button className="secondary-button" type="button" onClick={() => setVisibleCardCount((current) => Math.min(current + EVENT_CARDS_PAGE_SIZE, cardEvents.length))}>Cargar más eventos</button></div>}
+    </>}
   </div>
 }

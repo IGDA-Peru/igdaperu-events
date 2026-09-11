@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
-import { buildTimelineSegments, CalendarView, timelineRangeForMonth, TimelineView } from './EventViews'
+import { buildTimelineSegments, CalendarView, EventResults, timelineRangeForMonth, TimelineView } from './EventViews'
 import type { EventItem } from '../types'
 
 const multiDayEvent: EventItem = {
@@ -106,6 +106,25 @@ describe('TimelineView', () => {
     expect(screen.getByRole('button', { name: /Evento Godot/ })).toBeInTheDocument()
   })
 
+  it('moves to the first period that contains the selected community events', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-11T12:00:00-05:00'))
+    try {
+      const otherCommunityEvent = timelineEvent({ id: 'other', title: 'Evento de otra comunidad', communityId: 'other', communityName: 'Otra comunidad' })
+      const sandaEvent = timelineEvent({ id: 'sanda', title: 'Evento SANDA', communityId: 'sanda', communityName: 'SANDA', startsAt: '2026-09-25T09:00:00-05:00', endsAt: '2026-09-28T18:00:00-05:00' })
+      render(<MemoryRouter><TimelineView events={[otherCommunityEvent, sandaEvent]} showVisibility={false} onEventOpen={vi.fn()} /></MemoryRouter>)
+
+      expect(screen.queryByRole('button', { name: /Evento SANDA/ })).not.toBeInTheDocument()
+      fireEvent.change(screen.getByRole('combobox', { name: 'Filtrar timeline por comunidad' }), { target: { value: 'sanda' } })
+
+      expect(screen.getByRole('heading', { name: 'Setiembre de 2026' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Evento SANDA/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Ver semanas siguientes' })).toBeDisabled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('reserves the height of three community rows and grows for additional communities', () => {
     const first = timelineEvent({ id: 'first', communityId: 'igda', communityName: 'IGDA Perú' })
     const second = timelineEvent({ id: 'second', communityId: 'godot', communityName: 'Godot Lima' })
@@ -144,6 +163,27 @@ describe('TimelineView', () => {
       vi.runOnlyPendingTimers()
       fireEvent.click(screen.getByRole('button', { name: 'Mes siguiente' }))
       expect(screen.getByRole('heading', { name: 'Octubre de 2026' })).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('EventResults cards', () => {
+  it('shows past events after a divider while keeping upcoming cards first', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-11T12:00:00-05:00'))
+    try {
+      const past = timelineEvent({ id: 'past-card', title: 'Evento pasado', startsAt: '2026-08-19T09:00:00-05:00', endsAt: '2026-08-19T18:00:00-05:00' })
+      const upcoming = timelineEvent({ id: 'upcoming-card', title: 'Evento próximo', startsAt: '2026-09-19T09:00:00-05:00', endsAt: '2026-09-19T18:00:00-05:00' })
+      render(<MemoryRouter><EventResults events={[past, upcoming]} viewMode="cards" showVisibility={false} onEventOpen={vi.fn()} /></MemoryRouter>)
+
+      expect(screen.getByRole('button', { name: /^Evento pasado$/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /^Evento próximo$/ })).toBeInTheDocument()
+      expect(screen.getByRole('separator', { name: 'Eventos que ya pasaron' })).toBeInTheDocument()
+
+      const eventListText = document.querySelector('.event-list')?.textContent ?? ''
+      expect(eventListText.indexOf('Evento próximo')).toBeLessThan(eventListText.indexOf('Evento pasado'))
     } finally {
       vi.useRealTimers()
     }

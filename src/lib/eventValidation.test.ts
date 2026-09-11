@@ -26,6 +26,7 @@ const baseEvent: EventInput = {
   longitude: null,
   meetingUrl: '',
   meetingProvider: 'other',
+  meetingLinkVisibility: 'shared',
   registrationUrl: '',
   visibility: 'public',
   status: 'draft',
@@ -84,11 +85,33 @@ describe('event validation', () => {
     expect(result.missing).not.toContain('organizerName')
   })
 
-  it('allows network publication with only community, title and date', () => {
+  it('requires publication details for community-only publication too', () => {
     const result = validateEvent({ ...baseEvent, visibility: 'network', startsAt: '2026-10-01T19:00', endsAt: '2026-10-01T21:00' }, 'publish')
 
-    expect(result.valid).toBe(true)
-    expect(result.missing).toEqual([])
+    expect(result.valid).toBe(false)
+    expect(result.missing).toContain('description')
+  })
+
+  it('blocks incomplete access details for community-only publication', () => {
+    const result = validateEvent({
+      ...baseEvent,
+      visibility: 'network',
+      description: 'Una actividad para la comunidad.',
+      startsAt: '2026-10-01T19:00',
+      endsAt: '2026-10-01T21:00',
+      locationType: 'hybrid',
+      locationPrecision: 'exact',
+    }, 'publish')
+
+    expect(result.errors.location).toContain('lugar')
+    expect(result.errors.meetingUrl).toContain('enlace')
+  })
+
+  it('allows an incomplete location and access setup only while saving a draft', () => {
+    const incompleteOnline = { ...baseEvent, locationType: 'online' as const, startsAt: '2026-10-01T19:00', endsAt: '2026-10-01T21:00' }
+
+    expect(validateEvent(incompleteOnline, 'draft').valid).toBe(true)
+    expect(validateEvent({ ...incompleteOnline, description: 'Una actividad para la comunidad.' }, 'publish').errors.meetingUrl).toContain('enlace')
   })
 
   it('allows public publication without location or access links', () => {
@@ -136,6 +159,20 @@ describe('event validation', () => {
     const result = validateEvent({ ...baseEvent, description: 'Una actividad para la comunidad.', startsAt: '2026-10-01T19:00', endsAt: '2026-10-01T21:00', locationType: 'online', meetingUrl: '' }, 'publish')
 
     expect(result.errors.meetingUrl).toContain('enlace')
+  })
+
+  it('accepts no shared physical location for published venue and hybrid events', () => {
+    const shared = { ...baseEvent, description: 'Una actividad para la comunidad.', startsAt: '2026-10-01T19:00', endsAt: '2026-10-01T21:00', locationPrecision: 'none' as const, meetingUrl: 'https://meet.google.com/abc-defg-hij' }
+
+    expect(validateEvent({ ...shared, locationType: 'venue' }, 'publish').errors.location).toBeUndefined()
+    expect(validateEvent({ ...shared, locationType: 'hybrid' }, 'publish').errors.location).toBeUndefined()
+  })
+
+  it('allows an explicit no-share decision for online and hybrid session links', () => {
+    const shared = { ...baseEvent, description: 'Una actividad para la comunidad.', startsAt: '2026-10-01T19:00', endsAt: '2026-10-01T21:00', meetingLinkVisibility: 'none' as const, meetingUrl: '' }
+
+    expect(validateEvent({ ...shared, locationType: 'online' }, 'publish').valid).toBe(true)
+    expect(validateEvent({ ...shared, locationType: 'hybrid', locationPrecision: 'none' }, 'publish').valid).toBe(true)
   })
 
   it('distinguishes invalid same-day hours from invalid date ranges', () => {

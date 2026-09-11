@@ -48,7 +48,10 @@ export function validateEvent(input: EventInput, mode: EventValidationMode, opti
   if (!eventType || eventType.toUpperCase() === 'OTRO') errors.type = 'Especifica el tipo de evento.'
   else if (eventType.length > 40) errors.type = 'El tipo de evento no puede superar 40 caracteres.'
 
-  const minimalRequirements = mode === 'draft' || input.visibility === 'network'
+  // A draft may be saved before the organizer has completed the location or
+  // access details. Both publication targets, including the community-only
+  // network, must pass the same publication requirements.
+  const minimalRequirements = mode === 'draft'
 
   if (minimalRequirements) {
     if (!input.startsAt) errors.startsAt = 'Indica la fecha y hora de inicio.'
@@ -68,7 +71,7 @@ export function validateEvent(input: EventInput, mode: EventValidationMode, opti
         ? 'La hora de fin debe ser posterior a la hora de inicio.'
         : 'La fecha de fin debe ser igual o posterior a la fecha de inicio.'
     }
-    if (input.accessMode === 'location_access' && input.locationType !== 'venue' && !input.meetingUrl.trim()) errors.meetingUrl = 'Añade el enlace para unirse al evento online o híbrido.'
+    if (input.accessMode === 'location_access' && input.locationType !== 'venue' && input.meetingLinkVisibility === 'shared' && !input.meetingUrl.trim()) errors.meetingUrl = 'Añade el enlace para unirse al evento o elige «No compartir enlace».'
     if (input.accessMode === 'location_access' && input.locationType !== 'online') {
       if (input.locationPrecision === 'department' && !input.locationDepartment.trim()) errors.location = 'Selecciona el departamento que quieres compartir.'
       if (input.locationPrecision === 'province' && (!input.locationDepartment.trim() || !input.locationProvince.trim())) errors.location = 'Selecciona el departamento y la provincia que quieres compartir.'
@@ -76,7 +79,7 @@ export function validateEvent(input: EventInput, mode: EventValidationMode, opti
     }
   }
 
-  if (!minimalRequirements && input.accessMode === 'location_access' && input.meetingUrl.trim() && !isHttpUrl(input.meetingUrl)) errors.meetingUrl = 'El enlace debe comenzar con http:// o https://.'
+  if (!minimalRequirements && input.accessMode === 'location_access' && input.meetingLinkVisibility === 'shared' && input.meetingUrl.trim() && !isHttpUrl(input.meetingUrl)) errors.meetingUrl = 'El enlace debe comenzar con http:// o https://.'
   if (!minimalRequirements && input.registrationUrl.trim() && !isHttpUrl(input.registrationUrl)) errors.registrationUrl = 'El enlace debe comenzar con http:// o https://.'
   if (!minimalRequirements && input.accessMode === 'location_access' && input.mapUrl.trim() && !isHttpUrl(input.mapUrl)) errors.mapUrl = 'El enlace de Google Maps debe comenzar con http:// o https://.'
 

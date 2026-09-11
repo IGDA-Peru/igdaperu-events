@@ -5,11 +5,13 @@ import { AuthContext, type AuthContextValue } from './auth/auth-context'
 import App from './App'
 import { SiteHeader } from './components/SiteHeader'
 import { EventPreviewDrawer } from './components/EventPreviewDrawer'
+import { EventResults } from './components/EventViews'
 import { CommunitySetupPrompt } from './components/CommunitySetupPrompt'
 import { CommunityEventsPage, CommunitySettingsPage, DashboardPage, EventEditorPage, PlatformAdminPage } from './pages/AppPages'
 import { ConversationsPage } from './pages/ChatPage'
 import { CommunityDetailPage, EventProposalPage } from './pages/PublicPages'
 import { demoEvents } from './lib/demo-data'
+import * as data from './lib/data'
 
 vi.mock('./lib/supabase', () => ({
   appUrl: 'http://localhost:5173',
@@ -121,7 +123,8 @@ describe('public events', () => {
     expect(screen.getByRole('link', { name: /Visitar sitio principal/ })).toHaveAttribute('href', 'https://igda.pe')
   })
 
-  it('organizes the manager dashboard around communities and events', () => {
+  it('organizes the manager dashboard around communities and events', async () => {
+    const listManagedEventsSpy = vi.spyOn(data, 'listManagedEvents').mockResolvedValue([demoEvents[0]])
     const authValue = {
       configured: false,
       loading: false,
@@ -149,7 +152,8 @@ describe('public events', () => {
     expect(document.querySelector('.brand-copy small')).toHaveTextContent('Eventos')
     expect(document.querySelector('.account-button img')).toHaveAttribute('src', '/brand/logo-igda-peru.png')
     expect(screen.getByRole('link', { name: /Nuevo evento/ })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Ver todos/ })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Ver todos los eventos' })).toHaveAttribute('href', '/app/eventos'))
+    listManagedEventsSpy.mockRestore()
     expect(screen.queryByText('Este es tu espacio para consultar y administrar tus eventos.')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Panel/ })).toHaveAttribute('href', '/app')
     expect(screen.queryByRole('link', { name: /Publicar evento/ })).not.toBeInTheDocument()
@@ -170,6 +174,36 @@ describe('public events', () => {
     expect(screen.getByRole('menuitem', { name: /Cambiar contraseña/ })).toHaveAttribute('href', '/app/cambiar-contrasena')
     fireEvent.click(screen.getByRole('menuitem', { name: /Cerrar sesión/ }))
     expect(authValue.signOut).toHaveBeenCalled()
+  })
+
+  it('allows community admins to delete events that already passed', async () => {
+    const pastEvent = { ...demoEvents[0], startsAt: '2026-08-19T19:00:00-05:00', endsAt: '2026-08-19T21:00:00-05:00' }
+    const listManagedEventsSpy = vi.spyOn(data, 'listManagedEvents').mockResolvedValue([pastEvent])
+    const deleteEventSpy = vi.spyOn(data, 'deleteEvent').mockResolvedValue(undefined)
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const authValue = {
+      configured: false,
+      loading: false,
+      session: null,
+      user: { id: 'user-1', email: 'comunidad@igda.pe' } as NonNullable<AuthContextValue['user']>,
+      profile: { id: 'profile-1', displayName: 'Comunidad' },
+      memberships: [{ communityId: 'igda-peru', communityName: 'IGDA Perú', communitySlug: 'igda-peru', role: 'community_admin', status: 'active' }],
+      roles: ['community_admin'],
+      signOut: vi.fn().mockResolvedValue(undefined),
+      refreshUserData: vi.fn().mockResolvedValue(undefined),
+    } as AuthContextValue
+
+    render(<AuthContext.Provider value={authValue}><MemoryRouter initialEntries={['/app']}><DashboardPage /></MemoryRouter></AuthContext.Provider>)
+
+    const deleteButton = await screen.findByRole('button', { name: `Eliminar ${pastEvent.title}` })
+    fireEvent.click(deleteButton)
+    await waitFor(() => expect(deleteEventSpy).toHaveBeenCalledWith(pastEvent.id))
+
+    expect(confirmSpy).toHaveBeenCalledWith(`¿Eliminar “${pastEvent.title}”? Esta acción no se puede deshacer.`)
+    expect(screen.getByText('Evento eliminado.')).toBeInTheDocument()
+    listManagedEventsSpy.mockRestore()
+    deleteEventSpy.mockRestore()
+    confirmSpy.mockRestore()
   })
 
   it('makes community information read-only and separates registered emails from invitations', async () => {
@@ -454,18 +488,30 @@ describe('event preview layout', () => {
     expect(screen.getByText('Fecha').closest('.event-preview-meta-item')).toBeInTheDocument()
   })
 
+  it('keeps the location and shows a compact registration link', () => {
+    const registrationUrl = 'https://forms.example.com/registro-greet-meet'
+    const event = { ...demoEvents[2], registrationUrl, accessMode: 'registration_only' as const }
+    render(<MemoryRouter><EventPreviewDrawer event={event} onClose={vi.fn()} presentation="modal" /></MemoryRouter>)
+
+    expect(screen.getByText('Ubicación')).toBeInTheDocument()
+    const registrationLink = screen.getByRole('link', { name: /Abrir enlace de inscripción/ })
+    expect(registrationLink).toHaveAttribute('href', registrationUrl)
+    expect(registrationLink).toHaveClass('event-preview-map-link', 'event-preview-registration-link')
+  })
+
   it('keeps the preview columns in the intended content order', () => {
     const event = { ...demoEvents[0], coverPath: '/events/demo-banner.webp' }
     render(<MemoryRouter><EventPreviewDrawer event={event} onClose={vi.fn()} presentation="modal" /></MemoryRouter>)
 
     const drawer = document.querySelector('.event-preview-drawer--modal')
     expect(drawer).toBeInTheDocument()
-    const children = Array.from(drawer?.children || [])
-    const indexOf = (selector: string) => children.findIndex((child) => child.matches(selector))
+    const leftColumn = drawer?.querySelector('.event-preview-left-column')
     const rightColumn = drawer?.querySelector('.event-preview-right-column')
-    expect(indexOf('h2')).toBeLessThan(indexOf('.event-preview-cover-frame'))
-    expect(indexOf('.event-preview-cover-frame')).toBeLessThan(indexOf('.event-preview-description'))
-    expect(indexOf('.event-preview-description')).toBeLessThan(indexOf('.event-preview-right-column'))
+    const leftChildren = Array.from(leftColumn?.children || [])
+    const indexOfLeft = (selector: string) => leftChildren.findIndex((child) => child.matches(selector))
+    expect(indexOfLeft('h2')).toBeLessThan(indexOfLeft('.event-preview-cover-frame'))
+    expect(indexOfLeft('.event-preview-cover-frame')).toBeLessThan(indexOfLeft('.event-preview-description'))
+    expect(leftColumn).toBeInTheDocument()
     expect(rightColumn).toBeInTheDocument()
     const meta = rightColumn?.querySelector('.event-preview-meta')
     const actions = rightColumn?.querySelector('.event-preview-actions')
@@ -474,6 +520,28 @@ describe('event preview layout', () => {
     if (meta && actions) {
       expect(meta.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     }
+  })
+
+  it('centers the left content when the preview has no banner', () => {
+    const event = { ...demoEvents[0], coverPath: null }
+    render(<MemoryRouter><EventPreviewDrawer event={event} onClose={vi.fn()} presentation="modal" /></MemoryRouter>)
+
+    const leftColumn = document.querySelector('.event-preview-left-column')
+    expect(leftColumn).toHaveClass('event-preview-left-column--no-cover')
+    expect(leftColumn?.querySelector('.event-preview-cover-frame')).not.toBeInTheDocument()
+  })
+})
+
+describe('public event results', () => {
+  it('loads card results in controlled batches without the view label', () => {
+    const events = Array.from({ length: 7 }, (_, index) => ({ ...demoEvents[index % demoEvents.length], id: `demo-card-${index}` }))
+    render(<MemoryRouter><EventResults events={events} viewMode="cards" showVisibility={false} onEventOpen={vi.fn()} showViewLabel={false} showFocusButton={false} /></MemoryRouter>)
+
+    expect(screen.queryByText('Vista: Tarjetas')).not.toBeInTheDocument()
+    expect(document.querySelectorAll('.event-list > .event-row')).toHaveLength(6)
+    fireEvent.click(screen.getByRole('button', { name: 'Cargar más eventos' }))
+    expect(document.querySelectorAll('.event-list > .event-row')).toHaveLength(7)
+    expect(screen.queryByRole('button', { name: 'Cargar más eventos' })).not.toBeInTheDocument()
   })
 })
 

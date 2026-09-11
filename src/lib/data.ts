@@ -21,7 +21,7 @@ const publicEventsRequests = new Map<string, Promise<EventItem[]>>()
 
 const COMMUNITY_SELECT = 'id,slug,name,description,logo_path,brand_color,website_url,discord_url,status'
 const PROFILE_SELECT = 'id,display_name,first_name,last_name,avatar_path'
-const EVENT_SELECT = 'id,slug,community_id,organizer_name,title,description,type,starts_at,ends_at,is_all_day,timezone,location_type,access_mode,location_precision,location_department,location_province,venue_name,address,map_url,place_id,formatted_address,latitude,longitude,meeting_url,meeting_provider,registration_url,cover_path,visibility,status,community:communities(name,slug,status,logo_path,brand_color)'
+const EVENT_SELECT = 'id,slug,community_id,organizer_name,title,description,type,starts_at,ends_at,is_all_day,timezone,location_type,access_mode,location_precision,location_department,location_province,venue_name,address,map_url,place_id,formatted_address,latitude,longitude,meeting_url,meeting_provider,meeting_link_visibility,registration_url,cover_path,visibility,status,community:communities(name,slug,status,logo_path,brand_color)'
 const PROPOSAL_SELECT = 'id,organizer_name,contact_email,title,description,type,starts_at,ends_at,is_all_day,timezone,location_type,access_mode,location_precision,location_department,location_province,venue_name,address,map_url,place_id,formatted_address,latitude,longitude,meeting_url,meeting_provider,registration_url,community_id,status,review_notes,rejection_reason,reviewed_at,approved_event_id,created_at,community:communities(name)'
 
 function getPublicEventsCacheKey(options: EventQueryOptions) {
@@ -87,6 +87,7 @@ const mapEvent = (row: any): EventItem => {
     longitude: accessMode === 'registration_only' ? null : row.longitude,
     meetingUrl: accessMode === 'registration_only' ? null : row.meeting_url,
     meetingProvider: accessMode === 'registration_only' ? 'other' : row.meeting_provider || 'other',
+    meetingLinkVisibility: accessMode === 'registration_only' ? 'none' : row.meeting_link_visibility || (row.meeting_url ? 'shared' : 'none'),
     registrationUrl: row.registration_url,
     coverPath: row.cover_path,
     visibility: row.visibility,
@@ -490,6 +491,17 @@ export async function listEventConflicts(startsAt: string, endsAt: string, exclu
 
 export async function getEventBySlug(slug: string, network = false): Promise<EventItem | null> {
   if (!isSupabaseConfigured || !supabase) return demoEvents.find((event) => event.slug === slug) || null
+  const hostname = typeof window === 'undefined' ? '' : window.location.hostname
+  const localHost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+  if (!network && import.meta.env.PROD && !localHost) {
+    const endpoint = new URL('/api/public-events', window.location.origin)
+    endpoint.searchParams.set('slug', slug)
+    const response = await fetch(endpoint)
+    if (!response.ok) throw new Error('No pudimos cargar el evento.')
+    const data: unknown = await response.json()
+    if (!Array.isArray(data)) throw new Error('La respuesta del evento no es válida.')
+    return data[0] ? mapEvent(data[0]) : null
+  }
   let query = supabase.from('events').select(EVENT_SELECT).eq('slug', slug)
   if (!network) query = query.eq('visibility', 'public')
   query = query.in('status', ['published', 'archived'])
@@ -795,8 +807,9 @@ export async function saveEvent(input: EventInput, eventId?: string): Promise<Ev
     formatted_address: shareExactLocation ? input.formattedAddress || null : null,
     latitude: shareExactLocation ? input.latitude : null,
     longitude: shareExactLocation ? input.longitude : null,
-    meeting_url: managesLocationAccess ? input.meetingUrl || null : null,
+    meeting_url: managesLocationAccess && input.meetingLinkVisibility === 'shared' ? input.meetingUrl || null : null,
     meeting_provider: managesLocationAccess ? input.meetingProvider : 'other',
+    meeting_link_visibility: managesLocationAccess ? input.meetingLinkVisibility : 'none',
     registration_url: input.registrationUrl || null,
     cover_path: input.coverPath || null,
     visibility: input.visibility,

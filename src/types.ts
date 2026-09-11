@@ -7,6 +7,7 @@ export type LocationType = 'venue' | 'online' | 'hybrid'
 export type LocationPrecision = 'none' | 'department' | 'province' | 'exact'
 export type EventAccessMode = 'registration_only' | 'location_access'
 export type MeetingProvider = 'google_meet' | 'zoom' | 'discord' | 'other'
+export type MeetingLinkVisibility = 'shared' | 'none'
 export type ConversationStatus = 'pending' | 'active' | 'rejected'
 
 export type Community = {
@@ -52,6 +53,7 @@ export type EventItem = {
   longitude?: number | null
   meetingUrl?: string | null
   meetingProvider?: MeetingProvider | null
+  meetingLinkVisibility?: MeetingLinkVisibility | null
   registrationUrl?: string | null
   coverPath?: string | null
   visibility: EventVisibility
@@ -83,6 +85,7 @@ export type EventInput = {
   meetingUrl: string
   registrationUrl: string
   meetingProvider: MeetingProvider
+  meetingLinkVisibility: MeetingLinkVisibility
   coverPath?: string | null
   visibility: EventVisibility
   status: EventStatus

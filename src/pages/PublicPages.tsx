@@ -321,7 +321,7 @@ export function PublicAgendaPage() {
           <EventFilters timeFilter={timeFilter} locationFilter={locationFilter} search={search} onTimeChange={setTimeFilter} onLocationChange={setLocationFilter} onSearchChange={setSearch} />
           {loading && <LoadingState />}
           {error && <ErrorState message={error} />}
-          {!loading && !error && <EventResults events={visibleEvents} viewMode={viewMode} showVisibility={Boolean(user)} onEventOpen={setSelectedEvent} />}
+          {!loading && !error && <EventResults events={visibleEvents} viewMode={viewMode} showVisibility={Boolean(user)} onEventOpen={setSelectedEvent} showViewLabel={false} />}
         </section>
         <CommunityRail communities={recentCommunities} />
       </div>

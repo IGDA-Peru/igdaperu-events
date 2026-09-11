@@ -84,10 +84,11 @@ export function EventPreviewDrawer({
   if (!event) return null
   const isPast = isEventPast(event)
   const coverUrl = getEventCoverUrl(event.coverPath)
+  const drawerClassName = `event-preview-drawer ${presentation === 'modal' ? 'event-preview-drawer--modal' : ''}`
 
   return createPortal(
     <div className={`event-preview-layer ${presentation === 'modal' ? 'event-preview-layer--modal' : ''}`} role="presentation" onMouseDown={(mouseEvent) => { if (mouseEvent.target === mouseEvent.currentTarget) onClose() }}>
-      <aside className={`event-preview-drawer ${presentation === 'modal' ? 'event-preview-drawer--modal' : ''}`} style={{ '--community-color': event.communityColor || undefined } as CSSProperties} role="dialog" aria-modal="true" aria-labelledby="event-preview-title">
+      <aside className={drawerClassName} style={{ '--community-color': event.communityColor || undefined } as CSSProperties} role="dialog" aria-modal="true" aria-labelledby="event-preview-title">
         <div className="event-preview-topline">
         <div className="event-flags">
           <span className={`event-type ${event.type === 'TALLER' ? 'yellow' : 'red'}`}>{event.type}</span>
@@ -96,9 +97,11 @@ export function EventPreviewDrawer({
           </div>
           <button className="event-preview-close" type="button" aria-label="Cerrar vista previa" ref={closeButtonRef} onClick={onClose}><X size={20} /></button>
         </div>
-        <h2 id="event-preview-title">{event.title}</h2>
-        {coverUrl && <div className="event-preview-cover-frame"><img className="event-preview-cover" src={coverUrl} alt="" /></div>}
-        <p className="event-preview-description">{event.description}</p>
+        <div className={`event-preview-left-column${coverUrl ? '' : ' event-preview-left-column--no-cover'}`}>
+          <h2 id="event-preview-title">{event.title}</h2>
+          {coverUrl && <div className="event-preview-cover-frame"><img className="event-preview-cover" src={coverUrl} alt="" /></div>}
+          <p className="event-preview-description">{event.description}</p>
+        </div>
         <div className="event-preview-right-column">
           <div className="event-preview-meta">
             <div className="event-preview-meta-item">
@@ -123,6 +126,13 @@ export function EventPreviewDrawer({
                 {event.accessMode !== 'registration_only' && event.mapUrl && <a className="event-preview-map-link" href={event.mapUrl} target="_blank" rel="noreferrer">Ver en Google Maps <ExternalLink size={14} aria-hidden="true" /></a>}
               </div>
             </div>
+            {event.accessMode === 'registration_only' && event.registrationUrl && <div className="event-preview-meta-item">
+              <ExternalLink size={19} aria-hidden="true" />
+              <div className="event-preview-meta-copy">
+                <strong>Inscripción</strong>
+                <a className="event-preview-map-link event-preview-registration-link" href={event.registrationUrl} target="_blank" rel="noreferrer">Abrir enlace de inscripción <ExternalLink size={14} aria-hidden="true" /></a>
+              </div>
+            </div>}
             <div className="event-preview-meta-item">
               <CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative />
               <div className="event-preview-meta-copy">

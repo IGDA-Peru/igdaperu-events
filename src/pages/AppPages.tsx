@@ -1,4 +1,4 @@
-import { CalendarDays, Check, ChevronLeft, ChevronRight, CircleAlert, Clipboard, Clock3, Globe2, ImagePlus, LockKeyhole, Mail, MapPinned, Plus, RefreshCw, Save, Search, Send, Shield, UserPlus, Users, Video, X } from 'lucide-react'
+import { CalendarDays, Check, ChevronLeft, ChevronRight, CircleAlert, Clipboard, Clock3, Globe2, ImagePlus, Link2, Link2Off, LockKeyhole, Mail, MapPinned, Plus, RefreshCw, Save, Search, Send, Shield, UserPlus, Users, Video, X } from 'lucide-react'
 import type { ChangeEvent, FormEvent, MouseEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
@@ -45,7 +45,7 @@ function canRemoveCommunityMember(member: CommunityMember, isPlatformAdmin: bool
 }
 
 function canDeleteEvent(event: EventItem, memberships: Pick<Membership, 'communityId' | 'role'>[], isPlatformAdmin: boolean) {
-  return !isEventPast(event) && (isPlatformAdmin || memberships.some((membership) => membership.communityId === event.communityId && membership.role === 'community_admin'))
+  return isPlatformAdmin || memberships.some((membership) => membership.communityId === event.communityId && membership.role === 'community_admin')
 }
 
 export function DashboardPage() {
@@ -109,7 +109,7 @@ export function DashboardPage() {
           <div className="dashboard-panel-heading"><div><PanelEventSwitcher active="managed" /><h2>Tus eventos</h2></div><div className="dashboard-panel-actions">{canManage && <Link className="primary-button" to="/app/eventos/nuevo"><Plus size={17} /> Nuevo evento</Link>}</div></div>
           {message && <p className="form-message success">{message}</p>}
           {actionError && <p className="form-message error">{actionError}</p>}
-          {loading ? <LoadingState label="Cargando tus eventos" /> : events.length ? <div className="event-list">{events.slice(0, 5).map((event) => <EventCard event={event} compact onOpen={() => setSelectedEvent(event)} panelActions={{ onArchive: () => void archive(event), onDelete: () => void remove(event), canDelete: canDeleteEvent(event, memberships, isPlatformAdmin) }} key={event.id} />)}</div> : <EmptyEvents authenticated />}
+          {loading ? <LoadingState label="Cargando tus eventos" /> : events.length ? <><div className="event-list">{events.slice(0, 5).map((event) => <EventCard event={event} compact onOpen={() => setSelectedEvent(event)} panelActions={{ onArchive: () => void archive(event), onDelete: () => void remove(event), canDelete: canDeleteEvent(event, memberships, isPlatformAdmin) }} key={event.id} />)}</div><div className="dashboard-events-footer"><Link className="secondary-button" to="/app/eventos">Ver todos los eventos</Link></div></> : <EmptyEvents authenticated />}
         </section>
       </div>
       {user && <p className="account-caption">Sesión iniciada como {user.email}</p>}
@@ -164,7 +164,7 @@ export function CommunityEventsPage() {
   </div>
 }
 
-const emptyEvent: EventInput = { communityId: '', organizerName: '', title: '', slug: '', description: '', type: 'CHARLA', startsAt: '', endsAt: '', isAllDay: false, locationType: 'venue', accessMode: 'registration_only', locationPrecision: 'none', locationDepartment: '', locationProvince: '', venueName: '', address: '', mapUrl: '', placeId: '', formattedAddress: '', latitude: null, longitude: null, meetingUrl: '', meetingProvider: 'google_meet', registrationUrl: '', coverPath: null, visibility: 'public', status: 'draft' }
+const emptyEvent: EventInput = { communityId: '', organizerName: '', title: '', slug: '', description: '', type: 'CHARLA', startsAt: '', endsAt: '', isAllDay: false, locationType: 'venue', accessMode: 'registration_only', locationPrecision: 'none', locationDepartment: '', locationProvince: '', venueName: '', address: '', mapUrl: '', placeId: '', formattedAddress: '', latitude: null, longitude: null, meetingUrl: '', meetingProvider: 'google_meet', meetingLinkVisibility: 'none', registrationUrl: '', coverPath: null, visibility: 'public', status: 'draft' }
 
 type EditorSectionId = 'information' | 'datetime' | 'registration' | 'location' | 'publication'
 
@@ -234,7 +234,7 @@ export function EventEditorPage() {
     }
     setAvailableCommunities(scopedCommunityId ? [{ id: scopedCommunityId, slug: scopedCommunitySlug, name: scopedCommunityName, description: '', status: 'approved' }] : [])
   }, [isPlatformAdmin, scopedCommunityId, scopedCommunityName, scopedCommunitySlug])
-  useEffect(() => { if (!eventId) return; setSavedEventId(eventId); if (!manageable.length && !isPlatformAdmin) { setLoading(false); return } void listManagedEvents(manageableIds ? manageableIds.split(',') : [], isPlatformAdmin).then((items) => { setManagedEvents(items); const item = items.find((event) => event.id === eventId); if (item) { const nextSchedule = { ...eventScheduleFromLocalDateTimes(item.startsAt, item.endsAt, item.isAllDay), isAllDay: false }; const localTimes = eventScheduleToLocalDateTimes(nextSchedule); setSchedule(nextSchedule); setForm({ communityId: item.communityId, organizerName: item.organizerName || '', title: item.title, slug: item.slug, description: item.description || '', type: item.type, startsAt: localTimes.startsAt, endsAt: localTimes.endsAt, isAllDay: false, locationType: item.locationType, accessMode: item.accessMode || 'location_access', locationPrecision: item.locationPrecision || 'none', locationDepartment: item.locationDepartment || '', locationProvince: item.locationProvince || '', venueName: item.venueName || '', address: item.address || '', mapUrl: item.mapUrl || '', placeId: item.placeId || '', formattedAddress: item.formattedAddress || '', latitude: item.latitude ?? null, longitude: item.longitude ?? null, meetingUrl: item.meetingUrl || '', meetingProvider: item.meetingProvider === 'google_meet' ? 'google_meet' : 'other', registrationUrl: item.registrationUrl || '', coverPath: item.coverPath || null, visibility: item.visibility, status: item.status }); setBannerPreview(getEventCoverUrl(item.coverPath) || ''); setDirty(false) } }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'No pudimos cargar el evento.')).finally(() => setLoading(false)) }, [eventId, manageableIds, isPlatformAdmin])
+  useEffect(() => { if (!eventId) return; setSavedEventId(eventId); if (!manageable.length && !isPlatformAdmin) { setLoading(false); return } void listManagedEvents(manageableIds ? manageableIds.split(',') : [], isPlatformAdmin).then((items) => { setManagedEvents(items); const item = items.find((event) => event.id === eventId); if (item) { const nextSchedule = { ...eventScheduleFromLocalDateTimes(item.startsAt, item.endsAt, item.isAllDay), isAllDay: false }; const localTimes = eventScheduleToLocalDateTimes(nextSchedule); setSchedule(nextSchedule); setForm({ communityId: item.communityId, organizerName: item.organizerName || '', title: item.title, slug: item.slug, description: item.description || '', type: item.type, startsAt: localTimes.startsAt, endsAt: localTimes.endsAt, isAllDay: false, locationType: item.locationType, accessMode: item.accessMode || 'location_access', locationPrecision: item.locationPrecision || 'none', locationDepartment: item.locationDepartment || '', locationProvince: item.locationProvince || '', venueName: item.venueName || '', address: item.address || '', mapUrl: item.mapUrl || '', placeId: item.placeId || '', formattedAddress: item.formattedAddress || '', latitude: item.latitude ?? null, longitude: item.longitude ?? null, meetingUrl: item.meetingUrl || '', meetingProvider: item.meetingProvider === 'google_meet' ? 'google_meet' : 'other', meetingLinkVisibility: item.meetingLinkVisibility || (item.meetingUrl ? 'shared' : 'none'), registrationUrl: item.registrationUrl || '', coverPath: item.coverPath || null, visibility: item.visibility, status: item.status }); setBannerPreview(getEventCoverUrl(item.coverPath) || ''); setDirty(false) } }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'No pudimos cargar el evento.')).finally(() => setLoading(false)) }, [eventId, manageableIds, isPlatformAdmin])
   useEffect(() => { if (!eventId && !isPlatformAdmin && !form.communityId && availableCommunities[0]) setForm((current) => ({ ...current, communityId: availableCommunities[0].id })) }, [eventId, form.communityId, availableCommunities, isPlatformAdmin])
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -312,8 +312,8 @@ export function EventEditorPage() {
     setDirty(true)
     setFieldErrors((current) => ({ ...current, location: undefined, meetingUrl: undefined, mapUrl: undefined }))
     setForm((current) => accessMode === 'registration_only'
-      ? { ...current, accessMode, locationType: 'venue', locationPrecision: 'none', locationDepartment: '', locationProvince: '', venueName: '', address: '', mapUrl: '', placeId: '', formattedAddress: '', latitude: null, longitude: null, meetingUrl: '', meetingProvider: 'other' }
-      : { ...current, accessMode })
+      ? { ...current, accessMode, locationType: 'venue', locationPrecision: 'none', locationDepartment: '', locationProvince: '', venueName: '', address: '', mapUrl: '', placeId: '', formattedAddress: '', latitude: null, longitude: null, meetingUrl: '', meetingProvider: 'other', meetingLinkVisibility: 'none' }
+      : { ...current, accessMode, meetingLinkVisibility: 'shared' })
     if (accessMode === 'registration_only' && activeSection === 'location') setActiveSection('registration')
   }
   const updateLocationPrecision = (locationPrecision: EventInput['locationPrecision']) => {
@@ -347,6 +347,12 @@ export function EventEditorPage() {
     setDirty(true)
     setFieldErrors((current) => ({ ...current, location: undefined, meetingUrl: undefined }))
     setForm((current) => ({ ...current, locationType, locationPrecision: locationType === 'online' ? 'none' : current.locationPrecision }))
+  }
+  const updateMeetingLinkVisibility = (meetingLinkVisibility: EventInput['meetingLinkVisibility']) => {
+    if (!meetingLinkVisibility) return
+    setDirty(true)
+    setFieldErrors((current) => ({ ...current, meetingUrl: undefined }))
+    setForm((current) => ({ ...current, meetingLinkVisibility, meetingUrl: meetingLinkVisibility === 'none' ? '' : current.meetingUrl }))
   }
   const updateManualAddress = (address: string) => {
     setDirty(true)
@@ -456,7 +462,7 @@ export function EventEditorPage() {
       else if (firstMissing === 'startsAt' || firstMissing === 'endsAt') setActiveSection('datetime')
       else if (firstMissing === 'registrationUrl') setActiveSection('registration')
       else if (firstMissing === 'location' || firstMissing === 'meetingUrl' || firstMissing === 'mapUrl') setActiveSection('location')
-      setError(status === 'draft' ? 'Para guardar el borrador, selecciona una comunidad o indica el organizador, escribe un título y define la fecha.' : visibility === 'network' ? 'Para publicar solo en la red, escribe un título y define la fecha.' : 'Completa los campos pendientes antes de publicar.')
+      setError(status === 'draft' ? 'Para guardar el borrador, selecciona una comunidad o indica el organizador, escribe un título y define la fecha.' : visibility === 'network' ? 'Completa los campos pendientes antes de publicar solo para la red.' : 'Completa los campos pendientes antes de publicar.')
       return false
     }
     setSaving(true); setError('')
@@ -558,7 +564,7 @@ export function EventEditorPage() {
 
           {activeSection === 'location' && <section className="editor-section" id="editor-location" role="tabpanel" aria-labelledby="editor-tab-location" tabIndex={-1}>
             <fieldset className="editor-choice-group"><legend><FieldLabel required={false}>Modalidad</FieldLabel></legend><div className="choice-grid choice-grid-three">{(['venue', 'online', 'hybrid'] as const).map((locationType) => <ChoiceCard key={locationType} name="locationType" value={locationType} checked={form.locationType === locationType} onChange={() => updateLocationType(locationType)} icon={locationType === 'venue' ? <MapPinned size={19} aria-hidden="true" /> : locationType === 'online' ? <Video size={19} aria-hidden="true" /> : <><MapPinned size={19} aria-hidden="true" /><Video size={17} aria-hidden="true" /></>} label={locationType === 'venue' ? 'Presencial' : locationType === 'online' ? 'Online' : 'Híbrido'} description={locationType === 'venue' ? 'En un lugar físico' : locationType === 'online' ? 'Solo por videollamada' : 'Lugar y videollamada'} />)}</div></fieldset>
-            <p className="editor-inline-note"><CircleAlert size={16} aria-hidden="true" /> La modalidad es obligatoria; la ubicación y los enlaces son opcionales para publicar.</p>
+            <p className="editor-inline-note"><CircleAlert size={16} aria-hidden="true" /> La modalidad es obligatoria. Para publicar, completa la ubicación o elige «No compartir» y decide si compartir el enlace de sesión cuando corresponda.</p>
             {needsPhysicalLocation && <>
               <fieldset className="editor-choice-group"><legend><FieldLabel required={false}>Qué ubicación quieres compartir</FieldLabel></legend><div className="choice-grid choice-grid-three">
                 <ChoiceCard name="location-precision" value="none" checked={form.locationPrecision === 'none'} onChange={() => updateLocationPrecision('none')} icon={<MapPinned size={19} aria-hidden="true" />} label="No compartir" description="La ubicación queda privada" />
@@ -580,11 +586,15 @@ export function EventEditorPage() {
               </div>}
             </>}
             {needsMeetingLink && <div className="access-editor-block">
-              <div className="access-heading"><div><h3><FieldLabel required={needsMeetingLink}>Enlace a la sesión</FieldLabel></h3><p className="field-help">El enlace para conectarse es necesario para publicar eventos online o híbridos con acceso habilitado. Puedes generarlo o pegarlo desde la plataforma que use la comunidad.</p></div></div>
-              <>
+              <fieldset className="editor-choice-group"><legend><FieldLabel required={false}>¿Quieres compartir el enlace de la sesión?</FieldLabel></legend><div className="choice-grid choice-grid-two">
+                <ChoiceCard name="meeting-link-visibility" value="shared" checked={form.meetingLinkVisibility === 'shared'} onChange={() => updateMeetingLinkVisibility('shared')} icon={<Link2 size={19} aria-hidden="true" />} label="Compartir enlace" description="Las personas podrán unirse" />
+                <ChoiceCard name="meeting-link-visibility" value="none" checked={form.meetingLinkVisibility === 'none'} onChange={() => updateMeetingLinkVisibility('none')} icon={<Link2Off size={19} aria-hidden="true" />} label="No compartir enlace" description="El enlace queda privado" />
+              </div></fieldset>
+              {form.meetingLinkVisibility === 'shared' ? <>
+                <div className="access-heading"><div><h3><FieldLabel required>Enlace a la sesión</FieldLabel></h3><p className="field-help">Añade el enlace para conectarse o genéralo desde la plataforma que use la comunidad.</p></div></div>
                 <label className="editor-field meeting-provider-field"><FieldLabel required={false}>Plataforma de conexión</FieldLabel><select value={form.meetingProvider === 'google_meet' ? 'google_meet' : 'other'} onChange={(event) => update('meetingProvider', event.target.value as EventInput['meetingProvider'])}><option value="google_meet">Google Meet · Generar enlace</option><option value="other">Otra plataforma · Pegar enlace manual</option></select></label>
-                {form.meetingProvider === 'google_meet' ? <div className="meeting-connection-panel" aria-label="Enlace para unirse" aria-live="polite"><div><strong>Google Meet</strong><small>{googleMeetConnection.status === 'loading' ? 'Verificando la cuenta conectada…' : googleMeetConnection.status === 'connected' ? `Cuenta conectada: ${googleMeetConnection.email || 'Google'}` : googleMeetConnection.error || 'Puedes conectar Google para crear un enlace, pero no es obligatorio.'}</small></div><div className="meeting-connection-actions">{googleMeetConnection.status === 'connected' ? <button className="secondary-button" type="button" disabled={googleMeetAction !== null} onClick={() => void generateGoogleMeet()}>{googleMeetAction === 'creating' ? 'Creando enlace…' : form.meetingUrl ? 'Regenerar enlace' : 'Generar enlace'}</button> : <button className="secondary-button" type="button" disabled={googleMeetAction !== null || googleMeetConnection.status === 'loading'} onClick={() => void connectGoogleMeet()}>{googleMeetAction === 'connecting' ? 'Conectando…' : 'Conectar Google Meet'}</button>}</div>{!eventId && googleMeetConnection.status === 'connected' && <small className="field-help">Guarda el borrador y vuelve a abrirlo para generar el enlace.</small>}{form.meetingUrl && <a className="meeting-link-preview" href={form.meetingUrl} target="_blank" rel="noreferrer">{form.meetingUrl}</a>}{googleMeetConnection.status === 'error' && <FieldError id="event-meeting-error" message={googleMeetConnection.error} />}</div> : <label className="editor-field"><FieldLabel required={needsMeetingLink}>Enlace para unirse</FieldLabel><input type="url" aria-invalid={Boolean(fieldErrors.meetingUrl)} aria-describedby="event-meeting-help event-meeting-error" value={form.meetingUrl} onChange={(event) => update('meetingUrl', event.target.value)} placeholder="https://…" /><small className="field-help" id="event-meeting-help">Necesario para publicar online o híbridos con acceso habilitado.</small><FieldError id="event-meeting-error" message={fieldErrors.meetingUrl} /></label>}
-              </>
+                {form.meetingProvider === 'google_meet' ? <div className="meeting-connection-panel" aria-label="Enlace para unirse" aria-live="polite"><div><strong>Google Meet</strong><small>{googleMeetConnection.status === 'loading' ? 'Verificando la cuenta conectada…' : googleMeetConnection.status === 'connected' ? `Cuenta conectada: ${googleMeetConnection.email || 'Google'}` : googleMeetConnection.error || 'Puedes conectar Google para crear un enlace.'}</small></div><div className="meeting-connection-actions">{googleMeetConnection.status === 'connected' ? <button className="secondary-button" type="button" disabled={googleMeetAction !== null} onClick={() => void generateGoogleMeet()}>{googleMeetAction === 'creating' ? 'Creando enlace…' : form.meetingUrl ? 'Regenerar enlace' : 'Generar enlace'}</button> : <button className="secondary-button" type="button" disabled={googleMeetAction !== null || googleMeetConnection.status === 'loading'} onClick={() => void connectGoogleMeet()}>{googleMeetAction === 'connecting' ? 'Conectando…' : 'Conectar Google Meet'}</button>}</div>{!eventId && googleMeetConnection.status === 'connected' && <small className="field-help">Guarda el borrador y vuelve a abrirlo para generar el enlace.</small>}{form.meetingUrl && <a className="meeting-link-preview" href={form.meetingUrl} target="_blank" rel="noreferrer">{form.meetingUrl}</a>}{googleMeetConnection.status === 'error' && <FieldError id="event-meeting-error" message={googleMeetConnection.error} />}</div> : <label className="editor-field"><FieldLabel required>Enlace para unirse</FieldLabel><input type="url" aria-invalid={Boolean(fieldErrors.meetingUrl)} aria-describedby="event-meeting-help event-meeting-error" value={form.meetingUrl} onChange={(event) => update('meetingUrl', event.target.value)} placeholder="https://…" /><small className="field-help" id="event-meeting-help">Necesario para publicar cuando eliges compartirlo.</small><FieldError id="event-meeting-error" message={fieldErrors.meetingUrl} /></label>}
+              </> : <p className="editor-inline-note"><Link2Off size={16} aria-hidden="true" /> El enlace de la sesión no se publicará en el evento.</p>}
             </div>}
           </section>}
 

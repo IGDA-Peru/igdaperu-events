@@ -10,7 +10,7 @@ type PublicEventsEnv = {
 }
 
 const CACHE_CONTROL = 'public, max-age=60, s-maxage=120'
-const eventSelect = 'id,slug,community_id,organizer_name,title,description,type,starts_at,ends_at,is_all_day,timezone,location_type,access_mode,location_precision,location_department,location_province,venue_name,address,map_url,formatted_address,meeting_url,meeting_provider,registration_url,cover_path,visibility,status,community:communities(name,slug,status,logo_path,brand_color)'
+const eventSelect = 'id,slug,community_id,organizer_name,title,description,type,starts_at,ends_at,is_all_day,timezone,location_type,access_mode,location_precision,location_department,location_province,venue_name,address,map_url,place_id,formatted_address,latitude,longitude,meeting_url,meeting_provider,meeting_link_visibility,registration_url,cover_path,visibility,status,community:communities(name,slug,status,logo_path,brand_color)'
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -40,17 +40,20 @@ function safeSearch(value: string) {
 
 export const onRequestGet = async ({ request, env, waitUntil }: PagesContext<PublicEventsEnv>) => {
   const requestUrl = new URL(request.url)
+  const slug = requestUrl.searchParams.get('slug') || ''
   const communitySlug = requestUrl.searchParams.get('community') || ''
   const search = safeSearch(requestUrl.searchParams.get('search') || '')
   const upcomingOnly = requestUrl.searchParams.get('upcoming') === '1'
   const parsedLimit = Number(requestUrl.searchParams.get('limit') || '50')
   const limit = Number.isInteger(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 50) : 50
 
+  if (slug && !isSlug(slug)) return jsonResponse({ error: 'El evento no es válido.' }, 400)
   if (communitySlug && !isSlug(communitySlug)) return jsonResponse({ error: 'La comunidad no es válida.' }, 400)
 
   const cacheUrl = new URL(request.url)
   cacheUrl.pathname = '/api/public-events'
   cacheUrl.search = new URLSearchParams({
+    ...(slug ? { slug } : {}),
     ...(communitySlug ? { community: communitySlug } : {}),
     ...(search ? { search } : {}),
     ...(upcomingOnly ? { upcoming: '1' } : {}),
@@ -70,7 +73,8 @@ export const onRequestGet = async ({ request, env, waitUntil }: PagesContext<Pub
     status: 'in.(published,archived)',
     visibility: 'eq.public',
     order: 'starts_at.asc',
-    limit: String(limit),
+    limit: String(slug ? 1 : limit),
+    ...(slug ? { slug: `eq.${slug}` } : {}),
     ...(communitySlug ? { 'community.slug': `eq.${communitySlug}` } : {}),
     ...(search ? { title: `ilike.*${search}*` } : {}),
     ...(upcomingOnly ? { starts_at: `gte.${new Date().toISOString()}` } : {}),
