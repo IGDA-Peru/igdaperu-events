@@ -1,4 +1,4 @@
-import { CalendarDays, Check, ChevronLeft, ChevronRight, CircleAlert, Clipboard, Clock3, Globe2, ImagePlus, Link2, Link2Off, LockKeyhole, Mail, MapPinned, Plus, RefreshCw, Save, Search, Send, Shield, UserPlus, Users, Video, X } from 'lucide-react'
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Clipboard, Clock3, Globe2, ImagePlus, Link2, Link2Off, LockKeyhole, Mail, MapPinned, Plus, RefreshCw, Save, Search, Send, Shield, UserPlus, Users, Video, X } from 'lucide-react'
 import type { ChangeEvent, FormEvent, MouseEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
@@ -48,6 +48,46 @@ function canDeleteEvent(event: EventItem, memberships: Pick<Membership, 'communi
   return isPlatformAdmin || memberships.some((membership) => membership.communityId === event.communityId && membership.role === 'community_admin')
 }
 
+function sortManagedEvents(events: EventItem[]) {
+  return [...events].sort((first, second) => {
+    const firstPast = isEventPast(first)
+    const secondPast = isEventPast(second)
+    if (firstPast !== secondPast) return firstPast ? 1 : -1
+    const firstTime = first.startsAt ? new Date(first.startsAt).getTime() : Number.MAX_SAFE_INTEGER
+    const secondTime = second.startsAt ? new Date(second.startsAt).getTime() : Number.MAX_SAFE_INTEGER
+    return firstTime - secondTime
+  })
+}
+
+function splitManagedEvents(events: EventItem[]) {
+  return {
+    active: sortManagedEvents(events.filter((event) => event.status !== 'archived')),
+    archived: sortManagedEvents(events.filter((event) => event.status === 'archived')),
+  }
+}
+
+function ManagedEventSections({ events, onEventOpen, onArchive, onDelete, memberships, isPlatformAdmin }: { events: EventItem[]; onEventOpen: (event: EventItem) => void; onArchive: (event: EventItem) => void; onDelete: (event: EventItem) => void; memberships: Membership[]; isPlatformAdmin: boolean }) {
+  const { active, archived } = splitManagedEvents(events)
+  const upcoming = active.filter((event) => !isEventPast(event))
+  const past = active.filter((event) => isEventPast(event))
+  const renderCard = (event: EventItem) => <EventCard event={event} compact onOpen={() => onEventOpen(event)} panelActions={{ onArchive: () => onArchive(event), onDelete: () => onDelete(event), canDelete: canDeleteEvent(event, memberships, isPlatformAdmin) }} key={event.id} />
+
+  return <div className="managed-event-sections">
+    {active.length > 0 && <section className="managed-event-section" aria-labelledby="managed-active-events-title">
+      <div className="managed-section-heading"><div><h2 id="managed-active-events-title">Eventos activos</h2><p>Próximos eventos y eventos pasados que aún no has archivado.</p></div><span className="admin-section-count">{active.length}</span></div>
+      <div className="managed-event-list">
+        {upcoming.map(renderCard)}
+        {past.length > 0 && <div className="event-list-divider" role="separator" aria-label="Eventos activos que ya pasaron"><span>Eventos que ya pasaron</span></div>}
+        {past.map(renderCard)}
+      </div>
+    </section>}
+    {archived.length > 0 && <section className="managed-event-section" aria-labelledby="managed-archived-events-title">
+      <div className="managed-section-heading"><div><h2 id="managed-archived-events-title">Eventos archivados</h2><p>Estos eventos quedan fuera de la lista activa, pero puedes revisarlos o eliminarlos.</p></div><span className="admin-section-count">{archived.length}</span></div>
+      <div className="managed-event-list">{archived.map(renderCard)}</div>
+    </section>}
+  </div>
+}
+
 export function DashboardPage() {
   const { user, profile, memberships, roles, configured } = useAuth()
   const [events, setEvents] = useState<EventItem[]>([])
@@ -64,6 +104,7 @@ export function DashboardPage() {
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const [message, setMessage] = useState('')
   const [actionError, setActionError] = useState('')
+  const managedEventGroups = useMemo(() => splitManagedEvents(events), [events])
   useEffect(() => {
     void listManagedEvents(manageableIds ? manageableIds.split(',') : [], isPlatformAdmin).then(setEvents).finally(() => setLoading(false))
   }, [manageableIds, isPlatformAdmin])
@@ -94,22 +135,27 @@ export function DashboardPage() {
       {!configured && <div className="setup-panel"><Shield size={22} /><div><strong>Supabase aún no está conectado</strong><p>El panel está listo, pero necesitas configurar las variables de entorno para activar tus datos y permisos reales.</p></div></div>}
       <div className="dashboard-grid dashboard-grid--with-chat">
         <aside className="dashboard-sidebar">
-          <div className="dashboard-community-panel">
-            <div className="dashboard-welcome"><span className="dashboard-kicker">{communityScoped ? 'Tu comunidad' : 'Tus comunidades'}</span><h1>{profile?.displayName ? `Hola, ${profile.displayName}` : communityScoped ? 'Tu comunidad' : 'Hola'}</h1></div>
-            {visibleMemberships.length ? <div className="membership-list">{visibleMemberships.map((membership) => <div className="membership-row" key={membership.communityId}><span className="membership-avatar"><Users size={18} /></span><span><strong>{membership.communityName}</strong><small>{roleLabel(membership.role)}</small></span></div>)}</div> : <p className="muted-copy">Aún no tienes permisos de gestión. Puedes seguir consultando los eventos de la red.</p>}
-            {canManageCommunity && <>
-              <button className="secondary-button full dashboard-invite-button" type="button" onClick={() => setInviteOpen(true)}><UserPlus size={17} /> {isPlatformAdmin ? 'Invitar persona' : 'Invitar editor'}</button>
-              <Link className="secondary-button full" to="/app/comunidad">{isPlatformAdmin ? 'Gestionar comunidades' : 'Gestionar comunidad'}</Link>
-            </>}
-            {roles.includes('platform_admin') && <Link className="secondary-button full" to="/app/admin">Administración IGDA</Link>}
-          </div>
-          <ConversationSummary canChat={canManage} />
+          <details className="dashboard-sidebar-disclosure" open>
+            <summary className="dashboard-sidebar-summary" aria-label="Mostrar u ocultar comunidades y conversaciones"><span><small className="dashboard-kicker">Panel lateral</small><strong>Comunidades y conversaciones</strong></span><ChevronDown size={19} aria-hidden="true" /></summary>
+            <div className="dashboard-sidebar-content">
+              <div className="dashboard-community-panel">
+                <div className="dashboard-welcome"><span className="dashboard-kicker">{communityScoped ? 'Tu comunidad' : 'Tus comunidades'}</span><h1>{profile?.displayName ? `Hola, ${profile.displayName}` : communityScoped ? 'Tu comunidad' : 'Hola'}</h1></div>
+                {visibleMemberships.length ? <div className="membership-list">{visibleMemberships.map((membership) => <div className="membership-row" key={membership.communityId}><span className="membership-avatar"><Users size={18} /></span><span><strong>{membership.communityName}</strong><small>{roleLabel(membership.role)}</small></span></div>)}</div> : <p className="muted-copy">Aún no tienes permisos de gestión. Puedes seguir consultando los eventos de la red.</p>}
+                {canManageCommunity && <>
+                  <button className="secondary-button full dashboard-invite-button" type="button" onClick={() => setInviteOpen(true)}><UserPlus size={17} /> {isPlatformAdmin ? 'Invitar persona' : 'Invitar editor'}</button>
+                  <Link className="secondary-button full" to="/app/comunidad">{isPlatformAdmin ? 'Gestionar comunidades' : 'Gestionar comunidad'}</Link>
+                </>}
+                {roles.includes('platform_admin') && <Link className="secondary-button full" to="/app/admin">Administración IGDA</Link>}
+              </div>
+              <ConversationSummary canChat={canManage} />
+            </div>
+          </details>
         </aside>
         <section className="dashboard-main">
           <div className="dashboard-panel-heading"><div><PanelEventSwitcher active="managed" /><h2>Tus eventos</h2></div><div className="dashboard-panel-actions">{canManage && <Link className="primary-button" to="/app/eventos/nuevo"><Plus size={17} /> Nuevo evento</Link>}</div></div>
           {message && <p className="form-message success">{message}</p>}
           {actionError && <p className="form-message error">{actionError}</p>}
-          {loading ? <LoadingState label="Cargando tus eventos" /> : events.length ? <><div className="event-list">{events.slice(0, 5).map((event) => <EventCard event={event} compact onOpen={() => setSelectedEvent(event)} panelActions={{ onArchive: () => void archive(event), onDelete: () => void remove(event), canDelete: canDeleteEvent(event, memberships, isPlatformAdmin) }} key={event.id} />)}</div><div className="dashboard-events-footer"><Link className="secondary-button" to="/app/eventos">Ver todos los eventos</Link></div></> : <EmptyEvents authenticated />}
+          {loading ? <LoadingState label="Cargando tus eventos" /> : managedEventGroups.active.length ? <><div className="event-list">{managedEventGroups.active.slice(0, 5).map((event) => <EventCard event={event} compact onOpen={() => setSelectedEvent(event)} panelActions={{ onArchive: () => void archive(event), onDelete: () => void remove(event), canDelete: canDeleteEvent(event, memberships, isPlatformAdmin) }} key={event.id} />)}</div><div className="dashboard-events-footer"><Link className="secondary-button" to="/app/eventos">Ver todos los eventos</Link></div></> : <EmptyEvents authenticated />}
         </section>
       </div>
       {user && <p className="account-caption">Sesión iniciada como {user.email}</p>}
@@ -133,7 +179,7 @@ export function ManagedEventsPage() {
   useEffect(load, [manageableIds, isPlatformAdmin])
   const archive = async (event: EventItem) => { setActionError(''); try { await archiveEvent(event.id); setMessage('Evento archivado.'); load() } catch (reason: unknown) { setActionError(reason instanceof Error ? reason.message : 'No pudimos archivar el evento.') } }
   const remove = async (event: EventItem) => { if (!window.confirm(`¿Eliminar “${event.title}”? Esta acción no se puede deshacer.`)) return; setActionError(''); try { await deleteEvent(event.id); setMessage('Evento eliminado.'); load() } catch (reason: unknown) { setActionError(reason instanceof Error ? reason.message : 'No pudimos eliminar el evento.') } }
-  return <div className="dashboard-page"><PanelEventSwitcher active="managed" /><PanelTitle title="Tus eventos" description="Crea, publica y actualiza los eventos de tus comunidades." action={<Link className="primary-button" to="/app/eventos/nuevo"><Plus size={17} /> Nuevo evento</Link>} />{message && <p className="form-message success">{message}</p>}{actionError && <p className="form-message error">{actionError}</p>}{loading ? <LoadingState label="Cargando eventos" /> : events.length ? <div className="managed-event-list">{events.map((event) => <EventCard event={event} compact onOpen={() => setSelectedEvent(event)} panelActions={{ onArchive: () => void archive(event), onDelete: () => void remove(event), canDelete: canDeleteEvent(event, memberships, isPlatformAdmin) }} key={event.id} />)}</div> : <EmptyEvents authenticated />}<EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" /></div>
+  return <div className="dashboard-page"><PanelEventSwitcher active="managed" /><PanelTitle title="Tus eventos" description="Crea, publica y actualiza los eventos de tus comunidades." action={<Link className="primary-button" to="/app/eventos/nuevo"><Plus size={17} /> Nuevo evento</Link>} />{message && <p className="form-message success">{message}</p>}{actionError && <p className="form-message error">{actionError}</p>}{loading ? <LoadingState label="Cargando eventos" /> : events.length ? <ManagedEventSections events={events} onEventOpen={setSelectedEvent} onArchive={archive} onDelete={remove} memberships={memberships} isPlatformAdmin={isPlatformAdmin} /> : <EmptyEvents authenticated />}<EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" /></div>
 }
 
 export function CommunityEventsPage() {
@@ -821,14 +867,54 @@ function CommunityInviteForm({ community }: { community: Community }) {
     }
   }
   const copy = async () => { if (inviteUrl) await navigator.clipboard.writeText(inviteUrl) }
-  return <section className="settings-section community-inline-invite-section">
-    <h2>Invitar editor</h2>
+  return <section className="community-inline-invite-section" aria-labelledby="community-invite-editor-title">
+    <h2 id="community-invite-editor-title">Invitar editor</h2>
     <p className="muted-copy">Ingresa el correo de la persona que tendrá permisos para crear y actualizar eventos de {community.name}.</p>
     <form className="invite-form community-inline-invite-form" onSubmit={(event) => void invite(event)}><label>Correo electrónico<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="persona@ejemplo.com" /></label><TurnstileWidget action="create-invitation" value={turnstileToken} onChange={setTurnstileToken} resetSignal={turnstileResetSignal} /><button className="primary-button" type="submit" disabled={loading}><Mail size={16} /> {loading ? 'Enviando…' : 'Enviar invitación'}</button></form>
     {error && <FormError message={error} />}
     {message && <p className="form-message success">{message}</p>}
     {inviteUrl && <div className="invite-result"><input readOnly value={inviteUrl} aria-label="Enlace de invitación" /><button className="icon-button" type="button" onClick={() => void copy()} aria-label="Copiar invitación"><Clipboard size={17} /></button></div>}
   </section>
+}
+
+function buildCommunityEmbedCode(community: Community, variant: 'calendar' | 'cards') {
+  const path = variant === 'calendar' ? '/embed' : '/embed/inicio'
+  const url = new URL(path, window.location.origin)
+  url.searchParams.set('community', community.slug)
+  if (variant === 'cards') url.searchParams.set('embedded', '1')
+  const title = `Eventos de ${community.name}`.replaceAll('"', '&quot;')
+  const height = variant === 'calendar' ? 900 : 600
+
+  return `<iframe
+  src="${url.toString()}"
+  title="${title}"
+  width="100%"
+  height="${height}"
+  style="border: 0;"
+  loading="lazy"
+></iframe>`
+}
+
+function CommunityEmbedCode({ title, description, code }: { title: string; description: string; code: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const copyCode = async () => {
+    if (!navigator.clipboard?.writeText) return
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(true)
+    } catch {
+      setCopied(false)
+    }
+  }
+
+  return <article className="community-embed-code-card">
+    <div className="community-embed-code-heading">
+      <div><h3>{title}</h3><p>{description}</p></div>
+      <button className="secondary-button community-embed-copy-button" type="button" onClick={() => void copyCode()}><Clipboard size={15} /> {copied ? 'Copiado' : 'Copiar código'}</button>
+    </div>
+    <textarea className="community-embed-code-field" readOnly value={code} rows={8} aria-label={`Código del embed: ${title}`} />
+  </article>
 }
 
 export function CommunitySettingsPage() {
@@ -839,7 +925,7 @@ export function CommunitySettingsPage() {
   const [communities, setCommunities] = useState<Community[]>([])
   const [communityId, setCommunityId] = useState('')
   const [community, setCommunity] = useState<Community | null>(null)
-  const [activeSection, setActiveSection] = useState<'members' | 'public'>('members')
+  const [activeSection, setActiveSection] = useState<'members' | 'public' | 'integration'>('members')
   const [communityMembers, setCommunityMembers] = useState<CommunityMember[]>([])
   const [memberLoading, setMemberLoading] = useState(false)
   const [memberError, setMemberError] = useState('')
@@ -965,28 +1051,36 @@ export function CommunitySettingsPage() {
   }
   if (!communities.length) return <div className="dashboard-page narrow-page community-settings-page"><div className="empty-state"><Users size={30} aria-hidden="true" /><h3>{isPlatformAdmin ? 'No hay comunidades aprobadas' : 'No tienes comunidades administrables'}</h3><p>{isPlatformAdmin ? 'Aprueba una comunidad desde Administración IGDA para gestionar sus accesos.' : 'Cuando una comunidad te asigne permisos de administración, aparecerá aquí.'}</p></div></div>
   if (!community) return <LoadingState label="Cargando comunidad" />
+  const calendarEmbedCode = buildCommunityEmbedCode(community, 'calendar')
+  const cardsEmbedCode = buildCommunityEmbedCode(community, 'cards')
   return <div className="dashboard-page narrow-page community-settings-page">
-    <section className="community-selector-panel" aria-label="Seleccionar comunidad">
+    <div className="community-settings-page-actions">
+      <Link className="secondary-button" to="/app"><ChevronLeft size={16} /> Volver al panel</Link>
+    </div>
+    {isPlatformAdmin && <section className="community-selector-panel" aria-label="Seleccionar comunidad">
       <label className="community-selector" htmlFor="managed-community">Comunidad<select id="managed-community" value={communityId} onChange={(event) => setCommunityId(event.target.value)}>{communities.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
-    </section>
+    </section>}
     <section className="settings-section community-content-section" aria-label="Contenido de la comunidad">
       <div className="community-view-switch" role="tablist" aria-label="Secciones de la comunidad">
-        <button type="button" role="tab" aria-selected={activeSection === 'public'} aria-controls="community-public-panel" onClick={() => setActiveSection('public')}>Información pública</button>
-        <button type="button" role="tab" aria-selected={activeSection === 'members'} aria-controls="community-members-panel" onClick={() => setActiveSection('members')}>Correos registrados</button>
-      </div>
-      {activeSection === 'members' ? <div className="community-tab-content" id="community-members-panel" role="tabpanel" aria-label="Correos registrados">
-        <div className="community-panel-heading"><div><h2>Correos registrados</h2><p className="muted-copy">Accesos activos e invitaciones pendientes. No mostramos nombres ni contraseñas.</p></div><span className="member-count" aria-label={`${communityMembers.length} correos registrados`}>{communityMembers.length}</span></div>
-        {memberLoading && <LoadingState label="Cargando correos" />}
-        {memberError && <FormError message={memberError} />}
-        {!memberLoading && !memberError && (communityMembers.length ? <ul className="member-email-list">{communityMembers.map((member) => { const actionId = member.invitationId || member.membershipId; const removable = canRemoveCommunityMember(member, isPlatformAdmin); return <li className="member-email-row" key={actionId || member.email}><Mail size={16} aria-hidden="true" /><span className="member-email-content"><a className="member-email-link" href={`mailto:${member.email}`}>{member.email}</a><small className="member-email-meta">{member.status === 'invited' ? 'Invitación pendiente' : 'Acceso activo'} · {roleLabel(member.role)}</small></span>{removable && <button className="icon-button danger" type="button" disabled={memberActionId === actionId} onClick={() => void removeMember(member)} aria-label={member.status === 'invited' ? `Cancelar invitación a ${member.email}` : `Revocar acceso de ${member.email}`}>{memberActionId === actionId ? <RefreshCw size={16} className="spin" /> : <X size={16} />}</button>}</li> })}</ul> : <div className="members-empty"><Mail size={24} aria-hidden="true" /><p>Aún no hay personas registradas en esta comunidad.</p></div>)}
-      </div> : <div className="community-tab-content" id="community-public-panel" role="tabpanel" aria-label="Información pública">
+         <button type="button" role="tab" aria-selected={activeSection === 'public'} aria-controls="community-public-panel" onClick={() => setActiveSection('public')}>Información pública</button>
+         <button type="button" role="tab" aria-selected={activeSection === 'members'} aria-controls="community-members-panel" onClick={() => setActiveSection('members')}>Miembros</button>
+         <button type="button" role="tab" aria-selected={activeSection === 'integration'} aria-controls="community-integration-panel" onClick={() => setActiveSection('integration')}>Integración</button>
+       </div>
+       {activeSection === 'members' ? <div className="community-tab-content" id="community-members-panel" role="tabpanel" aria-label="Miembros">
+         {!isPlatformAdmin && <CommunityInviteForm community={community} />}
+         <div className="community-panel-heading"><div><h2>Miembros</h2><p className="muted-copy">Accesos activos e invitaciones pendientes. No mostramos nombres ni contraseñas.</p></div><span className="member-count" aria-label={`${communityMembers.length} miembros`}>{communityMembers.length}</span></div>
+         {memberLoading && <LoadingState label="Cargando miembros" />}
+         {memberError && <FormError message={memberError} />}
+         {!memberLoading && !memberError && (communityMembers.length ? <ul className="member-email-list">{communityMembers.map((member) => { const actionId = member.invitationId || member.membershipId; const removable = canRemoveCommunityMember(member, isPlatformAdmin); return <li className="member-email-row" key={actionId || member.email}><Mail size={16} aria-hidden="true" /><span className="member-email-content"><a className="member-email-link" href={`mailto:${member.email}`}>{member.email}</a><small className="member-email-meta">{member.status === 'invited' ? 'Invitación pendiente' : 'Acceso activo'} · {roleLabel(member.role)}</small></span>{removable && <button className="icon-button danger" type="button" disabled={memberActionId === actionId} onClick={() => void removeMember(member)} aria-label={member.status === 'invited' ? `Cancelar invitación a ${member.email}` : `Revocar acceso de ${member.email}`}>{memberActionId === actionId ? <RefreshCw size={16} className="spin" /> : <X size={16} />}</button>}</li> })}</ul> : <div className="members-empty"><Mail size={24} aria-hidden="true" /><p>Aún no hay personas registradas en esta comunidad.</p></div>)}
+       </div> : activeSection === 'integration' ? <div className="community-tab-content" id="community-integration-panel" role="tabpanel" aria-label="Integración">
+         <div className="community-panel-heading"><div><h2>Integración</h2><p className="muted-copy">Copia el código que necesites para mostrar los eventos de {community.name} en otra página.</p></div></div>
+         <div className="community-embed-code-list">
+           <CommunityEmbedCode key={calendarEmbedCode} title="Vista de calendario" description="Muestra la agenda completa en formato calendario." code={calendarEmbedCode} />
+           <CommunityEmbedCode key={cardsEmbedCode} title="Vista simple de tarjetas" description="Muestra los próximos eventos en tarjetas compactas." code={cardsEmbedCode} />
+         </div>
+         <p className="community-embed-admin-note"><Shield size={17} aria-hidden="true" /><span>Comparte el código elegido con el administrador de IGDA Perú. Debe habilitar el dominio de la página donde se insertará el embed para que pueda mostrarse correctamente.</span></p>
+       </div> : <div className="community-tab-content" id="community-public-panel" role="tabpanel" aria-label="Información pública">
         <div className="community-panel-heading"><div><h2>Información pública</h2><p className="muted-copy">Estos datos vienen heredados desde Google Sheets y son de solo lectura, excepto el logo y el color visual.</p></div><span className="readonly-badge">Solo lectura</span></div>
-        <dl className="public-info-grid">
-          <div><dt>Nombre</dt><dd>{community.name}</dd></div>
-          <div><dt>Descripción</dt><dd>{community.description || 'Sin descripción registrada.'}</dd></div>
-          {community.websiteUrl && <div><dt>Sitio web</dt><dd><a href={community.websiteUrl} target="_blank" rel="noreferrer">{community.websiteUrl}</a></dd></div>}
-          {community.discordUrl && <div><dt>Discord</dt><dd><a href={community.discordUrl} target="_blank" rel="noreferrer">{community.discordUrl}</a></dd></div>}
-        </dl>
         <div className="community-logo-editor">
           <CommunityLogo path={logoPreview || community.logoPath} name={community.name} color={brandColorDraft} size="large" />
           <div className="community-logo-copy"><h3>Logo de la comunidad</h3><p className="muted-copy">Este es el único dato editable desde el panel. Usa una imagen cuadrada en formato JPG, PNG o WebP.</p><label className="logo-file-field">Seleccionar logo<input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Logo de la comunidad" onChange={(event) => void handleLogoChange(event)} /></label>{logoPreview && <button className="primary-button logo-save-button" type="button" disabled={logoUploading} onClick={() => void saveLogo()}>{logoUploading ? 'Actualizando…' : 'Actualizar logo'}</button>}{logoError && <FormError message={logoError} />}{logoMessage && <p className="form-message success" role="status">{logoMessage}</p>}<small className="field-help">Proporción obligatoria 1:1 · se optimiza automáticamente · máximo 1024 × 1024 px.</small></div>
@@ -1001,9 +1095,14 @@ export function CommunitySettingsPage() {
           {brandColorError && <FormError message={brandColorError} />}
           {brandColorMessage && <p className="form-message success" role="status">{brandColorMessage}</p>}
         </div>
-      </div>}
+        <dl className="public-info-grid">
+          <div><dt>Nombre</dt><dd>{community.name}</dd></div>
+          <div><dt>Descripción</dt><dd>{community.description || 'Sin descripción registrada.'}</dd></div>
+          {community.websiteUrl && <div><dt>Sitio web</dt><dd><a href={community.websiteUrl} target="_blank" rel="noreferrer">{community.websiteUrl}</a></dd></div>}
+          {community.discordUrl && <div><dt>Discord</dt><dd><a href={community.discordUrl} target="_blank" rel="noreferrer">{community.discordUrl}</a></dd></div>}
+        </dl>
+       </div>}
     </section>
-    {!isPlatformAdmin && <CommunityInviteForm community={community} />}
   </div>
 }
 

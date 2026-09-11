@@ -111,4 +111,12 @@ describe('EventCard visibility', () => {
     expect(screen.getByText('Ya pasó')).toBeInTheDocument()
     expect(document.querySelector('.past-event')).toBeInTheDocument()
   })
+
+  it('keeps the archived state visible when an archived event is also past', () => {
+    render(<MemoryRouter><EventCard event={{ ...event, status: 'archived', startsAt: '2026-08-19T19:00:00-05:00', endsAt: '2026-08-19T21:00:00-05:00' }} compact panelActions={{ onArchive: vi.fn(), onDelete: vi.fn() }} /></MemoryRouter>)
+
+    expect(screen.getByText('Archivado')).toBeInTheDocument()
+    expect(screen.queryByText('Ya pasó')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Evento de prueba ya está archivado' })).toBeDisabled()
+  })
 })

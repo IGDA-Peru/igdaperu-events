@@ -1,4 +1,4 @@
-import { ChevronRight, Code2, ExternalLink, Gamepad2, Users } from 'lucide-react'
+import { ChevronDown, ChevronRight, Code2, Eye, ExternalLink, Gamepad2, PencilLine, Users } from 'lucide-react'
 import { CalendarDays, CheckCircle2, Clock3, Link2, MapPin, Send, UserRound } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
@@ -268,6 +268,40 @@ function CommunityRail({ communities }: { communities: Pick<Community, 'id' | 's
   )
 }
 
+type AgendaMode = 'editor' | 'public'
+
+function initialAgendaModePanelOpen() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true
+  return !window.matchMedia('(max-width: 1100px)').matches
+}
+
+function AgendaModeToggle({ value, onChange, open, onToggle }: { value: AgendaMode; onChange: (mode: AgendaMode) => void; open: boolean; onToggle: () => void }) {
+  return (
+    <div className={`agenda-mode-shell ${open ? 'is-open' : ''}`}>
+      <button className="agenda-mode-trigger" type="button" aria-expanded={open} aria-controls="agenda-mode-panel" onClick={onToggle}>
+        <Eye size={17} aria-hidden="true" />
+        <span>Visualización</span>
+        <ChevronDown size={16} aria-hidden="true" />
+      </button>
+      <aside id="agenda-mode-panel" className="agenda-mode-toggle" aria-labelledby="agenda-mode-title">
+        <div className="agenda-mode-heading">
+          <span id="agenda-mode-title" className="agenda-mode-kicker">Visualización</span>
+        </div>
+        <div className="agenda-mode-control" role="group" aria-label="Modo de visualización">
+          <button className={`agenda-mode-option ${value === 'editor' ? 'selected' : ''}`} type="button" aria-pressed={value === 'editor'} onClick={() => onChange('editor')}>
+            <PencilLine size={16} aria-hidden="true" />
+            <span>Modo editor</span>
+          </button>
+          <button className={`agenda-mode-option ${value === 'public' ? 'selected' : ''}`} type="button" aria-pressed={value === 'public'} onClick={() => onChange('public')}>
+            <Eye size={16} aria-hidden="true" />
+            <span>Modo público</span>
+          </button>
+        </div>
+      </aside>
+    </div>
+  )
+}
+
 function getRecentCommunities(events: EventItem[]) {
   const latestByCommunity = new Map<string, { id: string; slug: string; name: string; logoPath?: string | null; brandColor?: string | null; latestAt: string }>()
   events.forEach((event) => {
@@ -289,8 +323,11 @@ export function PublicAgendaPage() {
   const [locationFilter, setLocationFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<EventViewMode>('cards')
+  const [agendaMode, setAgendaMode] = useState<AgendaMode>('editor')
+  const [modePanelOpen, setModePanelOpen] = useState(initialAgendaModePanelOpen)
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
-  const { events, loading, error } = useEvents({ network: Boolean(user) })
+  const editorMode = Boolean(user && agendaMode === 'editor')
+  const { events, loading, error } = useEvents({ network: editorMode })
   const sharedEventKey = searchParams.get('evento')
 
   useEffect(() => {
@@ -314,16 +351,18 @@ export function PublicAgendaPage() {
   return (
     <div className="page-wrap page-wrap--events">
       {!configured && <DemoNotice />}
-      {user && <div className="events-network-label"><span className="network-label">Público y privado</span></div>}
       <div className="content-grid">
         <section className="events-section" aria-labelledby="upcoming-title">
           <div className="section-heading-row"><h2 id="upcoming-title">Próximos eventos</h2><EventViewSwitcher value={viewMode} onChange={setViewMode} /></div>
           <EventFilters timeFilter={timeFilter} locationFilter={locationFilter} search={search} onTimeChange={setTimeFilter} onLocationChange={setLocationFilter} onSearchChange={setSearch} />
           {loading && <LoadingState />}
           {error && <ErrorState message={error} />}
-          {!loading && !error && <EventResults events={visibleEvents} viewMode={viewMode} showVisibility={Boolean(user)} onEventOpen={setSelectedEvent} showViewLabel={false} />}
+          {!loading && !error && <EventResults events={visibleEvents} viewMode={viewMode} showVisibility={editorMode} onEventOpen={setSelectedEvent} showViewLabel={false} />}
         </section>
-        <CommunityRail communities={recentCommunities} />
+        <div className="events-sidebar">
+          <CommunityRail communities={recentCommunities} />
+          {user && <AgendaModeToggle value={agendaMode} onChange={setAgendaMode} open={modePanelOpen} onToggle={() => setModePanelOpen((current) => !current)} />}
+        </div>
       </div>
       <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" />
     </div>
