@@ -7,11 +7,11 @@ import { EventCard, EmptyEvents } from '../components/EventCard'
 import { DemoNotice, ErrorState, LoadingState } from '../components/Feedback'
 import { EventPreviewDrawer } from '../components/EventPreviewDrawer'
 import { CommunityLogo } from '../components/CommunityLogo'
-import { EventFilters } from '../components/EventFilters'
+import { EventFilters, EventSearchField } from '../components/EventFilters'
 import { TurnstileWidget } from '../components/TurnstileWidget'
 import { EventFocusButton, EventResults, EventViewSwitcher, type EventFocusRequest } from '../components/EventViews'
 import type { EventViewMode } from '../components/eventViewModes'
-import { filterEvents, type TimeFilter } from '../lib/eventFilters'
+import { filterEvents, type CommunityFilterOption, type TimeFilter } from '../lib/eventFilters'
 import { eventTypeOptions, isStandardEventType } from '../lib/eventTypes'
 import { findNextEvent } from '../lib/eventFocus'
 import { isSupabaseConfigured } from '../lib/supabase'
@@ -322,6 +322,7 @@ export function PublicAgendaPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
   const [locationFilter, setLocationFilter] = useState('all')
+  const [communityFilter, setCommunityFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<EventViewMode>('cards')
   const [agendaMode, setAgendaMode] = useState<AgendaMode>('editor')
@@ -347,18 +348,37 @@ export function PublicAgendaPage() {
     return filterEvents(events, { search, timeFilter, locationFilter })
   }, [events, locationFilter, search, timeFilter])
 
+  const communityOptions = useMemo<CommunityFilterOption[]>(() => {
+    const options = new Map<string, CommunityFilterOption>()
+    events.forEach((event) => {
+      if (event.communityId && event.communityName) options.set(event.communityId, { value: event.communityId, label: event.communityName })
+      if (!event.communityId) options.set('__independent__', { value: '__independent__', label: 'Eventos independientes' })
+    })
+    return [...options.values()].sort((first, second) => first.label.localeCompare(second.label, 'es'))
+  }, [events])
+
   const recentCommunities = useMemo(() => getRecentCommunities(events), [events])
 
   return (
     <div className="page-wrap page-wrap--events">
       {!configured && <DemoNotice />}
       <div className="content-grid">
-        <section className="events-section" aria-labelledby="upcoming-title">
-          <div className="section-heading-row"><h2 id="upcoming-title">Próximos eventos</h2><EventViewSwitcher value={viewMode} onChange={setViewMode} /></div>
-          <EventFilters timeFilter={timeFilter} locationFilter={locationFilter} search={search} onTimeChange={setTimeFilter} onLocationChange={setLocationFilter} onSearchChange={setSearch} />
+        <section className="events-section" aria-label="Próximos eventos">
           {loading && <LoadingState />}
           {error && <ErrorState message={error} />}
-          {!loading && !error && <EventResults events={visibleEvents} viewMode={viewMode} showVisibility={editorMode} onEventOpen={setSelectedEvent} showViewLabel={false} />}
+          {!loading && !error && <EventResults
+            events={visibleEvents}
+            viewMode={viewMode}
+            showVisibility={editorMode}
+            onEventOpen={setSelectedEvent}
+            showViewLabel={false}
+            communityFilter={communityFilter}
+            communityOptions={communityOptions}
+            onCommunityFilterChange={setCommunityFilter}
+            toolbarCenter={<EventViewSwitcher value={viewMode} onChange={setViewMode} />}
+            toolbarEnd={<EventSearchField search={search} onSearchChange={setSearch} />}
+            contentBefore={viewMode === 'cards' ? <EventFilters timeFilter={timeFilter} locationFilter={locationFilter} communityFilter={communityFilter} communityOptions={communityOptions} search={search} onTimeChange={setTimeFilter} onLocationChange={setLocationFilter} onCommunityChange={setCommunityFilter} onSearchChange={setSearch} showSearch={false} /> : null}
+          />}
         </section>
         <div className="events-sidebar">
           <CommunityRail communities={recentCommunities} />

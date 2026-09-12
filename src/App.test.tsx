@@ -32,17 +32,28 @@ describe('public events', () => {
 
   it('shows public events using the local demo fallback', async () => {
     render(<App />)
-    expect(screen.getByRole('heading', { name: 'Próximos eventos' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Próximos eventos' })).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Próximos eventos' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Agenda IGDA Perú' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Publicar evento/ })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /Ver Diseño de niveles/ }).length).toBeGreaterThan(0))
     expect(screen.getByRole('combobox', { name: 'Tiempo' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Lugar' })).toBeInTheDocument()
+    const communitySelect = screen.getByRole('combobox', { name: 'Comunidad' })
+    expect(communitySelect).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: demoEvents[0].communityName })).toBeInTheDocument()
+    expect(document.querySelectorAll('.event-results .filter-control')).toHaveLength(3)
     expect(screen.getByRole('combobox', { name: 'Lugar' })).toHaveValue('all')
     expect(screen.queryByRole('option', { name: 'Todos los departamentos del Perú' })).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Internacional' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Lima' })).not.toBeInTheDocument()
-    await waitFor(() => expect(screen.getAllByRole('button', { name: /Ver Diseño de niveles/ }).length).toBeGreaterThan(0))
     expect(screen.getByText(/Vista de demostración/)).toBeInTheDocument()
+    fireEvent.change(communitySelect, { target: { value: demoEvents[0].communityId } })
+    expect(screen.getByRole('button', { name: demoEvents[0].title })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: demoEvents[1].title })).not.toBeInTheDocument()
+    const eventsToolbar = document.querySelector('.event-results-toolbar')
+    expect(eventsToolbar?.querySelector('.event-focus-button')).toBeInTheDocument()
+    expect(eventsToolbar?.querySelector('[aria-label="Vista de eventos"]')).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: /Comunidades/ }).length).toBeGreaterThan(0)
     expect(document.querySelector('.community-arrow')).not.toBeInTheDocument()
 
@@ -54,10 +65,40 @@ describe('public events', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar vista previa' }))
     expect(screen.queryByRole('dialog', { name: /Diseño de niveles/ })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Calendario' }))
-    expect(screen.getByRole('region', { name: /Calendario/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Mes anterior' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Diseño de niveles/ }))
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'Calendario' }))
+      expect(screen.getByRole('region', { name: /Calendario/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Mes anterior' })).toBeInTheDocument()
+      expect(screen.queryByRole('combobox', { name: 'Tiempo' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('combobox', { name: 'Lugar' })).not.toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: 'Buscar eventos' })).toBeInTheDocument()
+      const calendarToolbar = document.querySelector('.event-results-toolbar')
+      expect(calendarToolbar?.querySelector('.event-results-toolbar-start .event-focus-button')).toBeInTheDocument()
+      expect(calendarToolbar?.querySelector('.event-results-toolbar-center [aria-label="Vista de eventos"]')).toBeInTheDocument()
+      expect(calendarToolbar?.querySelector('.event-results-toolbar-end .search-field')).toBeInTheDocument()
+      expect(screen.getByRole('combobox', { name: 'Comunidad' })).toHaveValue(demoEvents[0].communityId)
+      expect(scrollIntoView).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: 'Línea de tiempo' }))
+      expect(screen.getByRole('region', { name: /Línea de tiempo/ })).toBeInTheDocument()
+      expect(screen.queryByRole('combobox', { name: 'Tiempo' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('combobox', { name: 'Lugar' })).not.toBeInTheDocument()
+      expect(screen.getByRole('combobox', { name: 'Filtrar timeline por comunidad' })).toHaveValue(demoEvents[0].communityId)
+      expect(document.querySelector('.timeline-legend')).not.toBeInTheDocument()
+      expect(scrollIntoView).not.toHaveBeenCalled()
+      fireEvent.change(screen.getByRole('combobox', { name: 'Filtrar timeline por comunidad' }), { target: { value: demoEvents[1].communityId } })
+      expect(screen.getByRole('combobox', { name: 'Filtrar timeline por comunidad' })).toHaveValue(demoEvents[1].communityId)
+      expect(screen.getByRole('button', { name: /Introducción a Godot Engine/ })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Tarjetas' }))
+      expect(screen.getByRole('combobox', { name: 'Comunidad' })).toHaveValue(demoEvents[1].communityId)
+      fireEvent.change(screen.getByRole('combobox', { name: 'Comunidad' }), { target: { value: 'all' } })
+    } finally {
+      if (originalScrollIntoView) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: originalScrollIntoView })
+      else delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView
+    }
+    fireEvent.click(screen.getAllByRole('button', { name: /Diseño de niveles/ })[0])
     expect(screen.getByRole('dialog', { name: /Diseño de niveles/ })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar vista previa' }))
 
@@ -188,7 +229,7 @@ describe('public events', () => {
     window.history.pushState({}, '', '/eventos/diseno-de-niveles')
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: 'Próximos eventos' })).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: 'Próximos eventos' })).toBeInTheDocument()
     expect(window.location.pathname).toBe('/')
   })
 
@@ -647,6 +688,13 @@ describe('event preview layout', () => {
 })
 
 describe('public event results', () => {
+  it('groups card results with subtle month dividers', () => {
+    render(<MemoryRouter><EventResults events={[demoEvents[0], demoEvents[1], demoEvents[2]]} viewMode="cards" showVisibility={false} onEventOpen={vi.fn()} showViewLabel={false} showFocusButton={false} /></MemoryRouter>)
+
+    expect([...document.querySelectorAll('.event-month-divider')].map((divider) => divider.textContent?.trim())).toEqual(['Setiembre de 2026', 'Octubre de 2026'])
+    expect(screen.getByRole('separator', { name: 'Mes Setiembre de 2026' })).toBeInTheDocument()
+  })
+
   it('loads card results in controlled batches without the view label', () => {
     const events = Array.from({ length: 7 }, (_, index) => ({ ...demoEvents[index % demoEvents.length], id: `demo-card-${index}` }))
     render(<MemoryRouter><EventResults events={events} viewMode="cards" showVisibility={false} onEventOpen={vi.fn()} showViewLabel={false} showFocusButton={false} /></MemoryRouter>)

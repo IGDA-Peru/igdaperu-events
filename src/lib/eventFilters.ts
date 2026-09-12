@@ -10,6 +10,7 @@ export const timeFilters = [
 ] as const
 
 export type TimeFilter = typeof timeFilters[number]['value']
+export type CommunityFilterOption = { value: string; label: string }
 
 export const peruDepartmentNames = [
   'Amazonas', 'Áncash', 'Apurímac', 'Arequipa', 'Ayacucho', 'Cajamarca', 'Callao', 'Cusco',
@@ -59,10 +60,16 @@ export function matchesLocationFilter(event: EventItem, filter: string) {
   return location.includes(normalizeLocation(filter))
 }
 
-export function filterEvents(events: EventItem[], options: { search: string; timeFilter: TimeFilter; locationFilter: string }) {
+export function matchesCommunityFilter(event: EventItem, filter = 'all') {
+  if (filter === 'all') return true
+  if (filter === '__independent__') return !event.communityId
+  return event.communityId === filter
+}
+
+export function filterEvents(events: EventItem[], options: { search: string; timeFilter: TimeFilter; locationFilter: string; communityFilter?: string }) {
   const query = options.search.trim().toLowerCase()
   return events.filter((event) => {
     const matchesSearch = !query || `${event.title} ${event.description} ${event.communityName}`.toLowerCase().includes(query)
-    return matchesSearch && matchesTimeFilter(event, options.timeFilter) && matchesLocationFilter(event, options.locationFilter)
+    return matchesSearch && matchesTimeFilter(event, options.timeFilter) && matchesLocationFilter(event, options.locationFilter) && matchesCommunityFilter(event, options.communityFilter)
   })
 }
