@@ -226,11 +226,11 @@ export async function uploadCommunityLogo(communityId: string, file: File, previ
   return path
 }
 
-export async function uploadEventBanner(eventId: string, file: File, previousPath?: string | null) {
+export async function uploadEventBanner(eventId: string, file: File, previousPath?: string | null, alreadyOptimized = false) {
   if (!supabase) throw new Error('Supabase no está configurado.')
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('El banner debe estar en formato JPG, PNG o WebP.')
   if (file.size > 8 * 1024 * 1024) throw new Error('El banner no puede superar los 8 MB.')
-  const optimizedFile = await optimizeImageForUpload(file, eventBannerOptimization)
+  const optimizedFile = alreadyOptimized ? file : await optimizeImageForUpload(file, eventBannerOptimization)
   const extension = 'webp'
   const path = `${eventId}/banner-${crypto.randomUUID()}.${extension}`
   const storage = supabase.storage.from('event-assets')

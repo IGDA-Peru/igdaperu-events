@@ -1,9 +1,10 @@
-import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Clipboard, Clock3, Globe2, ImagePlus, Link2, Link2Off, LockKeyhole, Mail, MapPinned, Plus, RefreshCw, Save, Search, Send, Shield, UserPlus, Users, Video, X } from 'lucide-react'
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Clipboard, Clock3, ExternalLink, Globe2, ImagePlus, Link2, Link2Off, LockKeyhole, Mail, MapPinned, Plus, RefreshCw, Save, Search, Send, Shield, UserPlus, Users, Video, X } from 'lucide-react'
 import type { ChangeEvent, FormEvent, MouseEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { EmptyEvents, EventCard } from '../components/EventCard'
+import { BannerCropDialog } from '../components/BannerCropDialog'
 import { CommunityLogo } from '../components/CommunityLogo'
 import { EventConflictNotice, type EventConflictStatus } from '../components/EventConflictNotice'
 import { EventFilters } from '../components/EventFilters'
@@ -20,6 +21,7 @@ import { filterEvents, type TimeFilter } from '../lib/eventFilters'
 import { eventSlug, formatEventDateRange, formatEventLocation, formatTimeRange, isEventPast, meetingActionLabel, slugify } from '../lib/format'
 import { peruDepartments, peruLocations } from '../lib/peruLocations'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
+import { eventBannerOptimization, optimizeImageForUpload } from '../lib/imageOptimization'
 import { EVENT_DESCRIPTION_MAX_LENGTH } from '../lib/eventLimits'
 import { COMMUNITY_COLOR_PRESETS, DEFAULT_COMMUNITY_COLOR, normalizeCommunityColor } from '../lib/communityBranding'
 import { emptyEventSchedule, eventScheduleFromLocalDateTimes, eventScheduleToLocalDateTimes, limaNowDateTimeInput, limaTodayDateKey, type EventSchedule } from '../lib/eventSchedule'
@@ -105,9 +107,18 @@ export function DashboardPage() {
   const [message, setMessage] = useState('')
   const [actionError, setActionError] = useState('')
   const managedEventGroups = useMemo(() => splitManagedEvents(events), [events])
+  const sidebarDisclosureRef = useRef<HTMLDetailsElement>(null)
   useEffect(() => {
     void listManagedEvents(manageableIds ? manageableIds.split(',') : [], isPlatformAdmin).then(setEvents).finally(() => setLoading(false))
   }, [manageableIds, isPlatformAdmin])
+  useEffect(() => {
+    const openSidebarOnDesktop = () => {
+      if (window.innerWidth > 960 && sidebarDisclosureRef.current) sidebarDisclosureRef.current.open = true
+    }
+    openSidebarOnDesktop()
+    window.addEventListener('resize', openSidebarOnDesktop)
+    return () => window.removeEventListener('resize', openSidebarOnDesktop)
+  }, [])
   const canManage = manageable.length > 0 || roles.includes('platform_admin')
   const archive = async (event: EventItem) => {
     setActionError('')
@@ -135,7 +146,7 @@ export function DashboardPage() {
       {!configured && <div className="setup-panel"><Shield size={22} /><div><strong>Supabase aún no está conectado</strong><p>El panel está listo, pero necesitas configurar las variables de entorno para activar tus datos y permisos reales.</p></div></div>}
       <div className="dashboard-grid dashboard-grid--with-chat">
         <aside className="dashboard-sidebar">
-          <details className="dashboard-sidebar-disclosure" open>
+          <details ref={sidebarDisclosureRef} className="dashboard-sidebar-disclosure" open>
             <summary className="dashboard-sidebar-summary" aria-label="Mostrar u ocultar comunidades y conversaciones"><span><small className="dashboard-kicker">Panel lateral</small><strong>Comunidades y conversaciones</strong></span><ChevronDown size={19} aria-hidden="true" /></summary>
             <div className="dashboard-sidebar-content">
               <div className="dashboard-community-panel">
@@ -263,6 +274,8 @@ export function EventEditorPage() {
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [bannerPreview, setBannerPreview] = useState('')
   const [bannerError, setBannerError] = useState('')
+  const [bannerCropSource, setBannerCropSource] = useState<{ file: File; url: string } | null>(null)
+  const [bannerProcessing, setBannerProcessing] = useState(false)
   const [savedEventId, setSavedEventId] = useState<string | undefined>(eventId)
   const [summaryOpen, setSummaryOpen] = useState(false)
   const removedCoverPathRef = useRef<string | null>(null)
@@ -323,6 +336,7 @@ export function EventEditorPage() {
   }, [form.communityId, form.meetingProvider])
   useEffect(() => { if (!dirty) return; const warn = (event: BeforeUnloadEvent) => { if (intentionalNavigationRef.current) return; event.preventDefault(); event.returnValue = '' }; window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn) }, [dirty])
   useEffect(() => () => { if (bannerPreview.startsWith('blob:')) URL.revokeObjectURL(bannerPreview) }, [bannerPreview])
+  useEffect(() => () => { if (bannerCropSource?.url.startsWith('blob:')) URL.revokeObjectURL(bannerCropSource.url) }, [bannerCropSource?.url])
   useEffect(() => {
     let active = true
     if (!scheduleIsComplete) {
@@ -411,6 +425,13 @@ export function EventEditorPage() {
       return url
     })
   }
+  const closeBannerCrop = () => {
+    setBannerCropSource((current) => {
+      if (current?.url.startsWith('blob:')) URL.revokeObjectURL(current.url)
+      return null
+    })
+    setBannerError('')
+  }
   const handleBannerChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
@@ -418,11 +439,25 @@ export function EventEditorPage() {
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { setBannerError('El banner debe estar en formato JPG, PNG o WebP.'); return }
     if (file.size > 8 * 1024 * 1024) { setBannerError('El banner no puede superar los 8 MB.'); return }
     setBannerError('')
-    setCoverFile(file)
-    setBannerPreviewUrl(URL.createObjectURL(file))
-    setDirty(true)
+    setBannerCropSource({ file, url: URL.createObjectURL(file) })
+  }
+  const confirmBannerCrop = async (croppedFile: File) => {
+    setBannerProcessing(true)
+    setBannerError('')
+    try {
+      const optimizedFile = await optimizeImageForUpload(croppedFile, eventBannerOptimization)
+      setCoverFile(optimizedFile)
+      setBannerPreviewUrl(URL.createObjectURL(optimizedFile))
+      setDirty(true)
+      closeBannerCrop()
+    } catch (reason: unknown) {
+      setBannerError(reason instanceof Error ? reason.message : 'No pudimos optimizar el banner.')
+    } finally {
+      setBannerProcessing(false)
+    }
   }
   const removeBanner = () => {
+    closeBannerCrop()
     setBannerError('')
     if (form.coverPath) removedCoverPathRef.current = form.coverPath
     setCoverFile(null)
@@ -519,7 +554,7 @@ export function EventEditorPage() {
       if (coverFile) {
         try {
           const removedCoverPath = removedCoverPathRef.current
-          const coverPath = await uploadEventBanner(savedEvent.id, coverFile, form.coverPath)
+          const coverPath = await uploadEventBanner(savedEvent.id, coverFile, form.coverPath, true)
           if (removedCoverPath && removedCoverPath !== form.coverPath) await removeEventBanner(removedCoverPath)
           setForm((current) => ({ ...current, coverPath }))
           setCoverFile(null)
@@ -676,7 +711,7 @@ export function EventEditorPage() {
                <div className="summary-schedule"><CalendarDays size={17} aria-hidden="true" /><span><strong>{formatEventDateRange(conflictStart, conflictEnd, form.isAllDay)}</strong><small>{formatTimeRange(conflictStart, conflictEnd, form.isAllDay)} · Hora de Lima</small></span></div>
                 <div className="summary-location-access">
                   <div><MapPinned size={17} aria-hidden="true" /><span><strong>Ubicación</strong><small>{formatEventLocation(form)}</small></span></div>
-                  <div><Video size={17} aria-hidden="true" /><span><strong>Acceso</strong><small>{[form.registrationUrl.trim() ? 'Inscripción disponible' : '', form.meetingUrl.trim() ? meetingActionLabel(form.meetingProvider) : ''].filter(Boolean).join(' · ') || 'Sin enlace compartido'}</small></span></div>
+                  {form.accessMode === 'registration_only' && form.registrationUrl.trim() ? <div><ExternalLink size={17} aria-hidden="true" /><span><strong>Inscripción</strong><a className="summary-registration-link" href={form.registrationUrl.trim()} target="_blank" rel="noreferrer">Abrir enlace de inscripción <ExternalLink size={13} aria-hidden="true" /></a></span></div> : <div><Video size={17} aria-hidden="true" /><span><strong>Acceso</strong><small>{[form.registrationUrl.trim() ? 'Inscripción disponible' : '', form.meetingUrl.trim() ? meetingActionLabel(form.meetingProvider) : ''].filter(Boolean).join(' · ') || 'Sin enlace compartido'}</small></span></div>}
                </div>
                <div className="summary-progress"><div className="summary-progress-top"><span>Listo para publicar</span><strong>{summaryProgressPercent}%</strong></div><div className="summary-progress-track"><span style={{ width: `${summaryProgressPercent}%` }} /></div></div>
                <div className={`summary-missing ${summaryMilestoneReady ? 'summary-missing-ready' : ''}`}><strong>{summaryMilestoneLabel}{summaryMilestoneReady ? ' listo' : ''}</strong>{summaryMilestoneReady ? <small>{form.visibility === 'network' ? 'Ya puedes publicar este evento solo para la red.' : 'Completa la revisión para publicar este evento.'}</small> : <><span className="summary-missing-caption">Falta:</span><ul>{summaryMilestoneMissing.slice(0, 4).map((label) => <li key={label}>{label}</li>)}</ul></>}{summaryMilestoneMissing.length > 4 && <small>+{summaryMilestoneMissing.length - 4} campos más</small>}</div>
@@ -687,6 +722,7 @@ export function EventEditorPage() {
           </aside>
         </div>
       </div>
+      {bannerCropSource && <BannerCropDialog key={bannerCropSource.url} sourceUrl={bannerCropSource.url} fileName={bannerCropSource.file.name} processing={bannerProcessing} error={bannerError} onCancel={closeBannerCrop} onConfirm={confirmBannerCrop} />}
       <PublicationReviewModal open={publicationOpen} form={form} bannerPreview={bannerPreview} missingLabels={publishMissingLabels} ready={publishReady} visibility={publicationVisibility} onVisibilityChange={setPublicationVisibility} onClose={() => setPublicationOpen(false)} onConfirm={() => void confirmPublish()} saving={saving} />
       <LeaveEditorModal open={leaveOpen} onClose={() => setLeaveOpen(false)} onDiscard={discardAndLeave} onSaveDraft={() => void persist('draft')} saving={saving} />
     </div>
@@ -877,13 +913,13 @@ function CommunityInviteForm({ community }: { community: Community }) {
   </section>
 }
 
-function buildCommunityEmbedCode(community: Community, variant: 'calendar' | 'cards') {
-  const path = variant === 'calendar' ? '/embed' : '/embed/inicio'
+function buildCommunityEmbedCode(community: Community, variant: 'calendar' | 'cards' | 'spotlight') {
+  const path = variant === 'calendar' ? '/embed' : variant === 'cards' ? '/embed/inicio' : '/embed/spotlight'
   const url = new URL(path, window.location.origin)
-  url.searchParams.set('community', community.slug)
-  if (variant === 'cards') url.searchParams.set('embedded', '1')
-  const title = `Eventos de ${community.name}`.replaceAll('"', '&quot;')
-  const height = variant === 'calendar' ? 900 : 600
+  if (variant !== 'spotlight') url.searchParams.set('community', community.slug)
+  if (variant !== 'calendar') url.searchParams.set('embedded', '1')
+  const title = (variant === 'spotlight' ? 'Eventos de todas las comunidades de IGDA Perú' : `Eventos de ${community.name}`).replaceAll('"', '&quot;')
+  const height = variant === 'calendar' ? 900 : variant === 'cards' ? 600 : 760
 
   return `<iframe
   src="${url.toString()}"
@@ -1053,6 +1089,7 @@ export function CommunitySettingsPage() {
   if (!community) return <LoadingState label="Cargando comunidad" />
   const calendarEmbedCode = buildCommunityEmbedCode(community, 'calendar')
   const cardsEmbedCode = buildCommunityEmbedCode(community, 'cards')
+  const spotlightEmbedCode = buildCommunityEmbedCode(community, 'spotlight')
   return <div className="dashboard-page narrow-page community-settings-page">
     <div className="community-settings-page-actions">
       <Link className="secondary-button" to="/app"><ChevronLeft size={16} /> Volver al panel</Link>
@@ -1077,6 +1114,7 @@ export function CommunitySettingsPage() {
          <div className="community-embed-code-list">
            <CommunityEmbedCode key={calendarEmbedCode} title="Vista de calendario" description="Muestra la agenda completa en formato calendario." code={calendarEmbedCode} />
            <CommunityEmbedCode key={cardsEmbedCode} title="Vista simple de tarjetas" description="Muestra los próximos eventos en tarjetas compactas." code={cardsEmbedCode} />
+           <CommunityEmbedCode key={spotlightEmbedCode} title="Spotlight + 3 siguientes eventos" description="Destaca el próximo evento de todas las comunidades y muestra los tres siguientes en una columna lateral." code={spotlightEmbedCode} />
          </div>
          <p className="community-embed-admin-note"><Shield size={17} aria-hidden="true" /><span>Comparte el código elegido con el administrador de IGDA Perú. Debe habilitar el dominio de la página donde se insertará el embed para que pueda mostrarse correctamente.</span></p>
        </div> : <div className="community-tab-content" id="community-public-panel" role="tabpanel" aria-label="Información pública">

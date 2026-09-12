@@ -62,7 +62,7 @@ export function formatEventSchedule(startsAt: string | null | undefined, endsAt:
 }
 
 export function formatEventLocation(event: { locationType: 'venue' | 'online' | 'hybrid'; accessMode?: 'registration_only' | 'location_access' | null; locationPrecision?: 'none' | 'department' | 'province' | 'exact' | null; locationDepartment?: string | null; locationProvince?: string | null; venueName?: string | null; address?: string | null; formattedAddress?: string | null }) {
-  if (event.accessMode === 'registration_only') return 'Ubicación por confirmar'
+  if (event.accessMode === 'registration_only') return 'Ubicación privada'
   if (event.locationType === 'online') return 'Online'
 
   const precision = event.locationPrecision || (event.venueName?.trim() || event.address?.trim() || event.formattedAddress?.trim() ? 'exact' : 'none')
@@ -74,7 +74,7 @@ export function formatEventLocation(event: { locationType: 'venue' | 'online' | 
   const address = event.formattedAddress?.trim() || event.address?.trim() || ''
   const locationParts = [placeName, address].filter((part, index, parts) => part && parts.indexOf(part) === index)
   if (!location && precision === 'exact') location = locationParts.join(' · ')
-  if (!location) location = 'Ubicación por confirmar'
+  if (!location) location = event.locationType === 'hybrid' || (event.accessMode === 'location_access' && precision === 'none') ? 'Ubicación privada' : 'Ubicación por confirmar'
   return event.locationType === 'hybrid' ? `Híbrido · ${location}` : location
 }
 

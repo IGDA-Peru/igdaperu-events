@@ -74,13 +74,20 @@ describe('EventCard visibility', () => {
     expect(screen.queryByText('Creado por editor@comunidad.pe')).not.toBeInTheDocument()
   })
 
-  it('keeps the banner in a dedicated column and does not reserve one when absent', () => {
+  it('omits the banner slot and description when a public card has no banner', () => {
     const { container, rerender } = render(<MemoryRouter><EventCard event={{ ...event, coverPath: '/banners/event-1.jpg' }} /></MemoryRouter>)
 
     expect(container.querySelector('.event-row.has-cover')).toBeInTheDocument()
     expect(container.querySelector('.event-card-cover')).toHaveAttribute('src', '/banners/event-1.jpg')
+    expect(screen.queryByText(event.description)).not.toBeInTheDocument()
 
     rerender(<MemoryRouter><EventCard event={event} /></MemoryRouter>)
+
+    expect(container.querySelector('.event-row.has-cover')).not.toBeInTheDocument()
+    expect(container.querySelector('.event-card-cover')).not.toBeInTheDocument()
+    expect(screen.queryByText(event.description)).not.toBeInTheDocument()
+
+    rerender(<MemoryRouter><EventCard event={event} compact /></MemoryRouter>)
 
     expect(container.querySelector('.event-row.has-cover')).not.toBeInTheDocument()
     expect(container.querySelector('.event-card-cover')).not.toBeInTheDocument()

@@ -67,6 +67,16 @@ describe('public events', () => {
     expect(screen.getByRole('dialog', { name: /Diseño de niveles/ })).toBeInTheDocument()
   })
 
+  it('renders the Spotlight embed preview on the home page when requested', () => {
+    window.history.pushState({}, '', '/?spotlight=1')
+    render(<App />)
+
+    expect(screen.getByRole('heading', { name: 'Spotlight de eventos' })).toBeInTheDocument()
+    expect(screen.getByTitle('Vista previa del embed Spotlight')).toHaveAttribute('src', '/embed/spotlight?embedded=1')
+    expect(screen.getByRole('link', { name: 'Volver a la agenda' })).toHaveAttribute('href', '/')
+    expect(screen.queryByRole('heading', { name: 'Próximos eventos' })).not.toBeInTheDocument()
+  })
+
   it('lets authenticated users switch between the editor and public agenda modes', async () => {
     const listEventsSpy = vi.spyOn(data, 'listEvents').mockImplementation(async (options = {}) => options.network ? [{ ...demoEvents[0], id: 'network-event', title: 'Evento solo de comunidades', visibility: 'network' }] : [demoEvents[0]])
     const authValue = {
@@ -122,6 +132,39 @@ describe('public events', () => {
     expect(document.querySelector('.event-preview-layer--modal')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'IGDA Perú' })).toHaveAttribute('href', 'https://igda.pe/comunidad/')
     expect(screen.getByRole('link', { name: 'IGDA Perú' })).toHaveAttribute('target', '_top')
+  })
+
+  it('renders the spotlight embed with one featured event and three following events', async () => {
+    const spotlightEvents = demoEvents.map((event, index) => index === 0 ? { ...event, registrationUrl: '' } : event)
+    const listEventsSpy = vi.spyOn(data, 'listEvents').mockResolvedValue(spotlightEvents)
+    window.history.pushState({}, '', '/embed/spotlight?embedded=1')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: demoEvents[0].title })).toBeInTheDocument()
+    expect(listEventsSpy).toHaveBeenCalledWith({ upcomingOnly: true, limit: 4 })
+    expect(screen.getByText('Agenda')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Próximos eventos' })).toBeInTheDocument()
+    expect(screen.getByText('Actividades de todas las comunidades de IGDA Perú.')).toBeInTheDocument()
+    expect(screen.getByText('Próximo evento')).toBeInTheDocument()
+    expect(screen.getByText(`Organiza ${demoEvents[0].communityName}`)).toBeInTheDocument()
+    expect(document.querySelector('.spotlight-embed-header')).not.toBeInTheDocument()
+    expect(screen.queryByText('Comunidad. Juegos. Oportunidades.')).not.toBeInTheDocument()
+    expect(document.querySelector('.spotlight-feature-card')).toHaveClass('spotlight-feature-card--no-media')
+    expect(document.querySelector('.spotlight-feature-media')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ver evento' })).toHaveClass('spotlight-feature-action--icon')
+    expect(screen.getByRole('heading', { name: 'Siguientes eventos' })).toBeInTheDocument()
+    expect(document.querySelectorAll('.spotlight-upcoming-item')).toHaveLength(3)
+    expect(document.querySelector('.spotlight-upcoming')?.querySelector('.spotlight-all-events')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Ver todos los eventos/ }).getAttribute('href')).toBe(new URL('/', window.location.origin).toString())
+    expect(screen.queryByRole('link', { name: 'Inscribirme' })).not.toBeInTheDocument()
+
+    fireEvent.click(document.querySelector('.spotlight-feature-card') as HTMLElement)
+    expect(screen.getByRole('dialog', { name: demoEvents[0].title })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar vista previa' }))
+
+    fireEvent.click(screen.getByRole('button', { name: `Ver ${demoEvents[1].title}` }))
+    expect(screen.getByRole('dialog', { name: demoEvents[1].title })).toBeInTheDocument()
+    listEventsSpy.mockRestore()
   })
 
   it('uses the calendar view by default in the large event embed and allows switching views', async () => {
@@ -181,6 +224,13 @@ describe('public events', () => {
     expect(sidebarDisclosure?.querySelector('.dashboard-sidebar-content')?.children).toHaveLength(2)
     expect(sidebarDisclosure?.querySelector('.dashboard-sidebar-content')?.children[0]).toHaveClass('dashboard-community-panel')
     expect(sidebarDisclosure?.querySelector('.dashboard-sidebar-content')?.children[1]).toHaveClass('dashboard-chat-summary')
+    const originalInnerWidth = window.innerWidth
+    const detailsElement = sidebarDisclosure as HTMLDetailsElement
+    detailsElement.open = false
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 })
+    window.dispatchEvent(new Event('resize'))
+    expect(detailsElement.open).toBe(true)
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth })
     expect(screen.getByRole('heading', { name: 'Hola, Comunidad' })).toBeInTheDocument()
     expect(screen.getByText('Tu comunidad')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Tus eventos' })).toBeInTheDocument()
@@ -297,6 +347,9 @@ describe('public events', () => {
     expect(screen.getByRole('tab', { name: 'Integración' })).toHaveAttribute('aria-selected', 'true')
     expect((screen.getByRole('textbox', { name: 'Código del embed: Vista de calendario' }) as HTMLTextAreaElement).value).toContain('/embed?community=igda-peru')
     expect((screen.getByRole('textbox', { name: 'Código del embed: Vista simple de tarjetas' }) as HTMLTextAreaElement).value).toContain('/embed/inicio?community=igda-peru&embedded=1')
+    const spotlightEmbedCode = (screen.getByRole('textbox', { name: 'Código del embed: Spotlight + 3 siguientes eventos' }) as HTMLTextAreaElement).value
+    expect(spotlightEmbedCode).toContain('/embed/spotlight?embedded=1')
+    expect(spotlightEmbedCode).not.toContain('community=')
     expect(screen.getByText(/Comparte el código elegido con el administrador de IGDA Perú/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Volver al panel' })).toBe(backToDashboardLink)
     expect(screen.queryByTitle(/Eventos de IGDA Perú/)).not.toBeInTheDocument()

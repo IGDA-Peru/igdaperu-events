@@ -19,7 +19,10 @@ describe('format helpers', () => {
     expect(formatEventLocation({ locationType: 'venue', locationPrecision: 'department', locationDepartment: 'Cusco' })).toBe('Cusco, Perú')
     expect(formatEventLocation({ locationType: 'hybrid', locationPrecision: 'province', locationDepartment: 'Cusco', locationProvince: 'Cusco', address: 'Av. privada 123' })).toBe('Híbrido · Cusco, Cusco')
     expect(formatEventLocation({ locationType: 'venue', locationPrecision: 'none', address: 'Av. privada 123' })).toBe('Ubicación por confirmar')
-    expect(formatEventLocation({ locationType: 'venue', accessMode: 'registration_only', locationPrecision: 'exact', venueName: 'Lugar privado' })).toBe('Ubicación por confirmar')
+    expect(formatEventLocation({ locationType: 'venue', accessMode: 'registration_only', locationPrecision: 'exact', venueName: 'Lugar privado' })).toBe('Ubicación privada')
+    expect(formatEventLocation({ locationType: 'venue', accessMode: 'location_access', locationPrecision: 'none' })).toBe('Ubicación privada')
+    expect(formatEventLocation({ locationType: 'hybrid', accessMode: 'location_access', locationPrecision: 'none' })).toBe('Híbrido · Ubicación privada')
+    expect(formatEventLocation({ locationType: 'hybrid', locationPrecision: 'none' })).toBe('Híbrido · Ubicación privada')
   })
 
   it('labels Discord meeting links correctly', () => {

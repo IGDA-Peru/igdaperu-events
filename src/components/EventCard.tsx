@@ -49,7 +49,6 @@ export function EventCard({ event, compact = false, showCover = false, showVisib
           {managed ? <span className={`panel-event-label ${state.tone}`}>{state.label}</span> : <><span className={`event-type ${event.type === 'TALLER' ? 'yellow' : 'red'}`}>{event.type}</span>{isPast && <span className="event-past-label">Ya pasó</span>}{showVisibility && isPrivate && <VisibilityBadge visibility={event.visibility} />}</>}
         </div>
         <h3>{previewable ? <button className="event-card-title" type="button" onClick={openPreview}>{event.title}</button> : <span className="event-card-title">{event.title}</span>}</h3>
-        {!compact && <p>{event.description}</p>}
         <div className="event-meta">
           <span><MapPin size={15} aria-hidden="true" />{formatEventLocation(event)}</span>
           <span><CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative />{event.communityName}</span>

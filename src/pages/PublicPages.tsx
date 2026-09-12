@@ -1,6 +1,6 @@
-import { ChevronDown, ChevronRight, Code2, Eye, ExternalLink, Gamepad2, PencilLine, Users } from 'lucide-react'
+import { ArrowRight, ChevronDown, ChevronRight, Code2, Eye, ExternalLink, Gamepad2, PencilLine, Users } from 'lucide-react'
 import { CalendarDays, CheckCircle2, Clock3, Link2, MapPin, Send, UserRound } from 'lucide-react'
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { EventCard, EmptyEvents } from '../components/EventCard'
@@ -15,9 +15,10 @@ import { filterEvents, type TimeFilter } from '../lib/eventFilters'
 import { eventTypeOptions, isStandardEventType } from '../lib/eventTypes'
 import { findNextEvent } from '../lib/eventFocus'
 import { isSupabaseConfigured } from '../lib/supabase'
-import { listCommunities, listEvents, listHomeEmbedEvents, submitEventProposal, type EventProposalSubmission, type EventQueryOptions } from '../lib/data'
+import { getEventCoverUrl, listCommunities, listEvents, listHomeEmbedEvents, submitEventProposal, type EventProposalSubmission, type EventQueryOptions } from '../lib/data'
 import { limaNowDateTimeInput } from '../lib/eventSchedule'
 import { EVENT_DESCRIPTION_MAX_LENGTH } from '../lib/eventLimits'
+import { formatDateParts, formatEventLocation } from '../lib/format'
 import type { Community, EventItem } from '../types'
 
 const notionCommunitiesEmbedUrl = 'https://igdape.notion.site/ebd/3b425d4453e08301bcef018ab661544a?v=12d25d4453e0825883398852a794ef21'
@@ -369,6 +370,43 @@ export function PublicAgendaPage() {
   )
 }
 
+export function HomeSpotlightPreviewPage() {
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== iframeRef.current?.contentWindow) return
+      if (event.data?.type !== 'igda-events-embed-height') return
+
+      const height = Number(event.data.height)
+      if (!Number.isFinite(height)) return
+      iframeRef.current.style.height = `${Math.max(420, Math.min(height, 2400))}px`
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [])
+
+  return <div className="home-spotlight-preview">
+    <div className="home-spotlight-preview-header">
+      <div>
+        <span className="home-spotlight-preview-kicker">Vista previa local</span>
+        <h1>Spotlight de eventos</h1>
+        <p>Así se vería el embed dentro de la página de inicio de igda.pe.</p>
+      </div>
+      <Link className="secondary-button" to="/">Volver a la agenda</Link>
+    </div>
+    <div className="home-spotlight-preview-frame">
+      <iframe ref={iframeRef} src="/embed/spotlight?embedded=1" title="Vista previa del embed Spotlight" height="760" />
+    </div>
+  </div>
+}
+
+export function HomePage() {
+  const [params] = useSearchParams()
+  return params.get('spotlight') === '1' ? <HomeSpotlightPreviewPage /> : <PublicAgendaPage />
+}
+
 export function CommunitiesPage() {
   return <div className="page-wrap page-wrap--communities"><section className="notion-communities-embed" aria-label="Directorio de comunidades IGDA Perú"><iframe src={notionCommunitiesEmbedUrl} title="Directorio de comunidades IGDA Perú" /><p className="notion-embed-fallback">¿No carga el directorio? <a href={notionCommunitiesEmbedUrl} target="_blank" rel="noreferrer">Abrirlo en Notion <ExternalLink size={15} /></a></p></section></div>
 }
@@ -439,4 +477,119 @@ export function HomeEventsEmbedPage() {
       <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" />
     </div>
   )
+}
+
+function SpotlightEventMedia({ event, size, showCommunityLogo = false }: { event: EventItem; size: 'feature' | 'small'; showCommunityLogo?: boolean }) {
+  const coverUrl = getEventCoverUrl(event.coverPath)
+  return <div className={`spotlight-event-media spotlight-event-media--${size}${coverUrl ? '' : ' spotlight-event-media--fallback'}`} style={{ '--community-color': event.communityColor || undefined } as CSSProperties}>
+    {coverUrl ? <img src={coverUrl} alt="" /> : <CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size={size === 'feature' ? 'large' : 'medium'} decorative />}
+    {coverUrl && showCommunityLogo && <CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative />}
+  </div>
+}
+
+function SpotlightEventDate({ event, large = false }: { event: EventItem; large?: boolean }) {
+  const parts = formatDateParts(event.startsAt)
+  return <time className={`spotlight-event-date${large ? ' spotlight-event-date--large' : ''}`} dateTime={event.startsAt || undefined}>
+    <span>{parts.weekday}</span>
+    <strong>{parts.date}</strong>
+    <small>{parts.month}</small>
+  </time>
+}
+
+function SpotlightEventLocation({ event }: { event: EventItem }) {
+  return <span className="spotlight-event-location"><MapPin size={15} aria-hidden="true" />{formatEventLocation(event)}</span>
+}
+
+function SpotlightFeature({ event, onOpen }: { event: EventItem; onOpen: () => void }) {
+  const hasCover = Boolean(getEventCoverUrl(event.coverPath))
+  return <article className={`spotlight-feature-card spotlight-feature-card--interactive${hasCover ? '' : ' spotlight-feature-card--no-media'}`} style={{ '--community-color': event.communityColor || undefined } as CSSProperties} onClick={(interaction) => {
+    if ((interaction.target as HTMLElement).closest('a, button')) return
+    onOpen()
+  }}>
+    {hasCover && <div className="spotlight-feature-media">
+      <SpotlightEventMedia event={event} size="feature" />
+      <span className="spotlight-feature-badge">Próximo evento</span>
+    </div>}
+    <div className="spotlight-feature-body">
+      <SpotlightEventDate event={event} large />
+      <div className="spotlight-feature-copy">
+        <div className="spotlight-feature-eyebrow">
+          {!hasCover && <span className="spotlight-feature-badge spotlight-feature-badge--inline">Próximo evento</span>}
+          <span className="spotlight-event-type">{event.type}</span>
+        </div>
+        <h2><button className="spotlight-feature-title" type="button" onClick={onOpen}>{event.title}</button></h2>
+        <SpotlightEventLocation event={event} />
+        <p>{event.description}</p>
+        <div className="spotlight-feature-community"><CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative /><span>Organiza {event.communityName}</span></div>
+      </div>
+      {event.registrationUrl ? <a className="primary-button spotlight-feature-action spotlight-feature-action--registration" href={event.registrationUrl} target="_blank" rel="noreferrer">Inscribirme <ExternalLink size={16} aria-hidden="true" /></a> : <button className="spotlight-feature-action spotlight-feature-action--icon" aria-label="Ver evento" type="button" onClick={onOpen}><ChevronRight size={24} aria-hidden="true" /></button>}
+    </div>
+  </article>
+}
+
+function SpotlightUpcomingItem({ event, onOpen }: { event: EventItem; onOpen: () => void }) {
+  return <button className="spotlight-upcoming-item" type="button" onClick={onOpen} aria-label={`Ver ${event.title}`}>
+    <SpotlightEventMedia event={event} size="small" showCommunityLogo />
+    <SpotlightEventDate event={event} />
+    <span className="spotlight-upcoming-copy">
+      <strong>{event.title}</strong>
+      <SpotlightEventLocation event={event} />
+    </span>
+    <ChevronRight size={20} aria-hidden="true" />
+  </button>
+}
+
+export function SpotlightEventsEmbedPage() {
+  const [params] = useSearchParams()
+  const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
+  const embedded = params.get('embedded') === '1'
+  const { events, loading, error } = useEvents({ upcomingOnly: true, limit: 4 })
+  const featuredEvent = events[0]
+  const upcomingEvents = events.slice(1, 4)
+  const communityName = 'IGDA Perú'
+  const allEventsUrl = new URL('/', window.location.origin).toString()
+
+  useEffect(() => {
+    if (window.parent === window) return undefined
+
+    const notifyParent = () => {
+      const embed = document.querySelector<HTMLElement>('.spotlight-embed')
+      const height = embed ? Math.ceil(embed.getBoundingClientRect().bottom + 24) : document.body.scrollHeight
+      window.parent.postMessage({ type: 'igda-events-embed-height', height }, '*')
+    }
+
+    notifyParent()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const observer = new ResizeObserver(notifyParent)
+    observer.observe(document.documentElement)
+    return () => observer.disconnect()
+  }, [events.length, loading, error])
+
+  return <div className={`spotlight-embed-page${embedded ? ' spotlight-embed-page--embedded' : ''}`}>
+    <section className={`spotlight-embed${embedded ? ' spotlight-embed--embedded' : ''}`} aria-labelledby="spotlight-embed-title">
+      {!embedded && <div className="spotlight-embed-header">
+        <span className="spotlight-embed-brand"><img src="/brand/logo-igda-peru.png" alt="" width="36" height="34" /><span>Eventos {communityName}</span></span>
+        <span className="spotlight-embed-tagline">Comunidad. Juegos. Oportunidades.</span>
+      </div>}
+      {embedded ? <div className="spotlight-embed-heading">
+        <span className="spotlight-embed-kicker">Agenda</span>
+        <h1 id="spotlight-embed-title">Próximos eventos</h1>
+        <p>Actividades de todas las comunidades de {communityName}.</p>
+      </div> : <h1 id="spotlight-embed-title" className="sr-only">Eventos de todas las comunidades de {communityName}</h1>}
+      {loading && <LoadingState />}
+      {error && <ErrorState message={error} />}
+      {!loading && !error && featuredEvent && <div className="spotlight-embed-grid">
+        <SpotlightFeature event={featuredEvent} onOpen={() => setSelectedEvent(featuredEvent)} />
+        <section className="spotlight-upcoming" aria-labelledby="spotlight-upcoming-title">
+          <div className="spotlight-upcoming-heading"><h2 id="spotlight-upcoming-title">Siguientes eventos</h2></div>
+          <div className="spotlight-upcoming-list">
+            {upcomingEvents.map((event) => <SpotlightUpcomingItem event={event} onOpen={() => setSelectedEvent(event)} key={event.id} />)}
+          </div>
+        </section>
+      </div>}
+      {!loading && !error && featuredEvent && <a className="spotlight-all-events" href={allEventsUrl} target="_top" rel="noreferrer">Ver todos los eventos <ArrowRight size={18} aria-hidden="true" /></a>}
+      {!loading && !error && !featuredEvent && <EmptyEvents />}
+    </section>
+    <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" />
+  </div>
 }
