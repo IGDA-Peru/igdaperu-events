@@ -410,7 +410,7 @@ html:has(.embed-page), body:has(.embed-page) { background: var(--surface); }
 .calendar-event-bar.private .calendar-event-dot { background: var(--community-color, var(--ink)); }
 .calendar-more { color: var(--muted); font-size: .68rem; font-weight: 800; }
 
-.timeline-view { display: grid; gap: 14px; padding: 7px 0; }
+.timeline-view { display: grid; gap: 14px; padding: 0 0 7px; }
 .timeline-toolbar { display: grid; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: rgb(255 255 255 / 70%); box-shadow: 0 1px 0 rgb(16 19 26 / 4%); }
 .timeline-toolbar-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); grid-template-areas: 'month filters' 'period filters'; align-items: center; gap: 10px 18px; }
 .timeline-toolbar-filters { display: flex; grid-area: filters; align-items: center; justify-content: flex-end; min-width: 0; }
@@ -681,7 +681,7 @@ html:has(.embed-page), body:has(.embed-page) { background: var(--surface); }
 .spotlight-event-media--small .community-logo { width: 48px; }
 .spotlight-event-media--small > .community-logo-small { position: absolute; right: 5px; bottom: 5px; width: 24px; border: 2px solid var(--surface); border-radius: 6px; background: var(--surface); }
 .spotlight-feature-badge { position: absolute; top: 16px; left: 16px; padding: 7px 12px; border-radius: 999px; color: #fff; background: var(--red); font-size: .76rem; font-weight: 900; }
-.spotlight-feature-badge--inline { position: static; display: flex; width: fit-content; margin-bottom: 12px; }
+.spotlight-feature-badge--inline { position: static; display: flex; width: fit-content; margin-bottom: 0; }
 .spotlight-feature-body { display: grid; grid-template-columns: 72px minmax(0, 1fr) 72px; gap: 18px; align-items: center; padding: 22px; }
 .spotlight-event-date { display: grid; justify-items: center; align-content: start; min-width: 42px; line-height: 1; text-align: center; }
 .spotlight-event-date span { color: var(--muted); font-size: .68rem; font-weight: 900; letter-spacing: .08em; }
@@ -691,11 +691,12 @@ html:has(.embed-page), body:has(.embed-page) { background: var(--surface); }
 .spotlight-feature-card--no-media .spotlight-feature-body { height: 100%; box-sizing: border-box; }
 .spotlight-feature-card--no-media .spotlight-event-date--large { align-self: stretch; align-content: center; box-sizing: border-box; }
 .spotlight-event-date--large strong { font-size: 2.55rem; }
-.spotlight-feature-copy { display: grid; justify-items: start; min-width: 0; text-align: left; }
-.spotlight-feature-eyebrow { display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 9px; min-height: 34px; margin-bottom: 8px; }
+.spotlight-feature-copy { display: grid; align-content: start; justify-items: start; min-width: 0; text-align: left; }
+.spotlight-feature-eyebrow { display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 9px; min-height: 34px; margin-bottom: 6px; }
 .spotlight-feature-community { display: inline-flex; align-items: center; justify-content: flex-start; gap: 7px; margin-top: 16px; color: var(--muted); font-size: .76rem; font-weight: 800; text-align: left; }
 .spotlight-feature-community .community-logo { width: 25px; border-radius: 6px; }
 .spotlight-event-type { color: var(--red); font-size: .7rem; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.spotlight-feature-copy h2 { margin: 0 0 8px; }
 .spotlight-feature-title { display: block; width: 100%; max-width: 100%; margin: 4px 0 8px; padding: 0; border: 0; color: var(--ink); background: transparent; font: inherit; font-family: 'Museo Sans Rounded', var(--font-sans); font-size: clamp(1.25rem, 2.2vw, 1.75rem); font-weight: 900; line-height: 1.1; letter-spacing: -.04em; text-align: left; }
 .spotlight-feature-title:hover { color: var(--red); }
 .spotlight-event-location { display: inline-flex; align-items: center; gap: 5px; min-width: 0; color: var(--muted); font-size: .78rem; line-height: 1.3; }
@@ -719,7 +720,7 @@ html:has(.embed-page), body:has(.embed-page) { background: var(--surface); }
 .spotlight-upcoming-copy { display: grid; gap: 6px; min-width: 0; }
 .spotlight-upcoming-copy strong { overflow: hidden; font-family: 'Museo Sans Rounded', var(--font-sans); font-size: .88rem; line-height: 1.15; text-overflow: ellipsis; }
 .spotlight-upcoming-copy .spotlight-event-location { overflow: hidden; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
-.spotlight-all-events { display: flex; align-items: center; justify-content: center; gap: 10px; width: min(100%, 248px); min-height: 48px; margin: 18px auto 0; padding: 0 16px; border: 1.5px solid var(--red); border-radius: 9px; color: var(--red); background: var(--surface); font-size: .84rem; font-weight: 900; text-decoration: none; transition: background 160ms ease, color 160ms ease, transform 160ms ease; }
+.spotlight-all-events { display: flex; align-items: center; justify-content: center; gap: 10px; width: min(100%, 248px); min-height: 48px; margin: 24px auto 0; padding: 0 16px; border: 1.5px solid var(--red); border-radius: 9px; color: var(--red); background: var(--surface); font-size: .84rem; font-weight: 900; text-decoration: none; transition: background 160ms ease, color 160ms ease, transform 160ms ease; }
 .spotlight-all-events:hover { color: #fff; background: var(--red); transform: translateY(-1px); }
 .home-spotlight-preview { width: min(calc(100% - 32px), 1360px); margin: 0 auto; padding: clamp(24px, 3vw, 40px) 0 56px; }
 .home-spotlight-preview-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 18px; }

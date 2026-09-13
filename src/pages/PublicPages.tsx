@@ -18,7 +18,7 @@ import { isSupabaseConfigured } from '../lib/supabase'
 import { getEventCoverUrl, listCommunities, listEvents, listHomeEmbedEvents, submitEventProposal, type EventProposalSubmission, type EventQueryOptions } from '../lib/data'
 import { limaNowDateTimeInput } from '../lib/eventSchedule'
 import { EVENT_DESCRIPTION_MAX_LENGTH } from '../lib/eventLimits'
-import { formatDateParts, formatEventLocation } from '../lib/format'
+import { formatDateParts, formatEventLocation, isEventPast } from '../lib/format'
 import type { Community, EventItem } from '../types'
 
 const notionCommunitiesEmbedUrl = 'https://igdape.notion.site/ebd/3b425d4453e08301bcef018ab661544a?v=12d25d4453e0825883398852a794ef21'
@@ -304,16 +304,16 @@ function AgendaModeToggle({ value, onChange, open, onToggle }: { value: AgendaMo
 }
 
 function getRecentCommunities(events: EventItem[]) {
-  const latestByCommunity = new Map<string, { id: string; slug: string; name: string; logoPath?: string | null; brandColor?: string | null; latestAt: string }>()
+  const nextByCommunity = new Map<string, { id: string; slug: string; name: string; logoPath?: string | null; brandColor?: string | null; nextAt: string }>()
   events.forEach((event) => {
-    if (!event.startsAt || !event.communityId) return
-    const current = latestByCommunity.get(event.communityId)
-    if (!current || new Date(event.startsAt) > new Date(current.latestAt)) {
-      latestByCommunity.set(event.communityId, { id: event.communityId, slug: event.communitySlug, name: event.communityName, logoPath: event.communityLogoPath, brandColor: event.communityColor, latestAt: event.startsAt })
+    if (!event.startsAt || !event.communityId || isEventPast(event)) return
+    const current = nextByCommunity.get(event.communityId)
+    if (!current || new Date(event.startsAt) < new Date(current.nextAt)) {
+      nextByCommunity.set(event.communityId, { id: event.communityId, slug: event.communitySlug, name: event.communityName, logoPath: event.communityLogoPath, brandColor: event.communityColor, nextAt: event.startsAt })
     }
   })
-  return [...latestByCommunity.values()]
-    .sort((first, second) => new Date(second.latestAt).getTime() - new Date(first.latestAt).getTime())
+  return [...nextByCommunity.values()]
+    .sort((first, second) => new Date(first.nextAt).getTime() - new Date(second.nextAt).getTime())
     .slice(0, 5)
 }
 
@@ -381,8 +381,8 @@ export function PublicAgendaPage() {
           />}
         </section>
         <div className="events-sidebar">
-          <CommunityRail communities={recentCommunities} />
           {user && <AgendaModeToggle value={agendaMode} onChange={setAgendaMode} open={modePanelOpen} onToggle={() => setModePanelOpen((current) => !current)} />}
+          <CommunityRail communities={recentCommunities} />
         </div>
       </div>
       <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" />

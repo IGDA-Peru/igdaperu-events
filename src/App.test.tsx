@@ -20,6 +20,25 @@ vi.mock('./lib/supabase', () => ({
 }))
 
 describe('public events', () => {
+  it('orders the community rail by the next upcoming event', async () => {
+    const events = [
+      { ...demoEvents[0], id: 'past-only', communityId: 'past-only', communityName: 'Comunidad pasada', communitySlug: 'past-only', startsAt: '2026-08-01T19:00:00-05:00', endsAt: '2026-08-01T21:00:00-05:00' },
+      { ...demoEvents[0], id: 'upcoming-soon', communityId: 'upcoming-soon', communityName: 'Comunidad cercana', communitySlug: 'upcoming-soon', startsAt: '2026-10-01T19:00:00-05:00', endsAt: '2026-10-01T21:00:00-05:00' },
+      { ...demoEvents[0], id: 'upcoming-latest', communityId: 'upcoming-latest', communityName: 'Comunidad reciente', communitySlug: 'upcoming-latest', startsAt: '2026-11-01T19:00:00-05:00', endsAt: '2026-11-01T21:00:00-05:00' },
+    ]
+    const listEventsSpy = vi.spyOn(data, 'listEvents').mockResolvedValue(events)
+
+    try {
+      render(<AuthContext.Provider value={{ configured: false, loading: false, session: null, user: null, profile: null, memberships: [], roles: [], signOut: vi.fn().mockResolvedValue(undefined), refreshUserData: vi.fn().mockResolvedValue(undefined) }}><MemoryRouter><PublicAgendaPage /></MemoryRouter></AuthContext.Provider>)
+      await waitFor(() => expect(document.querySelector('.communities-panel')).toBeInTheDocument())
+      const rail = document.querySelector('.communities-panel') as HTMLElement
+      expect([...rail.querySelectorAll('.community-item strong')].map((item) => item.textContent?.trim())).toEqual(['Comunidad cercana', 'Comunidad reciente'])
+      expect(within(rail).queryByText('Comunidad pasada')).not.toBeInTheDocument()
+    } finally {
+      listEventsSpy.mockRestore()
+    }
+  })
+
   it('lets proposal authors specify a custom event type', () => {
     render(<MemoryRouter initialEntries={['/proponer-evento']}><EventProposalPage /></MemoryRouter>)
 
@@ -143,6 +162,9 @@ describe('public events', () => {
     expect(screen.getByRole('button', { name: 'Modo editor' })).toHaveAttribute('aria-pressed', 'true')
     expect(await screen.findByText('Evento solo de comunidades')).toBeInTheDocument()
     expect(screen.getByText('Solo Comunidades')).toBeInTheDocument()
+    const sidebar = document.querySelector('.events-sidebar')
+    expect(sidebar?.firstElementChild).toHaveClass('agenda-mode-shell')
+    expect(sidebar?.lastElementChild).toHaveClass('communities-panel')
 
     fireEvent.click(screen.getByRole('button', { name: 'Modo público' }))
     await waitFor(() => expect(listEventsSpy).toHaveBeenLastCalledWith({ network: false }))
