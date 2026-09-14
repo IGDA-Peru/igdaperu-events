@@ -39,6 +39,25 @@ describe('public events', () => {
     }
   })
 
+  it('keeps past event cards collapsed by default and toggles them', async () => {
+    const pastEvent = { ...demoEvents[0], id: 'past-collapse', title: 'Evento histórico', startsAt: '2020-08-01T19:00:00-05:00', endsAt: '2020-08-01T21:00:00-05:00' }
+    const listEventsSpy = vi.spyOn(data, 'listEvents').mockResolvedValue([...demoEvents, pastEvent])
+
+    try {
+      render(<App />)
+      const pastEventsToggle = await screen.findByRole('button', { name: 'Eventos que ya pasaron' })
+      expect(pastEventsToggle).toHaveAttribute('aria-expanded', 'false')
+      expect(document.getElementById('past-events-list')).toHaveAttribute('hidden')
+      fireEvent.click(pastEventsToggle)
+      expect(pastEventsToggle).toHaveAttribute('aria-expanded', 'true')
+      expect(document.getElementById('past-events-list')).not.toHaveAttribute('hidden')
+      fireEvent.click(pastEventsToggle)
+      expect(pastEventsToggle).toHaveAttribute('aria-expanded', 'false')
+    } finally {
+      listEventsSpy.mockRestore()
+    }
+  })
+
   it('lets proposal authors specify a custom event type', () => {
     render(<MemoryRouter initialEntries={['/proponer-evento']}><EventProposalPage /></MemoryRouter>)
 
@@ -57,14 +76,30 @@ describe('public events', () => {
     expect(screen.queryByRole('link', { name: /Publicar evento/ })).not.toBeInTheDocument()
     await waitFor(() => expect(screen.getAllByRole('button', { name: /Ver Diseño de niveles/ }).length).toBeGreaterThan(0))
     expect(screen.getByRole('combobox', { name: 'Tiempo' })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Lugar' })).toBeInTheDocument()
+    const modalitySelect = screen.getByRole('combobox', { name: 'Modalidad' })
+    expect(modalitySelect).toBeInTheDocument()
+    expect(modalitySelect).toHaveValue('all')
     const communitySelect = screen.getByRole('combobox', { name: 'Comunidad' })
     expect(communitySelect).toBeInTheDocument()
     expect(screen.getByRole('option', { name: demoEvents[0].communityName })).toBeInTheDocument()
     expect(document.querySelectorAll('.event-results .filter-control')).toHaveLength(3)
-    expect(screen.getByRole('combobox', { name: 'Lugar' })).toHaveValue('all')
-    expect(screen.queryByRole('option', { name: 'Todos los departamentos del Perú' })).not.toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'Internacional' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Lugar' })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Híbrido' })).toBeInTheDocument()
+    fireEvent.change(modalitySelect, { target: { value: 'venue' } })
+    const locationSelect = screen.getByRole('combobox', { name: 'Lugar' })
+    expect(locationSelect).toBeInTheDocument()
+    expect(document.querySelectorAll('.event-results .filter-control')).toHaveLength(4)
+    expect(within(locationSelect).getByRole('option', { name: 'Perú' })).toBeInTheDocument()
+    expect(within(locationSelect).getByRole('option', { name: 'Internacional' })).toBeInTheDocument()
+    expect(within(locationSelect).getByRole('option', { name: 'Lima' })).toBeInTheDocument()
+    expect(locationSelect.querySelector('optgroup')).toHaveAttribute('label', 'Departamentos del Perú')
+    fireEvent.change(locationSelect, { target: { value: 'Lima' } })
+    expect(screen.getByRole('button', { name: `Ver ${demoEvents[0].title}` })).toBeInTheDocument()
+    fireEvent.change(modalitySelect, { target: { value: 'online' } })
+    expect(screen.queryByRole('button', { name: `Ver ${demoEvents[0].title}` })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Lugar' })).not.toBeInTheDocument()
+    fireEvent.change(modalitySelect, { target: { value: 'all' } })
+    expect(screen.queryByRole('combobox', { name: 'Lugar' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Lima' })).not.toBeInTheDocument()
     expect(screen.getByText(/Vista de demostración/)).toBeInTheDocument()
     fireEvent.change(communitySelect, { target: { value: demoEvents[0].communityId } })
@@ -91,6 +126,10 @@ describe('public events', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Calendario' }))
       expect(screen.getByRole('region', { name: /Calendario/ })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Mes anterior' })).toBeInTheDocument()
+      const calendarWeeks = [...document.querySelectorAll<HTMLElement>('.calendar-week')]
+      const calendarWeekHeights = calendarWeeks.map((week) => Number.parseInt(week.style.minHeight, 10))
+      expect(calendarWeekHeights).toHaveLength(6)
+      expect(calendarWeekHeights.every((height) => height >= 143)).toBe(true)
       expect(screen.queryByRole('combobox', { name: 'Tiempo' })).not.toBeInTheDocument()
       expect(screen.queryByRole('combobox', { name: 'Lugar' })).not.toBeInTheDocument()
       expect(screen.getByRole('textbox', { name: 'Buscar eventos' })).toBeInTheDocument()

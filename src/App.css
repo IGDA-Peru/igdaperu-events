@@ -263,6 +263,9 @@ html:has(.embed-page), body:has(.embed-page) { background: var(--surface); }
   font-size: .9rem;
   font-weight: 800;
 }
+.filter-control select option { padding: 6px 10px; }
+.filter-control select optgroup { padding: 4px 10px; color: var(--muted); font-weight: 900; }
+.filter-control select optgroup option { padding-left: 18px; color: var(--ink); font-weight: 700; }
 .filter-control select:focus { border-color: var(--red); outline: 3px solid rgb(248 184 48 / 30%); outline-offset: 2px; }
 .events-toolbar .search-field { align-self: end; width: 160px; min-width: 160px; margin-bottom: 0; }
 .event-results .events-toolbar { justify-content: center; margin-top: 14px; }
@@ -298,8 +301,14 @@ html:has(.embed-page), body:has(.embed-page) { background: var(--surface); }
 .event-load-more { display: flex; justify-content: center; margin-top: 8px; }
 .event-month-divider { display: flex; align-items: center; gap: 10px; margin: 18px 0 0; color: var(--muted); font-size: .68rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
 .event-month-divider::after { content: ''; flex: 1; height: 1px; background: rgb(124 103 73 / 20%); }
-.event-list-divider { display: flex; align-items: center; gap: 12px; margin: 14px 0 2px; color: var(--muted); font-size: .72rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.event-list-divider { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin: 14px 0 2px; padding: 0; border: 0; color: var(--muted); background: transparent; font: inherit; font-size: .72rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
 .event-list-divider::before, .event-list-divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.event-list-divider:hover { color: var(--red); }
+.event-list-divider:focus-visible { outline: 3px solid rgb(216 32 40 / 22%); outline-offset: 3px; }
+.event-list-divider svg { transition: transform 160ms ease; }
+.event-list-divider[aria-expanded="true"] svg { transform: rotate(180deg); }
+.event-list-past { display: grid; gap: 12px; min-width: 0; }
+.event-list-past[hidden] { display: none; }
 .event-row {
   position: relative;
   display: grid;

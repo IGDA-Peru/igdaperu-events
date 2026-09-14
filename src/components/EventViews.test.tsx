@@ -178,9 +178,14 @@ describe('EventResults cards', () => {
       const upcoming = timelineEvent({ id: 'upcoming-card', title: 'Evento próximo', startsAt: '2026-09-19T09:00:00-05:00', endsAt: '2026-09-19T18:00:00-05:00' })
       render(<MemoryRouter><EventResults events={[past, upcoming]} viewMode="cards" showVisibility={false} onEventOpen={vi.fn()} /></MemoryRouter>)
 
-      expect(screen.getByRole('button', { name: /^Evento pasado$/ })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /^Evento próximo$/ })).toBeInTheDocument()
-      expect(screen.getByRole('separator', { name: 'Eventos que ya pasaron' })).toBeInTheDocument()
+      const pastEventsToggle = screen.getByRole('button', { name: 'Eventos que ya pasaron' })
+      expect(pastEventsToggle).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByRole('button', { name: /^Evento pasado$/ })).not.toBeInTheDocument()
+      fireEvent.click(pastEventsToggle)
+      expect(pastEventsToggle).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByRole('button', { name: /^Evento pasado$/ })).toBeInTheDocument()
+      expect(screen.getByRole('separator', { name: 'Mes Agosto de 2026' })).toBeInTheDocument()
 
       const eventListText = document.querySelector('.event-list')?.textContent ?? ''
       expect(eventListText.indexOf('Evento próximo')).toBeLessThan(eventListText.indexOf('Evento pasado'))

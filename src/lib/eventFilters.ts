@@ -11,6 +11,13 @@ export const timeFilters = [
 
 export type TimeFilter = typeof timeFilters[number]['value']
 export type CommunityFilterOption = { value: string; label: string }
+export const modalityFilters = [
+  { value: 'all', label: 'Todas' },
+  { value: 'venue', label: 'Presencial' },
+  { value: 'online', label: 'On-line' },
+  { value: 'hybrid', label: 'Híbrido' },
+] as const
+export type ModalityFilter = typeof modalityFilters[number]['value']
 
 export const peruDepartmentNames = [
   'Amazonas', 'Áncash', 'Apurímac', 'Arequipa', 'Ayacucho', 'Cajamarca', 'Callao', 'Cusco',
@@ -18,7 +25,13 @@ export const peruDepartmentNames = [
   'Madre de Dios', 'Moquegua', 'Pasco', 'Piura', 'Puno', 'San Martín', 'Tacna', 'Tumbes', 'Ucayali',
 ] as const
 
-export const locationFilters = ['Todos', 'Internacional'] as const
+export const locationFilters = [
+  { value: 'all', label: 'Todos' },
+  { value: 'Perú', label: 'Perú' },
+  { value: 'Internacional', label: 'Internacional' },
+] as const
+
+export const departmentFilters = peruDepartmentNames.map((department) => ({ value: department, label: department }))
 
 function normalizeLocation(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -53,10 +66,16 @@ export function matchesTimeFilter(event: EventItem, filter: TimeFilter) {
   return eventKey.startsWith(limaDateKey(nextMonth).slice(0, 7))
 }
 
+export function matchesModalityFilter(event: EventItem, filter: ModalityFilter = 'all') {
+  return filter === 'all' || event.locationType === filter
+}
+
 export function matchesLocationFilter(event: EventItem, filter: string) {
   if (filter === 'all') return true
   const location = normalizeLocation(`${event.locationDepartment || ''} ${event.locationProvince || ''} ${event.venueName || ''} ${event.formattedAddress || ''} ${event.address || ''}`)
-  if (filter === 'Internacional') return Boolean(location) && !peruDepartmentNames.some((department) => location.includes(normalizeLocation(department)))
+  const isPeruLocation = location.includes(normalizeLocation('Perú')) || peruDepartmentNames.some((department) => location.includes(normalizeLocation(department)))
+  if (filter === 'Perú') return isPeruLocation
+  if (filter === 'Internacional') return Boolean(location) && !isPeruLocation
   return location.includes(normalizeLocation(filter))
 }
 
@@ -66,10 +85,10 @@ export function matchesCommunityFilter(event: EventItem, filter = 'all') {
   return event.communityId === filter
 }
 
-export function filterEvents(events: EventItem[], options: { search: string; timeFilter: TimeFilter; locationFilter: string; communityFilter?: string }) {
+export function filterEvents(events: EventItem[], options: { search: string; timeFilter: TimeFilter; modalityFilter?: ModalityFilter; locationFilter: string; communityFilter?: string }) {
   const query = options.search.trim().toLowerCase()
   return events.filter((event) => {
     const matchesSearch = !query || `${event.title} ${event.description} ${event.communityName}`.toLowerCase().includes(query)
-    return matchesSearch && matchesTimeFilter(event, options.timeFilter) && matchesLocationFilter(event, options.locationFilter) && matchesCommunityFilter(event, options.communityFilter)
+    return matchesSearch && matchesTimeFilter(event, options.timeFilter) && matchesModalityFilter(event, options.modalityFilter) && matchesLocationFilter(event, options.locationFilter) && matchesCommunityFilter(event, options.communityFilter)
   })
 }

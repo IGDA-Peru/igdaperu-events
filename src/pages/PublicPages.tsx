@@ -11,7 +11,7 @@ import { EventFilters, EventSearchField } from '../components/EventFilters'
 import { TurnstileWidget } from '../components/TurnstileWidget'
 import { EventFocusButton, EventResults, EventViewSwitcher, type EventFocusRequest } from '../components/EventViews'
 import type { EventViewMode } from '../components/eventViewModes'
-import { filterEvents, type CommunityFilterOption, type TimeFilter } from '../lib/eventFilters'
+import { filterEvents, type CommunityFilterOption, type ModalityFilter, type TimeFilter } from '../lib/eventFilters'
 import { eventTypeOptions, isStandardEventType } from '../lib/eventTypes'
 import { findNextEvent } from '../lib/eventFocus'
 import { isSupabaseConfigured } from '../lib/supabase'
@@ -321,6 +321,7 @@ export function PublicAgendaPage() {
   const { user, configured } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
+  const [modalityFilter, setModalityFilter] = useState<ModalityFilter>('all')
   const [locationFilter, setLocationFilter] = useState('all')
   const [communityFilter, setCommunityFilter] = useState('all')
   const [search, setSearch] = useState('')
@@ -345,8 +346,8 @@ export function PublicAgendaPage() {
   }, [events, loading, setSearchParams, sharedEventKey])
 
   const visibleEvents = useMemo(() => {
-    return filterEvents(events, { search, timeFilter, locationFilter })
-  }, [events, locationFilter, search, timeFilter])
+    return filterEvents(events, { search, timeFilter, modalityFilter, locationFilter })
+  }, [events, locationFilter, modalityFilter, search, timeFilter])
 
   const communityOptions = useMemo<CommunityFilterOption[]>(() => {
     const options = new Map<string, CommunityFilterOption>()
@@ -377,7 +378,7 @@ export function PublicAgendaPage() {
             onCommunityFilterChange={setCommunityFilter}
             toolbarCenter={<EventViewSwitcher value={viewMode} onChange={setViewMode} />}
             toolbarEnd={<EventSearchField search={search} onSearchChange={setSearch} />}
-            contentBefore={viewMode === 'cards' ? <EventFilters timeFilter={timeFilter} locationFilter={locationFilter} communityFilter={communityFilter} communityOptions={communityOptions} search={search} onTimeChange={setTimeFilter} onLocationChange={setLocationFilter} onCommunityChange={setCommunityFilter} onSearchChange={setSearch} showSearch={false} /> : null}
+            contentBefore={viewMode === 'cards' ? <EventFilters timeFilter={timeFilter} modalityFilter={modalityFilter} locationFilter={locationFilter} communityFilter={communityFilter} communityOptions={communityOptions} search={search} onTimeChange={setTimeFilter} onModalityChange={(value) => { setModalityFilter(value); setLocationFilter('all') }} onLocationChange={setLocationFilter} onCommunityChange={setCommunityFilter} onSearchChange={setSearch} showSearch={false} /> : null}
           />}
         </section>
         <div className="events-sidebar">

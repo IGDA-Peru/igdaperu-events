@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight, LocateFixed, LockKeyhole } from 'lucide-react'
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, LocateFixed, LockKeyhole } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { getEventCoverUrl } from '../lib/data'
 import { formatEventDateRange, formatEventLocation, formatTimeRange, isEventPast } from '../lib/format'
@@ -262,7 +262,7 @@ export function CalendarView({ events, onEventOpen, focusRequest, communityFilte
           {weeks.map((week, weekIndex) => {
             const segments = weekSegments[weekIndex]
             const laneCount = segments.length ? Math.max(...segments.map((segment) => segment.lane)) + 1 : 0
-            const weekStyle = { minHeight: `${116 + laneCount * 27}px` } as CSSProperties
+            const weekStyle = { minHeight: `${116 + Math.max(1, laneCount) * 27}px` } as CSSProperties
             return <div className="calendar-week" style={weekStyle} key={week[0].key}>
               <div className="calendar-week-days">
                 {week.map(({ date, key, inMonth }) => {
@@ -651,6 +651,7 @@ const EVENT_CARDS_PAGE_SIZE = 6
 export function EventResults({ events, viewMode, showVisibility, onEventOpen, showViewLabel = true, showFocusButton = true, toolbarCenter, toolbarEnd, contentBefore, communityFilter, communityOptions, onCommunityFilterChange, focusRequest: controlledFocusRequest, onFocusRequestChange }: EventResultsProps) {
   const [internalFocusRequest, setInternalFocusRequest] = useState<EventFocusRequest | null>(null)
   const [visibleCardCount, setVisibleCardCount] = useState(EVENT_CARDS_PAGE_SIZE)
+  const [pastEventsOpen, setPastEventsOpen] = useState(false)
   const previousViewMode = useRef(viewMode)
   const displayedEvents = useMemo(() => events.filter((event) => matchesCommunityFilter(event, communityFilter)), [communityFilter, events])
   const cardEvents = useMemo(() => {
@@ -659,12 +660,15 @@ export function EventResults({ events, viewMode, showVisibility, onEventOpen, sh
     return [...upcomingEvents, ...pastEvents]
   }, [displayedEvents])
   const visibleCardEvents = cardEvents.slice(0, visibleCardCount)
-  const pastDividerIndex = visibleCardEvents.findIndex((event) => isEventPast(event))
+  const visibleUpcomingEvents = visibleCardEvents.filter((event) => !isEventPast(event))
+  const visiblePastEvents = visibleCardEvents.filter((event) => isEventPast(event))
+  const pastEventsId = 'past-events-list'
   const nextEvent = useMemo(() => findNextEvent(displayedEvents), [displayedEvents])
   const focusRequest = controlledFocusRequest === undefined ? internalFocusRequest : controlledFocusRequest
 
   useEffect(() => {
     setVisibleCardCount(EVENT_CARDS_PAGE_SIZE)
+    setPastEventsOpen(false)
   }, [displayedEvents, viewMode])
 
   useEffect(() => {
@@ -690,6 +694,15 @@ export function EventResults({ events, viewMode, showVisibility, onEventOpen, sh
   }
   const focusButton = showFocusButton && nextEvent ? <EventFocusButton onClick={requestFocus} /> : null
   const renderedFocusRequest = previousViewMode.current === viewMode ? focusRequest : null
+  const renderCardEvents = (eventsToRender: EventItem[], priorMonthLabel: string | null = null) => eventsToRender.map((event, index) => {
+    const monthLabel = eventMonthLabel(event)
+    const previousMonthLabel = index > 0 ? eventMonthLabel(eventsToRender[index - 1]) : priorMonthLabel
+    const shouldShowMonthDivider = monthLabel !== previousMonthLabel
+    return <Fragment key={event.id}>
+      {shouldShowMonthDivider && <div className="event-month-divider" role="separator" aria-label={`Mes ${monthLabel}`}><span>{monthLabel}</span></div>}
+      <EventCard event={event} showVisibility={showVisibility} onOpen={() => onEventOpen(event)} />
+    </Fragment>
+  })
   const showToolbar = showViewLabel || Boolean(focusButton) || Boolean(toolbarCenter) || Boolean(toolbarEnd)
   return <div className="event-results">
     {showToolbar && <div className="event-results-toolbar">
@@ -709,16 +722,18 @@ export function EventResults({ events, viewMode, showVisibility, onEventOpen, sh
       {viewMode === 'calendar' && <CalendarView events={events} onEventOpen={onEventOpen} focusRequest={renderedFocusRequest} communityFilter={communityFilter} communityOptions={communityOptions} onCommunityFilterChange={onCommunityFilterChange} />}
       {viewMode === 'timeline' && <TimelineView events={events} showVisibility={showVisibility} onEventOpen={onEventOpen} focusRequest={renderedFocusRequest} communityFilter={communityFilter} communityOptions={communityOptions} onCommunityFilterChange={onCommunityFilterChange} />}
       {viewMode === 'cards' && <>
-        <div className="event-list">{visibleCardEvents.map((event, index) => {
-          const monthLabel = eventMonthLabel(event)
-          const previousMonthLabel = index > 0 ? eventMonthLabel(visibleCardEvents[index - 1]) : null
-          const shouldShowMonthDivider = monthLabel !== previousMonthLabel
-          return <Fragment key={event.id}>
-            {index === pastDividerIndex && <div className="event-list-divider" role="separator" aria-label="Eventos que ya pasaron"><span>Eventos que ya pasaron</span></div>}
-            {shouldShowMonthDivider && <div className="event-month-divider" role="separator" aria-label={`Mes ${monthLabel}`}><span>{monthLabel}</span></div>}
-            <EventCard event={event} showVisibility={showVisibility} onOpen={() => onEventOpen(event)} />
-          </Fragment>
-        })}</div>
+        <div className="event-list">
+          {renderCardEvents(visibleUpcomingEvents)}
+          {visiblePastEvents.length > 0 && <>
+            <button className="event-list-divider" type="button" aria-expanded={pastEventsOpen} aria-controls={pastEventsId} onClick={() => setPastEventsOpen((current) => !current)}>
+              <span>Eventos que ya pasaron</span>
+              <ChevronDown size={15} aria-hidden="true" />
+            </button>
+            <div id={pastEventsId} className="event-list-past" hidden={!pastEventsOpen}>
+              {renderCardEvents(visiblePastEvents, visibleUpcomingEvents.length ? eventMonthLabel(visibleUpcomingEvents[visibleUpcomingEvents.length - 1]) : null)}
+            </div>
+          </>}
+        </div>
         {visibleCardCount < cardEvents.length && <div className="event-load-more"><button className="secondary-button" type="button" onClick={() => setVisibleCardCount((current) => Math.min(current + EVENT_CARDS_PAGE_SIZE, cardEvents.length))}>Cargar más eventos</button></div>}
       </>}
     </>}
