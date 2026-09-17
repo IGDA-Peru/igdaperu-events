@@ -2,7 +2,7 @@
 
 La sincronización usa una cola coalescida y una reconciliación nocturna:
 
-- Cada alta, edición, publicación, archivado o eliminación de un evento crea o actualiza una sola tarea para ese evento.
+- Los eventos públicos publicados y sus cambios relevantes crean o actualizan una sola tarea para ese evento; los borradores y eventos privados no se sincronizan.
 - Un procesador atiende hasta 10 tareas cada 5 minutos y reintenta los fallos con backoff.
 - Una reconciliación completa nocturna compara todos los eventos administrados. Solo actualiza los que cambiaron y elimina los que ya no deben publicarse.
 

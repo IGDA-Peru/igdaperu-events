@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createInvitation } from './data'
+import { createInvitation, deleteEvent } from './data'
 
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }))
+const { invoke, from } = vi.hoisted(() => ({ invoke: vi.fn(), from: vi.fn() }))
 
 vi.mock('./supabase', () => ({
   isSupabaseConfigured: true,
-  supabase: { functions: { invoke } },
+  supabase: { functions: { invoke }, from },
 }))
 
 describe('createInvitation', () => {
@@ -20,5 +20,19 @@ describe('createInvitation', () => {
     expect(invoke).toHaveBeenCalledWith('create-invitation', {
       body: { email: 'person@example.com', communityId: 'community-id', role: 'community_admin' },
     })
+  })
+})
+
+describe('deleteEvent', () => {
+  it('requires the database delete to return the requested event', async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({ data: { cover_path: null }, error: null })
+    const readSelect = vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle })) }))
+    const deleteSelect = vi.fn().mockResolvedValue({ data: [], error: null })
+    const deleteBuilder = { eq: vi.fn(() => ({ select: deleteSelect })) }
+    from.mockReset()
+    from.mockReturnValueOnce({ select: readSelect }).mockReturnValueOnce({ delete: vi.fn(() => deleteBuilder) })
+
+    await expect(deleteEvent('event-id')).rejects.toThrow('no tengas permisos')
+    expect(deleteSelect).toHaveBeenCalledWith('id')
   })
 })

@@ -398,6 +398,36 @@ describe('public events', () => {
     confirmSpy.mockRestore()
   })
 
+  it('allows community admins to delete archived events', async () => {
+    const archivedEvent = { ...demoEvents[0], id: 'archived-event', status: 'archived' as const }
+    const listManagedEventsSpy = vi.spyOn(data, 'listManagedEvents').mockResolvedValue([archivedEvent])
+    const deleteEventSpy = vi.spyOn(data, 'deleteEvent').mockResolvedValue(undefined)
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const authValue = {
+      configured: false,
+      loading: false,
+      session: null,
+      user: { id: 'user-1', email: 'comunidad@igda.pe' } as NonNullable<AuthContextValue['user']>,
+      profile: { id: 'profile-1', displayName: 'Comunidad' },
+      memberships: [{ communityId: 'igda-peru', communityName: 'IGDA Perú', communitySlug: 'igda-peru', role: 'community_admin', status: 'active' }],
+      roles: ['community_admin'],
+      signOut: vi.fn().mockResolvedValue(undefined),
+      refreshUserData: vi.fn().mockResolvedValue(undefined),
+    } as AuthContextValue
+
+    try {
+      render(<AuthContext.Provider value={authValue}><MemoryRouter initialEntries={['/app/eventos']}><ManagedEventsPage /></MemoryRouter></AuthContext.Provider>)
+      const deleteButton = await screen.findByRole('button', { name: `Eliminar ${archivedEvent.title}` })
+      fireEvent.click(deleteButton)
+      await waitFor(() => expect(deleteEventSpy).toHaveBeenCalledWith(archivedEvent.id))
+      expect(confirmSpy).toHaveBeenCalledWith(`¿Eliminar “${archivedEvent.title}”? Esta acción no se puede deshacer.`)
+    } finally {
+      listManagedEventsSpy.mockRestore()
+      deleteEventSpy.mockRestore()
+      confirmSpy.mockRestore()
+    }
+  })
+
   it('makes community information read-only and separates registered emails from invitations', async () => {
     const authValue = {
       configured: false,

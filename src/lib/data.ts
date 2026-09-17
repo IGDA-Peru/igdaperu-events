@@ -834,8 +834,11 @@ export async function deleteEvent(eventId: string) {
   if (!supabase) throw new Error('Supabase no está configurado.')
   const { data: event, error: readError } = await supabase.from('events').select('cover_path').eq('id', eventId).maybeSingle()
   if (readError) throw readError
-  const { error } = await supabase.from('events').delete().eq('id', eventId)
+  const { data: deletedEvents, error } = await supabase.from('events').delete().eq('id', eventId).select('id')
   if (error) throw error
+  if (!deletedEvents?.some((deletedEvent) => deletedEvent.id === eventId)) {
+    throw new Error('No pudimos eliminar el evento. Puede que no tengas permisos o que debas archivarlo antes.')
+  }
   if (event?.cover_path && !event.cover_path.startsWith('/') && !/^https?:\/\//i.test(event.cover_path)) {
     const { error: storageError } = await supabase.storage.from('event-assets').remove([event.cover_path])
     if (storageError) console.warn('No pudimos eliminar el banner del evento eliminado.', storageError)
