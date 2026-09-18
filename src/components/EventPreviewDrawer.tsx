@@ -141,7 +141,7 @@ export function EventPreviewDrawer({
               <CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative />
               <div className="event-preview-meta-copy">
                 <strong>Organiza</strong>
-                <span className="event-preview-meta-value">{event.communityId ? <a href={publicCommunityUrl} target="_top" rel="noreferrer">{event.communityName}</a> : (event.organizerName || event.communityName || 'Evento independiente')}</span>
+                <span className="event-preview-meta-value">{event.communityId ? <a href={publicCommunityUrl} target="_blank" rel="noreferrer">{event.communityName}</a> : (event.organizerName || event.communityName || 'Evento independiente')}</span>
               </div>
             </div>
           </div>

@@ -519,7 +519,7 @@ export function HomeEventsEmbedPage() {
         {error && <ErrorState message={error} />}
         {!loading && !error && (events.length ? <div className="event-list">{events.map((event) => <EventCard event={event} compact showCover onOpen={() => setSelectedEvent(event)} key={event.id} />)}</div> : <EmptyEvents />)}
         <div className="home-events-embed-cta-row">
-          <a className="primary-button home-events-embed-cta" href={publicCalendarUrl} target="_top" rel="noreferrer">Ver todos los eventos <ExternalLink size={16} aria-hidden="true" /></a>
+          <a className="primary-button home-events-embed-cta" href={publicCalendarUrl} target="_blank" rel="noreferrer">Ver todos los eventos <ExternalLink size={16} aria-hidden="true" /></a>
         </div>
       </section>
       <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" />
@@ -635,7 +635,7 @@ function SpotlightEventsEmbedContent() {
           </div>
         </section>}
       </div>}
-      {!loading && !error && featuredEvent && <a className="spotlight-all-events" href={allEventsUrl} target="_top" rel="noreferrer">Ver todos los eventos <ArrowRight size={18} aria-hidden="true" /></a>}
+      {!loading && !error && featuredEvent && <a className="spotlight-all-events" href={allEventsUrl} target="_blank" rel="noreferrer">Ver todos los eventos <ArrowRight size={18} aria-hidden="true" /></a>}
       {!loading && !error && !featuredEvent && <EmptyEvents />}
     </section>
     <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" />

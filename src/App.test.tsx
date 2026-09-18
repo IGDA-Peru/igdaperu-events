@@ -267,13 +267,14 @@ describe('public events', () => {
 
     expect(await screen.findByRole('heading', { name: 'Próximos eventos' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Ver todos los eventos/ })).toHaveAttribute('href', 'https://igda.pe/comunidad/calendario/')
+    expect(screen.getByRole('link', { name: /Ver todos los eventos/ })).toHaveAttribute('target', '_blank')
     expect(screen.getAllByRole('article')).toHaveLength(3)
 
     fireEvent.click(screen.getAllByRole('button', { name: /Ver Diseño de niveles/ })[0])
     expect(screen.getByRole('dialog', { name: /Diseño de niveles/ })).toHaveClass('event-preview-drawer--modal')
     expect(document.querySelector('.event-preview-layer--modal')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'IGDA Perú' })).toHaveAttribute('href', 'https://igda.pe/comunidad/')
-    expect(screen.getByRole('link', { name: 'IGDA Perú' })).toHaveAttribute('target', '_top')
+    expect(screen.getByRole('link', { name: 'IGDA Perú' })).toHaveAttribute('target', '_blank')
   })
 
   it('removes the featured slider from the embedded spotlight route', async () => {
@@ -281,6 +282,7 @@ describe('public events', () => {
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: 'Próximos eventos' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Ver todos los eventos/ })).toHaveAttribute('target', '_blank')
     expect(screen.getAllByRole('article')).toHaveLength(3)
     expect(document.querySelector('.spotlight-feature-card')).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Siguientes eventos' })).not.toBeInTheDocument()
@@ -292,6 +294,7 @@ describe('public events', () => {
 
     expect(await screen.findByRole('heading', { name: 'Próximos eventos' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Ver todos los eventos/ })).toHaveAttribute('href', 'https://igda.pe/comunidad/calendario/')
+    expect(screen.getByRole('link', { name: /Ver todos los eventos/ })).toHaveAttribute('target', '_blank')
     expect(screen.getByText('Actividades de todas las comunidades de IGDA Perú.')).toBeInTheDocument()
     expect(screen.queryByText('Eventos IGDA Perú')).not.toBeInTheDocument()
     expect(screen.queryByText('Comunidad. Juegos. Oportunidades.')).not.toBeInTheDocument()
@@ -820,7 +823,7 @@ describe('event preview layout', () => {
     render(<MemoryRouter><EventPreviewDrawer event={demoEvents[0]} onClose={vi.fn()} presentation="drawer" /></MemoryRouter>)
 
     expect(screen.getByRole('link', { name: 'IGDA Perú' })).toHaveAttribute('href', 'https://igda.pe/comunidad/')
-    expect(screen.getByRole('link', { name: 'IGDA Perú' })).toHaveAttribute('target', '_top')
+    expect(screen.getByRole('link', { name: 'IGDA Perú' })).toHaveAttribute('target', '_blank')
   })
 
   it('keeps the Google Maps action in a compact metadata control', () => {
