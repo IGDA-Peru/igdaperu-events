@@ -276,43 +276,19 @@ describe('public events', () => {
     expect(screen.getByRole('link', { name: 'IGDA Perú' })).toHaveAttribute('target', '_top')
   })
 
-  it('renders the spotlight embed with one featured event and three following events', async () => {
-    const spotlightEvents = demoEvents.map((event, index) => index === 0 ? { ...event, registrationUrl: '' } : event)
-    const listEventsSpy = vi.spyOn(data, 'listEvents').mockResolvedValue(spotlightEvents)
+  it('removes the featured slider from the embedded spotlight route', async () => {
     window.history.pushState({}, '', '/embed/spotlight?embedded=1')
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: demoEvents[0].title })).toBeInTheDocument()
-    expect(listEventsSpy).toHaveBeenCalledWith({ upcomingOnly: true, limit: 4 })
-    expect(screen.getByText('Agenda')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Próximos eventos' })).toBeInTheDocument()
-    expect(screen.getByText('Actividades de todas las comunidades de IGDA Perú.')).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: 'Próximo evento' })).toBeInTheDocument()
-    expect(screen.getByText(`Organiza ${demoEvents[0].communityName}`)).toBeInTheDocument()
-    expect(screen.queryByText(demoEvents[0].description)).not.toBeInTheDocument()
-    expect(document.querySelector('.spotlight-embed-header')).not.toBeInTheDocument()
-    expect(screen.queryByText('Comunidad. Juegos. Oportunidades.')).not.toBeInTheDocument()
-    expect(document.querySelector('.spotlight-feature-card')).toHaveClass('spotlight-feature-card--no-media')
-    expect(document.querySelector('.spotlight-feature-media')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Ver evento' })).toHaveClass('spotlight-feature-action--icon')
-    expect(screen.getByRole('heading', { name: 'Siguientes eventos' })).toBeInTheDocument()
-    expect(document.querySelectorAll('.spotlight-upcoming-item')).toHaveLength(3)
-    expect(document.querySelector('.spotlight-upcoming')?.querySelector('.spotlight-all-events')).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Ver todos los eventos/ }).getAttribute('href')).toBe(new URL('/', window.location.origin).toString())
-    expect(screen.queryByRole('link', { name: 'Inscribirme' })).not.toBeInTheDocument()
-
-    fireEvent.click(document.querySelector('.spotlight-feature-card') as HTMLElement)
-    expect(screen.getByRole('dialog', { name: demoEvents[0].title })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Cerrar vista previa' }))
-
-    fireEvent.click(screen.getByRole('button', { name: `Ver ${demoEvents[1].title}` }))
-    expect(screen.getByRole('dialog', { name: demoEvents[1].title })).toBeInTheDocument()
-    listEventsSpy.mockRestore()
+    expect(await screen.findByRole('heading', { name: 'Próximos eventos' })).toBeInTheDocument()
+    expect(screen.getAllByRole('article')).toHaveLength(3)
+    expect(document.querySelector('.spotlight-feature-card')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Siguientes eventos' })).not.toBeInTheDocument()
   })
 
   it('places the spotlight registration action below the feature details', async () => {
     const listEventsSpy = vi.spyOn(data, 'listEvents').mockResolvedValue(demoEvents)
-    window.history.pushState({}, '', '/embed/spotlight?embedded=1')
+    window.history.pushState({}, '', '/embed/spotlight')
     render(<App />)
 
     await screen.findByRole('heading', { name: demoEvents[0].title })
@@ -326,13 +302,32 @@ describe('public events', () => {
     listEventsSpy.mockRestore()
   })
 
+  it('adds the main agenda toolbar to the calendar embed and filters its results', async () => {
+    window.history.pushState({}, '', '/embed')
+    render(<App />)
+
+    expect(await screen.findByRole('region', { name: /Calendario/ })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Próximos eventos' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filtros' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Buscar eventos' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filtros' }))
+    expect(screen.getByRole('dialog', { name: 'Filtros de eventos' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Tiempo' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Modalidad' })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Buscar eventos' }), { target: { value: 'Godot' } })
+    expect(await screen.findByRole('button', { name: /Introducción a Godot Engine/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Diseño de niveles/ })).not.toBeInTheDocument()
+  })
+
   it('uses the calendar view by default in the large event embed and allows switching views', async () => {
     window.history.pushState({}, '', '/embed')
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: 'Próximos eventos' })).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: /Calendario/ })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Próximos eventos' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Calendario' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('region', { name: /Calendario/ })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Tarjetas' }))
     expect(screen.getByRole('button', { name: 'Tarjetas' })).toHaveAttribute('aria-pressed', 'true')

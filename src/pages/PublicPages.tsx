@@ -9,11 +9,10 @@ import { EventPreviewDrawer } from '../components/EventPreviewDrawer'
 import { CommunityLogo } from '../components/CommunityLogo'
 import { EventFiltersPopover, EventSearchField } from '../components/EventFilters'
 import { TurnstileWidget } from '../components/TurnstileWidget'
-import { EventFocusButton, EventResults, EventViewSwitcher, type EventFocusRequest } from '../components/EventViews'
+import { EventResults, EventViewSwitcher, type EventFocusRequest } from '../components/EventViews'
 import type { EventViewMode } from '../components/eventViewModes'
 import { filterEvents, type CommunityFilterOption, type ModalityFilter, type TimeFilter } from '../lib/eventFilters'
 import { eventTypeOptions, isStandardEventType } from '../lib/eventTypes'
-import { findNextEvent, findNextEventAfter, findPreviousEventBefore } from '../lib/eventFocus'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { getEventCoverUrl, listCommunities, listEvents, listHomeEmbedEvents, submitEventProposal, type EventProposalSubmission, type EventQueryOptions } from '../lib/data'
 import { limaNowDateTimeInput } from '../lib/eventSchedule'
@@ -453,17 +452,31 @@ export function CommunityDetailPage() {
 export function EmbedPage() {
   const [params] = useSearchParams()
   const [viewMode, setViewMode] = useState<EventViewMode>('calendar')
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
+  const [modalityFilter, setModalityFilter] = useState<ModalityFilter>('all')
+  const [locationFilter, setLocationFilter] = useState('all')
+  const [communityFilter, setCommunityFilter] = useState('all')
+  const [search, setSearch] = useState('')
   const [focusRequest, setFocusRequest] = useState<EventFocusRequest | null>(null)
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
-  const focusNonce = useRef(0)
   const communitySlug = params.get('community') || undefined
   const { events, loading, error } = useEvents({ communitySlug })
-  const nextEvent = useMemo(() => findNextEvent(events), [events])
-  const previousEvent = focusRequest ? findPreviousEventBefore(events, focusRequest.eventId) : null
-  const nextEventAfterFocus = focusRequest ? findNextEventAfter(events, focusRequest.eventId) : null
-  const requestFocus = (event: EventItem | null) => { if (event) setFocusRequest({ eventId: event.id, nonce: ++focusNonce.current }) }
-  const toggleFocus = () => { if (focusRequest) setFocusRequest(null); else requestFocus(nextEvent) }
-  return <div className="embed-page"><div className="embed-header"><span className="compact-brand"><img src="/brand/logo-igda-peru.png" alt="" width="30" height="28" /> <span>Eventos IGDA Perú</span></span><Link to="/" target="_blank">Ver todos los eventos <ExternalLink size={14} /></Link></div><div className="embed-section-heading"><h1>Próximos eventos</h1><div className="embed-section-actions"><EventViewSwitcher value={viewMode} onChange={setViewMode} />{nextEvent && <EventFocusButton onClick={toggleFocus} navigationActive={Boolean(focusRequest)} onPreviousClick={focusRequest ? () => requestFocus(previousEvent) : undefined} onNextClick={focusRequest ? () => requestFocus(nextEventAfterFocus) : undefined} previousDisabled={!previousEvent} nextDisabled={!nextEventAfterFocus} />}</div></div>{loading && <LoadingState />}{error && <ErrorState message={error} />}{!loading && !error && <EventResults events={events} viewMode={viewMode} showVisibility={false} onEventOpen={setSelectedEvent} showViewLabel={false} showFocusButton={false} focusRequest={focusRequest} onFocusRequestChange={setFocusRequest} />}<EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" /></div>
+  const visibleEvents = useMemo(() => filterEvents(events, { search, timeFilter, modalityFilter, locationFilter, communityFilter }), [communityFilter, events, locationFilter, modalityFilter, search, timeFilter])
+  const communityOptions = useMemo<CommunityFilterOption[]>(() => {
+    const options = new Map<string, CommunityFilterOption>()
+    events.forEach((event) => {
+      if (event.communityId && event.communityName) options.set(event.communityId, { value: event.communityId, label: event.communityName })
+      if (!event.communityId) options.set('__independent__', { value: '__independent__', label: 'Eventos independientes' })
+    })
+    return [...options.values()].sort((first, second) => first.label.localeCompare(second.label, 'es'))
+  }, [events])
+  const clearFilters = () => {
+    setTimeFilter('all')
+    setModalityFilter('all')
+    setLocationFilter('all')
+    setCommunityFilter('all')
+  }
+  return <div className="embed-page"><div className="embed-header"><span className="compact-brand"><img src="/brand/logo-igda-peru.png" alt="" width="30" height="28" /> <span>Eventos IGDA Perú</span></span><Link to="/" target="_blank">Ver todos los eventos <ExternalLink size={14} /></Link></div>{loading && <LoadingState />}{error && <ErrorState message={error} />}{!loading && !error && <EventResults events={visibleEvents} viewMode={viewMode} showVisibility={false} onEventOpen={setSelectedEvent} showViewLabel={false} focusRequest={focusRequest} onFocusRequestChange={setFocusRequest} communityFilter={communityFilter} communityOptions={communityOptions} onCommunityFilterChange={setCommunityFilter} toolbarCenter={<EventViewSwitcher value={viewMode} onChange={setViewMode} />} toolbarEnd={<><EventFiltersPopover timeFilter={timeFilter} modalityFilter={modalityFilter} locationFilter={locationFilter} communityFilter={communityFilter} communityOptions={communityOptions} onTimeChange={setTimeFilter} onModalityChange={(value) => { setModalityFilter(value); setLocationFilter('all') }} onLocationChange={setLocationFilter} onCommunityChange={setCommunityFilter} onClear={clearFilters} showTimeFilter showCommunityFilter /><EventSearchField search={search} onSearchChange={setSearch} /></>} />}<EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" /></div>
 }
 
 export function HomeEventsEmbedPage() {
@@ -576,7 +589,7 @@ function SpotlightUpcomingItem({ event, onOpen }: { event: EventItem; onOpen: ()
   </button>
 }
 
-export function SpotlightEventsEmbedPage() {
+function SpotlightEventsEmbedContent() {
   const [params] = useSearchParams()
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const embedded = params.get('embedded') === '1'
@@ -629,4 +642,9 @@ export function SpotlightEventsEmbedPage() {
     </section>
     <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" />
   </div>
+}
+
+export function SpotlightEventsEmbedPage() {
+  const [params] = useSearchParams()
+  return params.get('embedded') === '1' ? <HomeEventsEmbedPage /> : <SpotlightEventsEmbedContent />
 }
