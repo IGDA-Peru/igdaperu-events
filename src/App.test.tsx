@@ -68,6 +68,32 @@ describe('public events', () => {
     expect(screen.getByRole('textbox', { name: 'Especifica el tipo de evento' })).toHaveValue('Festival')
   })
 
+  it('shows the proposal confirmation only after a successful submission', async () => {
+    const submitProposalSpy = vi.spyOn(data, 'submitEventProposal').mockResolvedValue(undefined)
+
+    try {
+      render(<MemoryRouter initialEntries={['/proponer-evento']}><EventProposalPage /></MemoryRouter>)
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      expect(screen.queryByText('La publicación depende de la revisión del equipo de IGDA Perú.')).not.toBeInTheDocument()
+
+      fireEvent.change(screen.getByPlaceholderText('Ej. GameDev Lima'), { target: { value: 'GameDev Lima' } })
+      fireEvent.change(screen.getByPlaceholderText('tucorreo@ejemplo.com'), { target: { value: 'equipo@example.com' } })
+      fireEvent.change(screen.getByPlaceholderText('Ej. Charla: Diseño de sistemas para videojuegos'), { target: { value: 'Taller de desarrollo' } })
+      fireEvent.change(screen.getByPlaceholderText('Cuéntanos de qué trata tu evento, a quién está dirigido y qué encontrarán las personas asistentes.'), { target: { value: 'Una actividad para la comunidad.' } })
+      const dateInputs = document.querySelectorAll('input[type="datetime-local"]')
+      fireEvent.change(dateInputs[0], { target: { value: '2026-10-01T10:00' } })
+      fireEvent.change(dateInputs[1], { target: { value: '2026-10-01T11:00' } })
+      fireEvent.submit(screen.getByRole('button', { name: 'Enviar propuesta' }).closest('form') as HTMLFormElement)
+
+      await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument())
+      expect(screen.getByText('La publicación depende de la revisión del equipo de IGDA Perú.')).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Volver a la agenda' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Enviar propuesta' })).not.toBeInTheDocument()
+    } finally {
+      submitProposalSpy.mockRestore()
+    }
+  })
+
   it('shows public events using the local demo fallback', async () => {
     render(<App />)
     expect(screen.queryByRole('heading', { name: 'Próximos eventos' })).not.toBeInTheDocument()
@@ -75,6 +101,11 @@ describe('public events', () => {
     expect(screen.queryByRole('heading', { name: 'Agenda IGDA Perú' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Publicar evento/ })).not.toBeInTheDocument()
     await waitFor(() => expect(screen.getAllByRole('button', { name: /Ver Diseño de niveles/ }).length).toBeGreaterThan(0))
+    const filterButton = screen.getByRole('button', { name: 'Filtros' })
+    expect(filterButton).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(filterButton)
+    expect(screen.getByRole('dialog', { name: 'Filtros de eventos' })).toBeInTheDocument()
+    expect(screen.queryByText('Combina las opciones para encontrar una actividad.')).not.toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Tiempo' })).toBeInTheDocument()
     const modalitySelect = screen.getByRole('combobox', { name: 'Modalidad' })
     expect(modalitySelect).toBeInTheDocument()
@@ -111,6 +142,9 @@ describe('public events', () => {
     expect(screen.getAllByRole('link', { name: /Comunidades/ }).length).toBeGreaterThan(0)
     expect(document.querySelector('.community-arrow')).not.toBeInTheDocument()
 
+    fireEvent.change(modalitySelect, { target: { value: 'venue' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Lugar' }), { target: { value: 'Lima' } })
+
     fireEvent.click(screen.getAllByRole('button', { name: /Ver Diseño de niveles/ })[0])
     expect(screen.getByRole('dialog', { name: /Diseño de niveles/ })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Inscribirme' })).toHaveAttribute('href', 'https://igda.pe/registro')
@@ -131,7 +165,8 @@ describe('public events', () => {
       expect(calendarWeekHeights).toHaveLength(6)
       expect(calendarWeekHeights.every((height) => height >= 143)).toBe(true)
       expect(screen.queryByRole('combobox', { name: 'Tiempo' })).not.toBeInTheDocument()
-      expect(screen.queryByRole('combobox', { name: 'Lugar' })).not.toBeInTheDocument()
+      expect(screen.getByRole('combobox', { name: 'Modalidad' })).toHaveValue('venue')
+      expect(screen.getByRole('combobox', { name: 'Lugar' })).toHaveValue('Lima')
       expect(screen.getByRole('textbox', { name: 'Buscar eventos' })).toBeInTheDocument()
       const calendarToolbar = document.querySelector('.event-results-toolbar')
       expect(calendarToolbar?.querySelector('.event-results-toolbar-start .event-focus-button')).toBeInTheDocument()
@@ -142,15 +177,20 @@ describe('public events', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Línea de tiempo' }))
       expect(screen.getByRole('region', { name: /Línea de tiempo/ })).toBeInTheDocument()
       expect(screen.queryByRole('combobox', { name: 'Tiempo' })).not.toBeInTheDocument()
-      expect(screen.queryByRole('combobox', { name: 'Lugar' })).not.toBeInTheDocument()
+      expect(screen.getByRole('combobox', { name: 'Modalidad' })).toHaveValue('venue')
+      const timelineLocationSelect = screen.getByRole('combobox', { name: 'Lugar' })
+      expect(timelineLocationSelect).toHaveValue('Lima')
       expect(screen.getByRole('combobox', { name: 'Filtrar timeline por comunidad' })).toHaveValue(demoEvents[0].communityId)
       expect(document.querySelector('.timeline-legend')).not.toBeInTheDocument()
       expect(scrollIntoView).not.toHaveBeenCalled()
       fireEvent.change(screen.getByRole('combobox', { name: 'Filtrar timeline por comunidad' }), { target: { value: demoEvents[1].communityId } })
       expect(screen.getByRole('combobox', { name: 'Filtrar timeline por comunidad' })).toHaveValue(demoEvents[1].communityId)
       expect(screen.getByRole('button', { name: /Introducción a Godot Engine/ })).toBeInTheDocument()
+      fireEvent.change(timelineLocationSelect, { target: { value: 'Perú' } })
       fireEvent.click(screen.getByRole('button', { name: 'Tarjetas' }))
       expect(screen.getByRole('combobox', { name: 'Comunidad' })).toHaveValue(demoEvents[1].communityId)
+      expect(screen.getByRole('combobox', { name: 'Modalidad' })).toHaveValue('venue')
+      expect(screen.getByRole('combobox', { name: 'Lugar' })).toHaveValue('Perú')
       fireEvent.change(screen.getByRole('combobox', { name: 'Comunidad' }), { target: { value: 'all' } })
     } finally {
       if (originalScrollIntoView) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: originalScrollIntoView })
@@ -247,8 +287,9 @@ describe('public events', () => {
     expect(screen.getByText('Agenda')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Próximos eventos' })).toBeInTheDocument()
     expect(screen.getByText('Actividades de todas las comunidades de IGDA Perú.')).toBeInTheDocument()
-    expect(screen.getByText('Próximo evento')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Próximo evento' })).toBeInTheDocument()
     expect(screen.getByText(`Organiza ${demoEvents[0].communityName}`)).toBeInTheDocument()
+    expect(screen.queryByText(demoEvents[0].description)).not.toBeInTheDocument()
     expect(document.querySelector('.spotlight-embed-header')).not.toBeInTheDocument()
     expect(screen.queryByText('Comunidad. Juegos. Oportunidades.')).not.toBeInTheDocument()
     expect(document.querySelector('.spotlight-feature-card')).toHaveClass('spotlight-feature-card--no-media')
@@ -266,6 +307,22 @@ describe('public events', () => {
 
     fireEvent.click(screen.getByRole('button', { name: `Ver ${demoEvents[1].title}` }))
     expect(screen.getByRole('dialog', { name: demoEvents[1].title })).toBeInTheDocument()
+    listEventsSpy.mockRestore()
+  })
+
+  it('places the spotlight registration action below the feature details', async () => {
+    const listEventsSpy = vi.spyOn(data, 'listEvents').mockResolvedValue(demoEvents)
+    window.history.pushState({}, '', '/embed/spotlight?embedded=1')
+    render(<App />)
+
+    await screen.findByRole('heading', { name: demoEvents[0].title })
+    const featureCopy = document.querySelector('.spotlight-feature-copy')
+    const registrationLink = screen.getByRole('link', { name: /Inscribirme/ })
+    if (!featureCopy) throw new Error('Spotlight feature copy was not rendered')
+    expect(registrationLink).toHaveClass('spotlight-feature-action--registration')
+    expect(featureCopy.compareDocumentPosition(registrationLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(document.querySelectorAll('.spotlight-upcoming-item')).toHaveLength(3)
+
     listEventsSpy.mockRestore()
   })
 

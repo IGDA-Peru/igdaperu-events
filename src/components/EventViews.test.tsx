@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
-import { buildTimelineSegments, CalendarView, EventResults, timelineRangeForMonth, TimelineView } from './EventViews'
+import { buildTimelineSegments, CalendarView, EventResults, EventViewSwitcher, timelineRangeForMonth, timelineSingleDayLabelLayouts, TimelineView } from './EventViews'
+import { findNextEventAfter, findPreviousEventBefore } from '../lib/eventFocus'
 import type { EventItem } from '../types'
 
 const multiDayEvent: EventItem = {
@@ -141,6 +142,19 @@ describe('TimelineView', () => {
     expect(container.querySelectorAll('.timeline-community-row--placeholder')).toHaveLength(0)
   })
 
+  it('does not let neighboring single-day labels share the same gap', () => {
+    const range = timelineRangeForMonth(new Date(2026, 8, 1))
+    const visibleDays = range.days.slice(21, 28)
+    const sectionRange = { ...range, startKey: visibleDays[0], endKey: visibleDays[visibleDays.length - 1], days: visibleDays }
+    const first = timelineEvent({ id: 'first-single-day', startsAt: '2026-09-23T09:00:00-05:00', endsAt: '2026-09-23T18:00:00-05:00' })
+    const second = timelineEvent({ id: 'second-single-day', startsAt: '2026-09-26T09:00:00-05:00', endsAt: '2026-09-26T18:00:00-05:00' })
+    const segments = buildTimelineSegments([first, second], sectionRange)
+    const layouts = timelineSingleDayLabelLayouts(segments, visibleDays.length, 38)
+
+    expect(layouts[0]).toMatchObject({ labelBefore: false, labelHidden: false, labelWidth: 68 })
+    expect(layouts[1]).toMatchObject({ labelHidden: true, labelWidth: 0 })
+  })
+
   it('uses the normal timeline density and paginates sections with arrows in the timeline header', () => {
     const first = timelineEvent({ id: 'first', title: 'Evento primera sección' })
     const later = timelineEvent({ id: 'later', title: 'Evento segunda sección', startsAt: '2026-09-25T09:00:00-05:00', endsAt: '2026-09-25T18:00:00-05:00' })
@@ -170,6 +184,110 @@ describe('TimelineView', () => {
 })
 
 describe('EventResults cards', () => {
+  it('finds the immediate upcoming event after the focused event', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-11T12:00:00-05:00'))
+    try {
+      const first = timelineEvent({ id: 'first', startsAt: '2026-09-19T09:00:00-05:00', endsAt: '2026-09-19T18:00:00-05:00' })
+      const second = timelineEvent({ id: 'second', startsAt: '2026-09-20T09:00:00-05:00', endsAt: '2026-09-20T18:00:00-05:00' })
+      const filteredOut = timelineEvent({ id: 'filtered-out', communityId: 'other-community', startsAt: '2026-09-21T09:00:00-05:00', endsAt: '2026-09-21T18:00:00-05:00' })
+
+      expect(findNextEventAfter([first, second, filteredOut], first.id)).toBe(second)
+      expect(findNextEventAfter([first, second], second.id)).toBeNull()
+      expect(findPreviousEventBefore([first, second, filteredOut], second.id)).toBe(first)
+      expect(findPreviousEventBefore([first, second], first.id)).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows both navigation arrows after focusing and follows the active community filter', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-11T12:00:00-05:00'))
+    try {
+      const first = timelineEvent({ id: 'first', title: 'Primer evento', startsAt: '2026-09-19T09:00:00-05:00', endsAt: '2026-09-19T18:00:00-05:00', communityId: 'community-1' })
+      const second = timelineEvent({ id: 'second', title: 'Siguiente evento', startsAt: '2026-09-20T09:00:00-05:00', endsAt: '2026-09-20T18:00:00-05:00', communityId: 'community-1' })
+      const filteredOut = timelineEvent({ id: 'filtered-out', title: 'Evento filtrado', startsAt: '2026-09-21T09:00:00-05:00', endsAt: '2026-09-21T18:00:00-05:00', communityId: 'other-community' })
+      const { container } = render(<MemoryRouter><EventResults events={[first, second, filteredOut]} viewMode="cards" showVisibility={false} onEventOpen={vi.fn()} communityFilter="community-1" /></MemoryRouter>)
+
+      expect(container.querySelector('.event-next-button')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Próximo evento' }))
+      expect(container.querySelector('.event-next-button')).toBeInTheDocument()
+      expect(container.querySelector('.event-focus-button')).toBeInTheDocument()
+      expect(container.querySelector('.event-focus-button svg')).toBeInTheDocument()
+      expect(container.querySelector('.event-focus-button span')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Próximo evento' })).toHaveAttribute('aria-pressed', 'true')
+      expect(container.querySelector('.event-focus-button')).toHaveClass('active')
+      expect(container.querySelector('.event-previous-button')).toBeDisabled()
+
+      expect(screen.queryByRole('button', { name: /Evento filtrado/ })).not.toBeInTheDocument()
+
+      fireEvent.click(container.querySelector<HTMLButtonElement>('.event-next-button') as HTMLButtonElement)
+      vi.runOnlyPendingTimers()
+      expect(document.querySelector('[data-event-focus-id="second"]')).toHaveFocus()
+      expect(container.querySelector('.event-next-button')).toBeDisabled()
+      expect(container.querySelector('.event-previous-button')).toBeEnabled()
+
+      fireEvent.click(container.querySelector<HTMLButtonElement>('.event-previous-button') as HTMLButtonElement)
+      vi.runOnlyPendingTimers()
+      expect(document.querySelector('[data-event-focus-id="first"]')).toHaveFocus()
+      expect(container.querySelector('.event-previous-button')).toBeDisabled()
+      expect(container.querySelector('.event-next-button')).toBeEnabled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Próximo evento' }))
+      expect(container.querySelector('.event-next-button')).not.toBeInTheDocument()
+      expect(container.querySelector('.event-previous-button')).not.toBeInTheDocument()
+      expect(container.querySelector('.event-focus-button span')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Próximo evento' })).toHaveAttribute('aria-pressed', 'false')
+      expect(container.querySelector('.event-focus-button')).not.toHaveClass('active')
+      expect(container.querySelector('[data-event-focus-id="first"]')).not.toHaveClass('focused')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each(['calendar', 'timeline'] as const)('keeps a persistent preview in the %s view until the event is clicked', (viewMode) => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-11T12:00:00-05:00'))
+    try {
+      const first = timelineEvent({ id: 'first', title: 'Primer evento', startsAt: '2026-09-19T09:00:00-05:00', endsAt: '2026-09-19T18:00:00-05:00' })
+      const second = timelineEvent({ id: 'second', title: 'Siguiente evento', startsAt: '2026-09-20T09:00:00-05:00', endsAt: '2026-09-20T18:00:00-05:00' })
+      const onEventOpen = vi.fn()
+      const { container } = render(<MemoryRouter><EventResults events={[first, second]} viewMode={viewMode} showVisibility={false} onEventOpen={onEventOpen} /></MemoryRouter>)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Próximo evento' }))
+      vi.runOnlyPendingTimers()
+      const focusedEvent = container.querySelector(`[data-event-focus-id="${first.id}"]`)
+      expect(focusedEvent).toHaveClass('focused')
+      expect(focusedEvent?.querySelector('.calendar-event-hover-card')).toBeInTheDocument()
+
+      fireEvent.click(focusedEvent as HTMLElement)
+      expect(onEventOpen).toHaveBeenCalledWith(first)
+      expect(container.querySelector(`[data-event-focus-id="${first.id}"]`)).not.toHaveClass('focused')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the active event when switching between views', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-11T12:00:00-05:00'))
+    try {
+      const first = timelineEvent({ id: 'first', title: 'Primer evento', startsAt: '2026-09-19T09:00:00-05:00', endsAt: '2026-09-19T18:00:00-05:00' })
+      const second = timelineEvent({ id: 'second', title: 'Siguiente evento', startsAt: '2026-09-20T09:00:00-05:00', endsAt: '2026-09-20T18:00:00-05:00' })
+      const { container, rerender } = render(<MemoryRouter><EventResults events={[first, second]} viewMode="cards" showVisibility={false} onEventOpen={vi.fn()} toolbarCenter={<EventViewSwitcher value="cards" onChange={vi.fn()} />} /></MemoryRouter>)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Próximo evento' }))
+      rerender(<MemoryRouter><EventResults events={[first, second]} viewMode="calendar" showVisibility={false} onEventOpen={vi.fn()} toolbarCenter={<EventViewSwitcher value="calendar" onChange={vi.fn()} />} /></MemoryRouter>)
+      vi.runOnlyPendingTimers()
+
+      expect(container.querySelector(`[data-event-focus-id="${first.id}"]`)).toHaveClass('focused')
+      expect(container.querySelector('.calendar-event-hover-card')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('shows past events after a divider while keeping upcoming cards first', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-11T12:00:00-05:00'))

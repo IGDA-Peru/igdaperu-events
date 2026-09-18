@@ -72,6 +72,7 @@ En el dashboard de Supabase:
 - **Registro público desactivado** en Authentication → Settings/General Configuration → **Allow new users to sign up**.
 - Email provider activo. Las cuentas se crean únicamente desde invitaciones de administrador; la persona invitada confirma su correo y define su contraseña desde `/invitaciones/:token`.
 - SMTP propio configurado antes de enviar invitaciones en producción.
+- El correo de invitación usa el template de [`supabase/templates/invite.html`](supabase/templates/invite.html). En un proyecto alojado, copia este contenido en Authentication → Email Templates → Invite y conserva el asunto configurado en `supabase/config.toml`; el template recibe el nombre de la comunidad, el rol, la persona que invita y la fecha de vencimiento.
 - Secret `APP_URL=https://eventos.igda.pe` para las Edge Functions.
 - Secret `PUBLIC_APP_URL=https://eventos.igda.pe` para los enlaces de invitación. Esta variable es la URL pública canónica y no debe reutilizarse para pruebas OAuth locales.
 - Las Edge Functions restringen CORS a los orígenes configurados en `CORS_ALLOWED_ORIGIN`. Para este proyecto conserva únicamente `https://eventos.igda.pe`; el sitio principal puede incrustar el evento sin convertirse en origen de las solicitudes del iframe. Para desarrollo local puedes agregar temporalmente los orígenes exactos, por ejemplo `http://localhost:5174,http://127.0.0.1:5174`.

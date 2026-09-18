@@ -19,6 +19,7 @@ dist-ssr
 supabase/.temp
 output/playwright
 .playwright-cli
+graphify-out/
 
 # Editor directories and files
 .vscode/*

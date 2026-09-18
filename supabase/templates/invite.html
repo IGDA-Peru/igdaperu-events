@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invitación a IGDA Perú</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f3eee5;color:#10131a;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Te invitaron a colaborar en {{ .Data.community_name }} desde Eventos IGDA Perú.</div>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;background:#f3eee5;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;max-width:600px;">
+            <tr>
+              <td style="padding:24px 30px;background:#10131a;border-radius:20px 20px 0 0;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                  <tr>
+                    <td valign="middle" width="48">
+                      <img src="https://eventos.igda.pe/brand/logo-igda-peru.png" alt="" width="42" height="39" style="display:block;border:0;">
+                    </td>
+                    <td valign="middle" style="padding-left:12px;color:#ffffff;font-size:18px;font-weight:700;line-height:1.15;letter-spacing:-.2px;">
+                      IGDA Perú<br>
+                      <span style="color:#f2c94c;font-size:12px;font-weight:700;letter-spacing:.6px;">EVENTOS</span>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:38px 30px 34px;background:#ffffff;">
+                <p style="margin:0 0 12px;color:#d82028;font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;">Invitación a la red</p>
+                <h1 style="margin:0 0 18px;color:#10131a;font-size:32px;line-height:1.12;letter-spacing:-.8px;">Te invitaron a colaborar</h1>
+                <p style="margin:0 0 24px;color:#505762;font-size:16px;line-height:1.6;">{{ .Data.inviter_name }} te invitó a formar parte de <strong style="color:#10131a;">{{ .Data.community_name }}</strong> en Eventos IGDA Perú.</p>
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;margin:0 0 28px;background:#f3eee5;border-left:4px solid #d82028;border-radius:4px;">
+                  <tr>
+                    <td style="padding:16px 18px;">
+                      <p style="margin:0 0 6px;color:#707780;font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;">Acceso asignado</p>
+                      <p style="margin:0;color:#10131a;font-size:17px;font-weight:700;line-height:1.4;">{{ .Data.role_label }}</p>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:0 0 20px;color:#505762;font-size:16px;line-height:1.6;">Activa tu cuenta para crear y gestionar los eventos de tu comunidad. El proceso te pedirá confirmar tu correo y definir una contraseña.</p>
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 24px;">
+                  <tr>
+                    <td align="center" style="border-radius:7px;background:#d82028;">
+                      <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:15px 25px;border:1px solid #d82028;border-radius:7px;color:#ffffff;font-size:16px;font-weight:700;line-height:1;text-decoration:none;">Activar mi acceso</a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:0 0 14px;color:#707780;font-size:12px;line-height:1.6;">Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
+                <p style="margin:0 0 26px;overflow-wrap:anywhere;color:#707780;font-size:12px;line-height:1.6;"><a href="{{ .ConfirmationURL }}" style="color:#d82028;text-decoration:underline;">{{ .ConfirmationURL }}</a></p>
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-top:1px solid #e5e0d8;">
+                  <tr>
+                    <td style="padding-top:18px;color:#707780;font-size:13px;line-height:1.6;">Este enlace es de un solo uso y vence el <strong style="color:#505762;">{{ .Data.invitation_expires_at }}</strong>.</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:22px 30px;background:#10131a;border-radius:0 0 20px 20px;color:#aeb4bc;font-size:12px;line-height:1.6;text-align:center;">
+                Recibiste este correo porque un administrador te invitó a una comunidad de IGDA Perú.<br>
+                <a href="https://eventos.igda.pe" style="color:#f2c94c;text-decoration:none;">eventos.igda.pe</a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

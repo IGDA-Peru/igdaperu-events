@@ -21,7 +21,7 @@ function panelState(event: EventItem, isPast: boolean) {
   return { label: 'Público', tone: 'public' }
 }
 
-export function EventCard({ event, compact = false, showCover = false, showVisibility = false, panelActions, onOpen }: { event: EventItem; compact?: boolean; showCover?: boolean; showVisibility?: boolean; panelActions?: EventCardActions; onOpen?: () => void }) {
+export function EventCard({ event, compact = false, showCover = false, showVisibility = false, panelActions, onOpen, focused = false }: { event: EventItem; compact?: boolean; showCover?: boolean; showVisibility?: boolean; panelActions?: EventCardActions; onOpen?: () => void; focused?: boolean }) {
   const parts = formatDateParts(event.startsAt)
   const isPrivate = event.visibility === 'network'
   const isPast = isEventPast(event)
@@ -37,7 +37,7 @@ export function EventCard({ event, compact = false, showCover = false, showVisib
     onOpen?.()
   }
   return (
-    <article className={`event-row ${compact ? 'compact' : ''} ${hasCover ? 'has-cover' : ''} ${managed ? 'managed-event-card' : ''} ${previewable ? 'previewable-event' : ''} ${isPast ? 'past-event' : ''} ${audienceClass} ${statusClass}`} data-event-focus-id={event.id} style={{ '--community-color': event.communityColor || undefined } as CSSProperties} tabIndex={previewable ? -1 : undefined} onClick={previewable ? onOpen : undefined}>
+    <article className={`event-row ${compact ? 'compact' : ''} ${hasCover ? 'has-cover' : ''} ${managed ? 'managed-event-card' : ''} ${previewable ? 'previewable-event' : ''} ${focused ? 'focused' : ''} ${isPast ? 'past-event' : ''} ${audienceClass} ${statusClass}`} data-event-focus-id={event.id} style={{ '--community-color': event.communityColor || undefined } as CSSProperties} tabIndex={previewable ? -1 : undefined} onClick={previewable ? onOpen : undefined}>
       <div className="event-date">
         <span>{parts.month}</span>
         <strong>{parts.date}</strong>

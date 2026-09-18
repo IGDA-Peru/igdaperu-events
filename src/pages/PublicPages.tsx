@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronDown, ChevronRight, Code2, Eye, ExternalLink, Gamepad2, PencilLine, Users } from 'lucide-react'
+import { ArrowRight, ChevronDown, ChevronRight, Code2, Eye, ExternalLink, Gamepad2, PencilLine, Star, Users } from 'lucide-react'
 import { CalendarDays, CheckCircle2, Clock3, Link2, MapPin, Send, UserRound } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
@@ -7,13 +7,13 @@ import { EventCard, EmptyEvents } from '../components/EventCard'
 import { DemoNotice, ErrorState, LoadingState } from '../components/Feedback'
 import { EventPreviewDrawer } from '../components/EventPreviewDrawer'
 import { CommunityLogo } from '../components/CommunityLogo'
-import { EventFilters, EventSearchField } from '../components/EventFilters'
+import { EventFiltersPopover, EventSearchField } from '../components/EventFilters'
 import { TurnstileWidget } from '../components/TurnstileWidget'
 import { EventFocusButton, EventResults, EventViewSwitcher, type EventFocusRequest } from '../components/EventViews'
 import type { EventViewMode } from '../components/eventViewModes'
 import { filterEvents, type CommunityFilterOption, type ModalityFilter, type TimeFilter } from '../lib/eventFilters'
 import { eventTypeOptions, isStandardEventType } from '../lib/eventTypes'
-import { findNextEvent } from '../lib/eventFocus'
+import { findNextEvent, findNextEventAfter, findPreviousEventBefore } from '../lib/eventFocus'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { getEventCoverUrl, listCommunities, listEvents, listHomeEmbedEvents, submitEventProposal, type EventProposalSubmission, type EventQueryOptions } from '../lib/data'
 import { limaNowDateTimeInput } from '../lib/eventSchedule'
@@ -73,6 +73,10 @@ type ProposalFieldErrors = Partial<Record<ProposalErrorKey, string>>
 
 function ProposalFormField({ label, children, required = false, error }: { label: string; children: ReactNode; required?: boolean; error?: string }) {
   return <label className="proposal-field"><span>{label}{required && <b aria-hidden="true"> *</b>}</span>{children}{error && <small className="proposal-field-error" role="alert">{error}</small>}</label>
+}
+
+function ProposalConfirmationPanel() {
+  return <section className="proposal-info-panel" role="status"><CheckCircle2 size={38} aria-hidden="true" /><h2>Recibimos tu propuesta</h2><span className="proposal-info-line" /><p>La revisaremos y, si hace falta, te contactaremos para completar o corregir la información.</p><div className="proposal-info-divider" /><small>La publicación depende de la revisión del equipo de IGDA Perú.</small><Link className="primary-button" to="/">Volver a la agenda</Link></section>
 }
 
 export function EventProposalPage() {
@@ -159,7 +163,7 @@ export function EventProposalPage() {
     }
   }
 
-  if (submitted) return <div className="proposal-page"><section className="proposal-success" role="status"><CheckCircle2 size={54} aria-hidden="true" /><h1>Recibimos tu propuesta</h1><p>La revisaremos y, si hace falta, te contactaremos para completar o corregir la información.</p><small>Gracias por ayudar a visibilizar las actividades de la industria de videojuegos en Perú.</small><Link className="primary-button" to="/">Volver a la agenda</Link></section></div>
+  if (submitted) return <div className="proposal-page"><ProposalConfirmationPanel /></div>
 
   return <div className="proposal-page">
     <section className="proposal-intro"><h1>Propón tu evento</h1><p>Cuéntanos sobre la actividad y el equipo de IGDA Perú la revisará antes de publicarla.</p></section>
@@ -194,7 +198,6 @@ export function EventProposalPage() {
         <button className="primary-button proposal-submit" type="submit" disabled={saving}><Send size={17} aria-hidden="true" />{saving ? 'Enviando propuesta…' : 'Enviar propuesta'}</button>
         <small className="proposal-legal">Al enviar confirmas que la información es correcta y que tienes autorización para compartirla.</small>
       </div>
-      <aside className="proposal-info-panel"><CheckCircle2 size={38} aria-hidden="true" /><h2>Recibimos tu propuesta</h2><span className="proposal-info-line" /><p>La revisaremos y, si hace falta, te contactaremos para completar o corregir la información.</p><div className="proposal-info-divider" /><small>La publicación depende de la revisión del equipo de IGDA Perú.</small></aside>
     </form>
   </div>
 }
@@ -359,6 +362,12 @@ export function PublicAgendaPage() {
   }, [events])
 
   const recentCommunities = useMemo(() => getRecentCommunities(events), [events])
+  const clearFilters = () => {
+    setTimeFilter('all')
+    setModalityFilter('all')
+    setLocationFilter('all')
+    setCommunityFilter('all')
+  }
 
   return (
     <div className="page-wrap page-wrap--events">
@@ -377,8 +386,7 @@ export function PublicAgendaPage() {
             communityOptions={communityOptions}
             onCommunityFilterChange={setCommunityFilter}
             toolbarCenter={<EventViewSwitcher value={viewMode} onChange={setViewMode} />}
-            toolbarEnd={<EventSearchField search={search} onSearchChange={setSearch} />}
-            contentBefore={viewMode === 'cards' ? <EventFilters timeFilter={timeFilter} modalityFilter={modalityFilter} locationFilter={locationFilter} communityFilter={communityFilter} communityOptions={communityOptions} search={search} onTimeChange={setTimeFilter} onModalityChange={(value) => { setModalityFilter(value); setLocationFilter('all') }} onLocationChange={setLocationFilter} onCommunityChange={setCommunityFilter} onSearchChange={setSearch} showSearch={false} /> : null}
+            toolbarEnd={<><EventFiltersPopover timeFilter={timeFilter} modalityFilter={modalityFilter} locationFilter={locationFilter} communityFilter={communityFilter} communityOptions={communityOptions} onTimeChange={setTimeFilter} onModalityChange={(value) => { setModalityFilter(value); setLocationFilter('all') }} onLocationChange={setLocationFilter} onCommunityChange={setCommunityFilter} onClear={clearFilters} showTimeFilter={viewMode === 'cards'} showCommunityFilter={viewMode === 'cards'} /><EventSearchField search={search} onSearchChange={setSearch} /></>}
           />}
         </section>
         <div className="events-sidebar">
@@ -447,10 +455,15 @@ export function EmbedPage() {
   const [viewMode, setViewMode] = useState<EventViewMode>('calendar')
   const [focusRequest, setFocusRequest] = useState<EventFocusRequest | null>(null)
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
+  const focusNonce = useRef(0)
   const communitySlug = params.get('community') || undefined
   const { events, loading, error } = useEvents({ communitySlug })
   const nextEvent = useMemo(() => findNextEvent(events), [events])
-  return <div className="embed-page"><div className="embed-header"><span className="compact-brand"><img src="/brand/logo-igda-peru.png" alt="" width="30" height="28" /> <span>Eventos IGDA Perú</span></span><Link to="/" target="_blank">Ver todos los eventos <ExternalLink size={14} /></Link></div><div className="embed-section-heading"><h1>Próximos eventos</h1><div className="embed-section-actions"><EventViewSwitcher value={viewMode} onChange={setViewMode} />{nextEvent && <EventFocusButton onClick={() => setFocusRequest({ eventId: nextEvent.id, nonce: Date.now() })} />}</div></div>{loading && <LoadingState />}{error && <ErrorState message={error} />}{!loading && !error && <EventResults events={events} viewMode={viewMode} showVisibility={false} onEventOpen={setSelectedEvent} showViewLabel={false} showFocusButton={false} focusRequest={focusRequest} onFocusRequestChange={setFocusRequest} />}<EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" /></div>
+  const previousEvent = focusRequest ? findPreviousEventBefore(events, focusRequest.eventId) : null
+  const nextEventAfterFocus = focusRequest ? findNextEventAfter(events, focusRequest.eventId) : null
+  const requestFocus = (event: EventItem | null) => { if (event) setFocusRequest({ eventId: event.id, nonce: ++focusNonce.current }) }
+  const toggleFocus = () => { if (focusRequest) setFocusRequest(null); else requestFocus(nextEvent) }
+  return <div className="embed-page"><div className="embed-header"><span className="compact-brand"><img src="/brand/logo-igda-peru.png" alt="" width="30" height="28" /> <span>Eventos IGDA Perú</span></span><Link to="/" target="_blank">Ver todos los eventos <ExternalLink size={14} /></Link></div><div className="embed-section-heading"><h1>Próximos eventos</h1><div className="embed-section-actions"><EventViewSwitcher value={viewMode} onChange={setViewMode} />{nextEvent && <EventFocusButton onClick={toggleFocus} navigationActive={Boolean(focusRequest)} onPreviousClick={focusRequest ? () => requestFocus(previousEvent) : undefined} onNextClick={focusRequest ? () => requestFocus(nextEventAfterFocus) : undefined} previousDisabled={!previousEvent} nextDisabled={!nextEventAfterFocus} />}</div></div>{loading && <LoadingState />}{error && <ErrorState message={error} />}{!loading && !error && <EventResults events={events} viewMode={viewMode} showVisibility={false} onEventOpen={setSelectedEvent} showViewLabel={false} showFocusButton={false} focusRequest={focusRequest} onFocusRequestChange={setFocusRequest} />}<EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" /></div>
 }
 
 export function HomeEventsEmbedPage() {
@@ -508,6 +521,10 @@ function SpotlightEventMedia({ event, size, showCommunityLogo = false }: { event
   </div>
 }
 
+function SpotlightNextBadge({ inline = false }: { inline?: boolean }) {
+  return <span className={`spotlight-feature-badge${inline ? ' spotlight-feature-badge--inline' : ''}`} role="img" aria-label="Próximo evento" title="Próximo evento"><Star size={16} fill="currentColor" aria-hidden="true" /></span>
+}
+
 function SpotlightEventDate({ event, large = false }: { event: EventItem; large?: boolean }) {
   const parts = formatDateParts(event.startsAt)
   return <time className={`spotlight-event-date${large ? ' spotlight-event-date--large' : ''}`} dateTime={event.startsAt || undefined}>
@@ -529,18 +546,17 @@ function SpotlightFeature({ event, onOpen }: { event: EventItem; onOpen: () => v
   }}>
     {hasCover && <div className="spotlight-feature-media">
       <SpotlightEventMedia event={event} size="feature" />
-      <span className="spotlight-feature-badge">Próximo evento</span>
+      <SpotlightNextBadge />
     </div>}
     <div className="spotlight-feature-body">
       <SpotlightEventDate event={event} large />
       <div className="spotlight-feature-copy">
         <div className="spotlight-feature-eyebrow">
-          {!hasCover && <span className="spotlight-feature-badge spotlight-feature-badge--inline">Próximo evento</span>}
+          {!hasCover && <SpotlightNextBadge inline />}
           <span className="spotlight-event-type">{event.type}</span>
         </div>
         <h2><button className="spotlight-feature-title" type="button" onClick={onOpen}>{event.title}</button></h2>
         <SpotlightEventLocation event={event} />
-        <p>{event.description}</p>
         <div className="spotlight-feature-community"><CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative /><span>Organiza {event.communityName}</span></div>
       </div>
       {event.registrationUrl ? <a className="primary-button spotlight-feature-action spotlight-feature-action--registration" href={event.registrationUrl} target="_blank" rel="noreferrer">Inscribirme <ExternalLink size={16} aria-hidden="true" /></a> : <button className="spotlight-feature-action spotlight-feature-action--icon" aria-label="Ver evento" type="button" onClick={onOpen}><ChevronRight size={24} aria-hidden="true" /></button>}

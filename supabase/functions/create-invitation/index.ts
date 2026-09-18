@@ -37,7 +37,7 @@ Deno.serve(async (request) => {
     const [{ data: platformMembership }, { data: communityMembership }, { data: community }] = await Promise.all([
       admin.from('memberships').select('role').eq('user_id', authData.user.id).is('community_id', null).eq('role', 'platform_admin').eq('status', 'active').maybeSingle(),
       admin.from('memberships').select('role').eq('user_id', authData.user.id).eq('community_id', communityId).eq('status', 'active').maybeSingle(),
-      admin.from('communities').select('status').eq('id', communityId).maybeSingle(),
+      admin.from('communities').select('name,status').eq('id', communityId).maybeSingle(),
     ])
 
     if (!community || community.status !== 'approved') return json({ error: 'La comunidad no está aprobada' }, 400)
@@ -71,7 +71,18 @@ Deno.serve(async (request) => {
     }).select('id').single()
     if (insertError || !invitation) return json({ error: insertError?.message || 'No pudimos crear la invitación' }, 400)
 
+    const inviterName = typeof authData.user.user_metadata?.display_name === 'string' && authData.user.user_metadata.display_name.trim()
+      ? authData.user.user_metadata.display_name.trim()
+      : authData.user.email || 'Un administrador'
+    const roleLabel = role === 'community_admin' ? 'Administrador de comunidad' : 'Editor de comunidad'
+    const expirationDate = new Intl.DateTimeFormat('es-PE', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Lima' }).format(new Date(expiresAt))
     const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+      data: {
+        community_name: community.name,
+        role_label: roleLabel,
+        inviter_name: inviterName,
+        invitation_expires_at: expirationDate,
+      },
       redirectTo: `${appUrl}/invitaciones/${rawToken}`,
     })
     if (inviteError) {
