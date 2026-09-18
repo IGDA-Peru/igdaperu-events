@@ -1,8 +1,7 @@
-import { CalendarDays, Clock3, ExternalLink, MapPin, Share2, X } from 'lucide-react'
+import { CalendarDays, Clock3, Copy, ExternalLink, MapPin, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { Link } from 'react-router-dom'
 import { getEventCoverUrl } from '../lib/data'
 import { formatEventDateRange, formatEventLocation, formatTimeRange, isEventPast, meetingActionLabel } from '../lib/format'
 import type { EventItem } from '../types'
@@ -10,11 +9,37 @@ import { VisibilityBadge } from './EventCard'
 import { CommunityLogo } from './CommunityLogo'
 
 type EventPreviewPresentation = 'drawer' | 'modal'
+const publicCommunityUrl = 'https://igda.pe/comunidad/'
 
 function eventShareUrl(event: EventItem) {
   const url = new URL('/', window.location.origin)
   url.searchParams.set('evento', event.slug || event.id)
   return url.toString()
+}
+
+async function copyTextToClipboard(value: string) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value)
+      return
+    }
+  } catch {
+    // Continue with the legacy fallback when clipboard permissions are unavailable.
+  }
+
+  const textArea = document.createElement('textarea')
+  textArea.value = value
+  textArea.setAttribute('readonly', '')
+  textArea.style.position = 'fixed'
+  textArea.style.top = '0'
+  textArea.style.left = '-9999px'
+  textArea.style.opacity = '0'
+  document.body.appendChild(textArea)
+  textArea.focus()
+  textArea.select()
+  const copied = typeof document.execCommand === 'function' && document.execCommand('copy')
+  textArea.remove()
+  if (!copied) throw new Error('Clipboard unavailable')
 }
 
 export function EventPreviewDrawer({
@@ -51,32 +76,13 @@ export function EventPreviewDrawer({
     }
   }, [event, onClose])
 
-  const shareEvent = async () => {
+  const copyEventLink = async () => {
     if (!event) return
     const url = eventShareUrl(event)
     try {
-      if (typeof navigator.share === 'function') {
-        await navigator.share({ title: event.title, text: event.description, url })
-        setShareMessage('Evento listo para compartir.')
-        return
-      }
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url)
-        setShareMessage('Enlace copiado.')
-        return
-      }
-      const textArea = document.createElement('textarea')
-      textArea.value = url
-      textArea.style.position = 'fixed'
-      textArea.style.opacity = '0'
-      document.body.appendChild(textArea)
-      textArea.focus()
-      textArea.select()
-      document.execCommand('copy')
-      textArea.remove()
+      await copyTextToClipboard(url)
       setShareMessage('Enlace copiado.')
-    } catch (reason) {
-      if (reason && typeof reason === 'object' && 'name' in reason && reason.name === 'AbortError') return
+    } catch {
       setShareMessage('No pudimos copiar el enlace.')
     }
   }
@@ -94,14 +100,13 @@ export function EventPreviewDrawer({
   return createPortal(
     <div className={`event-preview-layer ${presentation === 'modal' ? 'event-preview-layer--modal' : ''}`} role="presentation" onMouseDown={(mouseEvent) => { if (mouseEvent.target === mouseEvent.currentTarget) onClose() }}>
       <aside className={drawerClassName} style={{ '--community-color': event.communityColor || undefined } as CSSProperties} role="dialog" aria-modal="true" aria-labelledby="event-preview-title">
-        {presentation !== 'modal' && <div className="event-preview-topline">{eventFlags}<button className="event-preview-close" type="button" aria-label="Cerrar vista previa" ref={closeButtonRef} onClick={onClose}><X size={20} /></button></div>}
+        {presentation === 'modal' ? <button className="event-preview-close" type="button" aria-label="Cerrar vista previa" ref={closeButtonRef} onClick={onClose}><X size={20} /></button> : <div className="event-preview-topline">{eventFlags}<button className="event-preview-close" type="button" aria-label="Cerrar vista previa" ref={closeButtonRef} onClick={onClose}><X size={20} /></button></div>}
         <div className={`event-preview-left-column${coverUrl ? '' : ' event-preview-left-column--no-cover'}`}>
           <div className="event-preview-card-heading">{presentation === 'modal' && eventFlags}<h2 id="event-preview-title">{event.title}</h2></div>
           {coverUrl && <div className="event-preview-cover-frame"><img className="event-preview-cover" src={coverUrl} alt="" /></div>}
           <p className="event-preview-description">{event.description}</p>
         </div>
         <div className="event-preview-right-column">
-          {presentation === 'modal' && <button className="event-preview-close" type="button" aria-label="Cerrar vista previa" ref={closeButtonRef} onClick={onClose}><X size={20} /></button>}
           <div className="event-preview-meta">
             <div className="event-preview-meta-item">
               <CalendarDays size={19} aria-hidden="true" />
@@ -136,14 +141,14 @@ export function EventPreviewDrawer({
               <CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative />
               <div className="event-preview-meta-copy">
                 <strong>Organiza</strong>
-                <span className="event-preview-meta-value">{event.communityId ? presentation === 'modal' ? <a href="https://igda.pe/comunidad/" target="_top" rel="noreferrer">{event.communityName}</a> : <Link to={`/comunidades/${event.communitySlug}`} onClick={onClose}>{event.communityName}</Link> : (event.organizerName || event.communityName || 'Evento independiente')}</span>
+                <span className="event-preview-meta-value">{event.communityId ? <a href={publicCommunityUrl} target="_top" rel="noreferrer">{event.communityName}</a> : (event.organizerName || event.communityName || 'Evento independiente')}</span>
               </div>
             </div>
           </div>
           <div className="event-preview-actions">
             {!isPast && event.registrationUrl && <a className="primary-button event-preview-link" href={event.registrationUrl} target="_blank" rel="noreferrer">Inscribirme <ExternalLink size={17} /></a>}
             {!isPast && event.meetingUrl && <a className={`${event.registrationUrl ? 'secondary-button' : 'primary-button'} event-preview-link`} href={event.meetingUrl} target="_blank" rel="noreferrer">{meetingActionLabel(event.meetingProvider)} <ExternalLink size={17} /></a>}
-            <button className="secondary-button event-preview-link" type="button" onClick={shareEvent}><Share2 size={17} /> Compartir evento</button>
+            <button className="secondary-button event-preview-link" type="button" onClick={() => void copyEventLink()}><Copy size={17} /> Copiar enlace</button>
             {shareMessage && <small className="event-share-message" role="status">{shareMessage}</small>}
           </div>
         </div>

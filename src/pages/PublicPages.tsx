@@ -21,6 +21,7 @@ import { formatDateParts, formatEventLocation, isEventPast } from '../lib/format
 import type { Community, EventItem } from '../types'
 
 const notionCommunitiesEmbedUrl = 'https://igdape.notion.site/ebd/3b425d4453e08301bcef018ab661544a?v=12d25d4453e0825883398852a794ef21'
+const publicCalendarUrl = 'https://igda.pe/comunidad/calendario/'
 
 type ProposalFormState = Omit<EventProposalSubmission, 'turnstileToken'> & { turnstileToken: string }
 
@@ -518,7 +519,7 @@ export function HomeEventsEmbedPage() {
         {error && <ErrorState message={error} />}
         {!loading && !error && (events.length ? <div className="event-list">{events.map((event) => <EventCard event={event} compact showCover onOpen={() => setSelectedEvent(event)} key={event.id} />)}</div> : <EmptyEvents />)}
         <div className="home-events-embed-cta-row">
-          <a className="primary-button home-events-embed-cta" href="https://igda.pe/comunidad/calendario/" target="_top" rel="noreferrer">Ver todos los eventos <ExternalLink size={16} aria-hidden="true" /></a>
+          <a className="primary-button home-events-embed-cta" href={publicCalendarUrl} target="_top" rel="noreferrer">Ver todos los eventos <ExternalLink size={16} aria-hidden="true" /></a>
         </div>
       </section>
       <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" />
@@ -598,7 +599,7 @@ function SpotlightEventsEmbedContent() {
   const featuredEvent = events[0]
   const upcomingEvents = events.slice(1, 4)
   const communityName = 'IGDA Perú'
-  const allEventsUrl = new URL('/', window.location.origin).toString()
+  const allEventsUrl = publicCalendarUrl
 
   useEffect(() => {
     if (window.parent === window) return undefined

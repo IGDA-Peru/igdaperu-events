@@ -291,6 +291,7 @@ describe('public events', () => {
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: 'Próximos eventos' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Ver todos los eventos/ })).toHaveAttribute('href', 'https://igda.pe/comunidad/calendario/')
     expect(screen.getByText('Actividades de todas las comunidades de IGDA Perú.')).toBeInTheDocument()
     expect(screen.queryByText('Eventos IGDA Perú')).not.toBeInTheDocument()
     expect(screen.queryByText('Comunidad. Juegos. Oportunidades.')).not.toBeInTheDocument()
@@ -796,6 +797,32 @@ describe('public events', () => {
 })
 
 describe('event preview layout', () => {
+  it('copies the event link and reports the result', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+
+    render(<MemoryRouter><EventPreviewDrawer event={demoEvents[0]} onClose={vi.fn()} presentation="modal" /></MemoryRouter>)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar enlace' }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(expect.stringContaining('evento=diseno-de-niveles')))
+    expect(screen.getByRole('status')).toHaveTextContent('Enlace copiado.')
+  })
+
+  it('keeps the modal close control at the top level of the dialog', () => {
+    render(<MemoryRouter><EventPreviewDrawer event={demoEvents[0]} onClose={vi.fn()} presentation="modal" /></MemoryRouter>)
+
+    const drawer = document.querySelector('.event-preview-drawer--modal')
+    expect(drawer?.firstElementChild).toHaveClass('event-preview-close')
+    expect(drawer?.querySelector('.event-preview-right-column > .event-preview-close')).not.toBeInTheDocument()
+  })
+
+  it('always links the organizer to the public community directory', () => {
+    render(<MemoryRouter><EventPreviewDrawer event={demoEvents[0]} onClose={vi.fn()} presentation="drawer" /></MemoryRouter>)
+
+    expect(screen.getByRole('link', { name: 'IGDA Perú' })).toHaveAttribute('href', 'https://igda.pe/comunidad/')
+    expect(screen.getByRole('link', { name: 'IGDA Perú' })).toHaveAttribute('target', '_top')
+  })
+
   it('keeps the Google Maps action in a compact metadata control', () => {
     const event = { ...demoEvents[0], mapUrl: 'https://maps.google.com/?q=Miraflores' }
     render(<MemoryRouter><EventPreviewDrawer event={event} onClose={vi.fn()} presentation="modal" /></MemoryRouter>)
