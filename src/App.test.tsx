@@ -297,6 +297,16 @@ describe('public events', () => {
     expect(document.querySelector('.spotlight-embed-header')).not.toBeInTheDocument()
   })
 
+  it('expands the spotlight when the upcoming rail is hidden', async () => {
+    window.history.pushState({}, '', '/embed/spotlight?embedded=0&hideUpcoming=1')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Próximos eventos' })).toBeInTheDocument()
+    expect(document.querySelector('.spotlight-embed-grid')).toHaveClass('spotlight-embed-grid--single')
+    expect(screen.queryByRole('heading', { name: 'Siguientes eventos' })).not.toBeInTheDocument()
+    expect(document.querySelectorAll('.spotlight-upcoming-item')).toHaveLength(0)
+  })
+
   it('places the spotlight registration action below the feature details', async () => {
     const listEventsSpy = vi.spyOn(data, 'listEvents').mockResolvedValue(demoEvents)
     window.history.pushState({}, '', '/embed/spotlight')

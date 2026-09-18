@@ -593,6 +593,7 @@ function SpotlightEventsEmbedContent() {
   const [params] = useSearchParams()
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const embedded = params.get('embedded') === '1'
+  const hideUpcoming = params.get('hideUpcoming') === '1'
   const { events, loading, error } = useEvents({ upcomingOnly: true, limit: 4 })
   const featuredEvent = events[0]
   const upcomingEvents = events.slice(1, 4)
@@ -624,14 +625,14 @@ function SpotlightEventsEmbedContent() {
       </div>}
       {loading && <LoadingState />}
       {error && <ErrorState message={error} />}
-      {!loading && !error && featuredEvent && <div className="spotlight-embed-grid">
+      {!loading && !error && featuredEvent && <div className={`spotlight-embed-grid${hideUpcoming ? ' spotlight-embed-grid--single' : ''}`}>
         <SpotlightFeature event={featuredEvent} onOpen={() => setSelectedEvent(featuredEvent)} />
-        <section className="spotlight-upcoming" aria-labelledby="spotlight-upcoming-title">
+        {!hideUpcoming && <section className="spotlight-upcoming" aria-labelledby="spotlight-upcoming-title">
           <div className="spotlight-upcoming-heading"><h2 id="spotlight-upcoming-title">Siguientes eventos</h2></div>
           <div className="spotlight-upcoming-list">
             {upcomingEvents.map((event) => <SpotlightUpcomingItem event={event} onOpen={() => setSelectedEvent(event)} key={event.id} />)}
           </div>
-        </section>
+        </section>}
       </div>}
       {!loading && !error && featuredEvent && <a className="spotlight-all-events" href={allEventsUrl} target="_top" rel="noreferrer">Ver todos los eventos <ArrowRight size={18} aria-hidden="true" /></a>}
       {!loading && !error && !featuredEvent && <EmptyEvents />}
