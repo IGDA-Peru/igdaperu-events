@@ -286,6 +286,17 @@ describe('public events', () => {
     expect(screen.queryByRole('heading', { name: 'Siguientes eventos' })).not.toBeInTheDocument()
   })
 
+  it('uses the shared section heading for the standalone spotlight embed', async () => {
+    window.history.pushState({}, '', '/embed/spotlight?embedded=0')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Próximos eventos' })).toBeInTheDocument()
+    expect(screen.getByText('Actividades de todas las comunidades de IGDA Perú.')).toBeInTheDocument()
+    expect(screen.queryByText('Eventos IGDA Perú')).not.toBeInTheDocument()
+    expect(screen.queryByText('Comunidad. Juegos. Oportunidades.')).not.toBeInTheDocument()
+    expect(document.querySelector('.spotlight-embed-header')).not.toBeInTheDocument()
+  })
+
   it('places the spotlight registration action below the feature details', async () => {
     const listEventsSpy = vi.spyOn(data, 'listEvents').mockResolvedValue(demoEvents)
     window.history.pushState({}, '', '/embed/spotlight')

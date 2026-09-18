@@ -85,24 +85,23 @@ export function EventPreviewDrawer({
   const isPast = isEventPast(event)
   const coverUrl = getEventCoverUrl(event.coverPath)
   const drawerClassName = `event-preview-drawer ${presentation === 'modal' ? 'event-preview-drawer--modal' : ''}`
+  const eventFlags = <div className="event-flags">
+    <span className={`event-type ${event.type === 'TALLER' ? 'yellow' : 'red'}`}>{event.type}</span>
+    {isPast && <span className="event-past-label">Ya pasó</span>}
+    {event.visibility === 'network' && <VisibilityBadge visibility={event.visibility} />}
+  </div>
 
   return createPortal(
     <div className={`event-preview-layer ${presentation === 'modal' ? 'event-preview-layer--modal' : ''}`} role="presentation" onMouseDown={(mouseEvent) => { if (mouseEvent.target === mouseEvent.currentTarget) onClose() }}>
       <aside className={drawerClassName} style={{ '--community-color': event.communityColor || undefined } as CSSProperties} role="dialog" aria-modal="true" aria-labelledby="event-preview-title">
-        <div className="event-preview-topline">
-        <div className="event-flags">
-          <span className={`event-type ${event.type === 'TALLER' ? 'yellow' : 'red'}`}>{event.type}</span>
-          {isPast && <span className="event-past-label">Ya pasó</span>}
-          {event.visibility === 'network' && <VisibilityBadge visibility={event.visibility} />}
-          </div>
-          <button className="event-preview-close" type="button" aria-label="Cerrar vista previa" ref={closeButtonRef} onClick={onClose}><X size={20} /></button>
-        </div>
+        {presentation !== 'modal' && <div className="event-preview-topline">{eventFlags}<button className="event-preview-close" type="button" aria-label="Cerrar vista previa" ref={closeButtonRef} onClick={onClose}><X size={20} /></button></div>}
         <div className={`event-preview-left-column${coverUrl ? '' : ' event-preview-left-column--no-cover'}`}>
-          <h2 id="event-preview-title">{event.title}</h2>
+          <div className="event-preview-card-heading">{presentation === 'modal' && eventFlags}<h2 id="event-preview-title">{event.title}</h2></div>
           {coverUrl && <div className="event-preview-cover-frame"><img className="event-preview-cover" src={coverUrl} alt="" /></div>}
           <p className="event-preview-description">{event.description}</p>
         </div>
         <div className="event-preview-right-column">
+          {presentation === 'modal' && <button className="event-preview-close" type="button" aria-label="Cerrar vista previa" ref={closeButtonRef} onClick={onClose}><X size={20} /></button>}
           <div className="event-preview-meta">
             <div className="event-preview-meta-item">
               <CalendarDays size={19} aria-hidden="true" />

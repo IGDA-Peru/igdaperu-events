@@ -617,15 +617,11 @@ function SpotlightEventsEmbedContent() {
 
   return <div className={`spotlight-embed-page${embedded ? ' spotlight-embed-page--embedded' : ''}`}>
     <section className={`spotlight-embed${embedded ? ' spotlight-embed--embedded' : ''}`} aria-labelledby="spotlight-embed-title">
-      {!embedded && <div className="spotlight-embed-header">
-        <span className="spotlight-embed-brand"><img src="/brand/logo-igda-peru.png" alt="" width="36" height="34" /><span>Eventos {communityName}</span></span>
-        <span className="spotlight-embed-tagline">Comunidad. Juegos. Oportunidades.</span>
-      </div>}
-      {embedded ? <div className="spotlight-embed-heading">
+      {!embedded && <div className="spotlight-embed-heading">
         <span className="spotlight-embed-kicker">Agenda</span>
         <h1 id="spotlight-embed-title">Próximos eventos</h1>
         <p>Actividades de todas las comunidades de {communityName}.</p>
-      </div> : <h1 id="spotlight-embed-title" className="sr-only">Eventos de todas las comunidades de {communityName}</h1>}
+      </div>}
       {loading && <LoadingState />}
       {error && <ErrorState message={error} />}
       {!loading && !error && featuredEvent && <div className="spotlight-embed-grid">
