@@ -643,7 +643,7 @@ html:has(.embed-page), body:has(.embed-page) { background: var(--surface); }
 .event-preview-drawer--modal .event-preview-left-column--no-cover > .event-preview-card-heading,
 .event-preview-drawer--modal .event-preview-left-column--no-cover > .event-preview-description { width: 100%; max-width: none; margin-right: 0; margin-left: 0; }
 .event-preview-drawer--modal .event-preview-left-column--no-cover .event-preview-description { text-align: left; }
-.event-preview-drawer--modal .event-preview-right-column { grid-column: 2; grid-row: 2; align-self: start; justify-self: stretch; display: grid; align-content: start; gap: 24px; min-width: 0; }
+.event-preview-drawer--modal .event-preview-right-column { grid-column: 2; grid-row: 2; align-self: stretch; justify-self: stretch; display: grid; align-content: center; gap: 24px; min-width: 0; }
 .event-preview-drawer--modal .event-preview-meta { width: 100%; margin: 0; padding-top: 0; border-top: 0; text-align: left; }
 .event-preview-drawer--modal .event-preview-meta-item { width: 100%; justify-self: stretch; }
 .event-preview-drawer--modal .event-preview-actions { align-items: flex-start; justify-content: flex-start; margin: 0; text-align: left; }
