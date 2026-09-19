@@ -22,6 +22,10 @@ import type { Community, EventItem } from '../types'
 
 const notionCommunitiesEmbedUrl = 'https://igdape.notion.site/ebd/3b425d4453e08301bcef018ab661544a?v=12d25d4453e0825883398852a794ef21'
 const publicCalendarUrl = 'https://igda.pe/comunidad/calendario/'
+const publicGoogleCalendarUrl = 'https://calendar.google.com/calendar/u/3?cid=Y18zOWUwMGQzZjlkNjc2YzAxNTY0MGJhM2RhYmQxNTI3YThlZTNiMGEwNjAzZTgzNjhjOTIzNjZlZDM3Zjc0YmQ1QGdyb3VwLmNhbGVuZGFyLmdvb2dsZS5jb20'
+const publicGoogleCalendarIcalUrl = 'https://calendar.google.com/calendar/ical/c_39e00d3f9d676c015640ba3dabd1527a8ee3b0a0603e8368c92366ed37f74bd5%40group.calendar.google.com/public/basic.ics'
+const publicGoogleCalendarWebcalUrl = publicGoogleCalendarIcalUrl.replace('https://', 'webcal://')
+const outlookCalendarUrl = 'https://outlook.live.com/calendar/0/addcalendar'
 
 type ProposalFormState = Omit<EventProposalSubmission, 'turnstileToken'> & { turnstileToken: string }
 
@@ -77,6 +81,75 @@ function ProposalFormField({ label, children, required = false, error }: { label
 
 function ProposalConfirmationPanel() {
   return <section className="proposal-info-panel" role="status"><CheckCircle2 size={38} aria-hidden="true" /><h2>Recibimos tu propuesta</h2><span className="proposal-info-line" /><p>La revisaremos y, si hace falta, te contactaremos para completar o corregir la información.</p><div className="proposal-info-divider" /><small>La publicación depende de la revisión del equipo de IGDA Perú.</small><Link className="primary-button" to="/">Volver a la agenda</Link></section>
+}
+
+export function CalendarAccessPage() {
+  const [icalCopied, setIcalCopied] = useState(false)
+
+  const copyIcalUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(publicGoogleCalendarIcalUrl)
+      setIcalCopied(true)
+      window.setTimeout(() => setIcalCopied(false), 2400)
+    } catch {
+      setIcalCopied(false)
+    }
+  }
+
+  return <div className="calendar-access-page">
+    <section className="calendar-access-hero" aria-labelledby="calendar-access-title">
+      <div>
+        <span className="calendar-access-kicker">Agenda IGDA Perú</span>
+        <h1 id="calendar-access-title">Suscríbete al calendario de IGDA Perú</h1>
+        <p>Elige tu plataforma y mantente al día con las próximas actividades de la comunidad.</p>
+      </div>
+    </section>
+
+    <section className="calendar-platforms" aria-labelledby="calendar-platforms-title">
+      <div className="calendar-platforms-heading">
+        <span className="section-kicker">Elige tu plataforma</span>
+        <h2 id="calendar-platforms-title">Suscríbete al calendario</h2>
+      </div>
+      <div className="calendar-platform-grid">
+        <article className="calendar-platform-card calendar-platform-card--google">
+          <span className="calendar-platform-badge">Google Calendar</span>
+          <h3>Google Calendar</h3>
+          <p>Agrega la agenda compartida directamente a tu cuenta de Google.</p>
+          <a className="secondary-button calendar-platform-action" href={publicGoogleCalendarUrl} target="_blank" rel="noreferrer">
+            Suscríbete al calendario <ExternalLink size={15} aria-hidden="true" />
+          </a>
+        </article>
+        <article className="calendar-platform-card">
+          <span className="calendar-platform-badge">Outlook / Microsoft 365</span>
+          <h3>Microsoft Outlook</h3>
+          <p>Abre Outlook para agregar la agenda de IGDA Perú desde tus calendarios.</p>
+          <a className="secondary-button calendar-platform-action" href={outlookCalendarUrl} target="_blank" rel="noreferrer">
+            Suscríbete al calendario <ExternalLink size={15} aria-hidden="true" />
+          </a>
+        </article>
+        <article className="calendar-platform-card">
+          <span className="calendar-platform-badge">iPhone / iPad / Mac</span>
+          <h3>Apple Calendar</h3>
+          <p>Abre la suscripción en la aplicación Calendario de Apple.</p>
+          <a className="secondary-button calendar-platform-action" href={publicGoogleCalendarWebcalUrl} target="_blank" rel="noreferrer">
+            Suscríbete al calendario <ExternalLink size={15} aria-hidden="true" />
+          </a>
+        </article>
+      </div>
+    </section>
+
+    <aside className="calendar-access-note" aria-label="Compatibilidad entre plataformas">
+      <CalendarDays size={22} aria-hidden="true" />
+      <div>
+        <strong>¿No se abrió la suscripción?</strong>
+        <p>También puedes copiar la dirección pública iCalendar y pegarla en Outlook o Apple Calendar.</p>
+        <div className="calendar-access-note-actions">
+          <a className="secondary-button" href={publicGoogleCalendarIcalUrl} target="_blank" rel="noreferrer">Abrir URL .ics <ExternalLink size={15} aria-hidden="true" /></a>
+          <button className="secondary-button" type="button" onClick={() => void copyIcalUrl()}>{icalCopied ? 'URL copiada' : 'Copiar URL .ics'}</button>
+        </div>
+      </div>
+    </aside>
+  </div>
 }
 
 export function EventProposalPage() {
@@ -383,10 +456,8 @@ export function PublicAgendaPage() {
             onEventOpen={setSelectedEvent}
             showViewLabel={false}
             communityFilter={communityFilter}
-            communityOptions={communityOptions}
-            onCommunityFilterChange={setCommunityFilter}
             toolbarCenter={<EventViewSwitcher value={viewMode} onChange={setViewMode} />}
-            toolbarEnd={<><EventFiltersPopover timeFilter={timeFilter} modalityFilter={modalityFilter} locationFilter={locationFilter} communityFilter={communityFilter} communityOptions={communityOptions} onTimeChange={setTimeFilter} onModalityChange={(value) => { setModalityFilter(value); setLocationFilter('all') }} onLocationChange={setLocationFilter} onCommunityChange={setCommunityFilter} onClear={clearFilters} showTimeFilter={viewMode === 'cards'} showCommunityFilter={viewMode === 'cards'} /><EventSearchField search={search} onSearchChange={setSearch} /></>}
+            toolbarEnd={<><EventFiltersPopover timeFilter={timeFilter} modalityFilter={modalityFilter} locationFilter={locationFilter} communityFilter={communityFilter} communityOptions={communityOptions} onTimeChange={setTimeFilter} onModalityChange={(value) => { setModalityFilter(value); setLocationFilter('all') }} onLocationChange={setLocationFilter} onCommunityChange={setCommunityFilter} onClear={clearFilters} showTimeFilter={viewMode === 'cards'} showCommunityFilter /><EventSearchField search={search} onSearchChange={setSearch} /></>}
           />}
         </section>
         <div className="events-sidebar">
@@ -477,7 +548,7 @@ export function EmbedPage() {
     setLocationFilter('all')
     setCommunityFilter('all')
   }
-  return <div className="embed-page"><div className="embed-header"><span className="compact-brand"><img src="/brand/logo-igda-peru.png" alt="" width="30" height="28" /> <span>Eventos IGDA Perú</span></span><Link to="/" target="_blank">Ver todos los eventos <ExternalLink size={14} /></Link></div>{loading && <LoadingState />}{error && <ErrorState message={error} />}{!loading && !error && <EventResults events={visibleEvents} viewMode={viewMode} showVisibility={false} onEventOpen={setSelectedEvent} showViewLabel={false} focusRequest={focusRequest} onFocusRequestChange={setFocusRequest} communityFilter={communityFilter} communityOptions={communityOptions} onCommunityFilterChange={setCommunityFilter} toolbarCenter={<EventViewSwitcher value={viewMode} onChange={setViewMode} />} toolbarEnd={<><EventFiltersPopover timeFilter={timeFilter} modalityFilter={modalityFilter} locationFilter={locationFilter} communityFilter={communityFilter} communityOptions={communityOptions} onTimeChange={setTimeFilter} onModalityChange={(value) => { setModalityFilter(value); setLocationFilter('all') }} onLocationChange={setLocationFilter} onCommunityChange={setCommunityFilter} onClear={clearFilters} showTimeFilter showCommunityFilter /><EventSearchField search={search} onSearchChange={setSearch} /></>} />}<EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" /></div>
+  return <div className="embed-page"><div className="embed-header"><span className="compact-brand"><img src="/brand/logo-igda-peru.png" alt="" width="30" height="28" /> <span>Eventos IGDA Perú</span></span><Link to="/" target="_blank">Ver todos los eventos <ExternalLink size={14} /></Link></div>{loading && <LoadingState />}{error && <ErrorState message={error} />}{!loading && !error && <EventResults events={visibleEvents} viewMode={viewMode} showVisibility={false} onEventOpen={setSelectedEvent} showViewLabel={false} focusRequest={focusRequest} onFocusRequestChange={setFocusRequest} communityFilter={communityFilter} toolbarCenter={<EventViewSwitcher value={viewMode} onChange={setViewMode} />} toolbarEnd={<><EventFiltersPopover timeFilter={timeFilter} modalityFilter={modalityFilter} locationFilter={locationFilter} communityFilter={communityFilter} communityOptions={communityOptions} onTimeChange={setTimeFilter} onModalityChange={(value) => { setModalityFilter(value); setLocationFilter('all') }} onLocationChange={setLocationFilter} onCommunityChange={setCommunityFilter} onClear={clearFilters} showTimeFilter showCommunityFilter /><EventSearchField search={search} onSearchChange={setSearch} /></>} />}<EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" /></div>
 }
 
 export function HomeEventsEmbedPage() {

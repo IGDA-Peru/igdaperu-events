@@ -96,13 +96,13 @@ describe('TimelineView', () => {
     const onEventOpen = vi.fn()
     const first = timelineEvent({ id: 'first', title: 'Evento IGDA', communityId: 'igda', communityName: 'IGDA Perú' })
     const second = timelineEvent({ id: 'second', title: 'Evento Godot', communityId: 'godot', communityName: 'Godot Lima', startsAt: '2026-09-15T09:00:00-05:00', endsAt: '2026-09-15T18:00:00-05:00' })
-    render(<MemoryRouter><TimelineView events={[first, second]} showVisibility onEventOpen={onEventOpen} /></MemoryRouter>)
+    const view = render(<MemoryRouter><TimelineView events={[first, second]} showVisibility onEventOpen={onEventOpen} communityFilter="all" /></MemoryRouter>)
 
     fireEvent.click(screen.getByRole('button', { name: /Evento IGDA/ }))
     expect(onEventOpen).toHaveBeenCalledWith(first)
     expect(screen.getByRole('button', { name: /Evento IGDA/ }).querySelector('.calendar-event-hover-card')).toBeInTheDocument()
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Filtrar timeline por comunidad' }), { target: { value: 'godot' } })
+    view.rerender(<MemoryRouter><TimelineView events={[first, second]} showVisibility onEventOpen={onEventOpen} communityFilter="godot" /></MemoryRouter>)
     expect(screen.queryByRole('button', { name: /Evento IGDA/ })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Evento Godot/ })).toBeInTheDocument()
   })
@@ -113,10 +113,12 @@ describe('TimelineView', () => {
     try {
       const otherCommunityEvent = timelineEvent({ id: 'other', title: 'Evento de otra comunidad', communityId: 'other', communityName: 'Otra comunidad' })
       const sandaEvent = timelineEvent({ id: 'sanda', title: 'Evento SANDA', communityId: 'sanda', communityName: 'SANDA', startsAt: '2026-09-25T09:00:00-05:00', endsAt: '2026-09-28T18:00:00-05:00' })
-      render(<MemoryRouter><TimelineView events={[otherCommunityEvent, sandaEvent]} showVisibility={false} onEventOpen={vi.fn()} /></MemoryRouter>)
+      const view = render(<MemoryRouter><TimelineView events={[otherCommunityEvent, sandaEvent]} showVisibility={false} onEventOpen={vi.fn()} communityFilter="all" /></MemoryRouter>)
 
       expect(screen.queryByRole('button', { name: /Evento SANDA/ })).not.toBeInTheDocument()
-      fireEvent.change(screen.getByRole('combobox', { name: 'Filtrar timeline por comunidad' }), { target: { value: 'sanda' } })
+      const timeline = screen.getByRole('region', { name: /Línea de tiempo/ })
+      view.rerender(<MemoryRouter><TimelineView events={[otherCommunityEvent, sandaEvent]} showVisibility={false} onEventOpen={vi.fn()} communityFilter="sanda" /></MemoryRouter>)
+      expect(timeline).toBeInTheDocument()
 
       expect(screen.getByRole('heading', { name: 'Setiembre de 2026' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /Evento SANDA/ })).toBeInTheDocument()

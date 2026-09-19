@@ -17,7 +17,7 @@ import { ConversationSummary } from './ChatPage'
 import { approveEventProposal, archiveEvent, cancelCommunityInvitation, createCommunity, createGoogleMeetLink, createInvitation, deleteEvent, getEventCoverUrl, getGoogleMeetConnection, listCommunities, listCommunityEvents, listCommunityMembers, listEventConflicts, listEventProposals, listEventReports, listManagedEvents, migrateExistingAssets, rejectEventProposal, removeEventBanner, resolveEventReport, revokeCommunityMember, saveEvent, startGoogleMeetConnection, syncCommunitiesFromSheet, syncEventsToGoogleCalendar, updateCommunityBranding, updateCommunityStatus, updateEventProposal, uploadCommunityLogo, uploadEventBanner } from '../lib/data'
 import { eventFieldLabels, validateEvent, type EventField } from '../lib/eventValidation'
 import { eventTypeOptions, isStandardEventType } from '../lib/eventTypes'
-import { filterEvents, type ModalityFilter, type TimeFilter } from '../lib/eventFilters'
+import { filterEvents, type CommunityFilterOption, type ModalityFilter, type TimeFilter } from '../lib/eventFilters'
 import { eventSlug, formatEventDateRange, formatEventLocation, formatTimeRange, isEventPast, meetingActionLabel, slugify } from '../lib/format'
 import { peruDepartments, peruLocations } from '../lib/peruLocations'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
@@ -200,6 +200,7 @@ export function CommunityEventsPage() {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
   const [modalityFilter, setModalityFilter] = useState<ModalityFilter>('all')
   const [locationFilter, setLocationFilter] = useState('all')
+  const [communityFilter, setCommunityFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<'cards' | 'calendar' | 'timeline'>('timeline')
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
@@ -212,12 +213,20 @@ export function CommunityEventsPage() {
     return () => { active = false }
   }, [])
 
-  const filteredEvents = useMemo(() => filterEvents(events, { search, timeFilter, modalityFilter, locationFilter }), [events, locationFilter, modalityFilter, search, timeFilter])
+  const communityOptions = useMemo<CommunityFilterOption[]>(() => {
+    const options = new Map<string, CommunityFilterOption>()
+    events.forEach((event) => {
+      if (event.communityId && event.communityName) options.set(event.communityId, { value: event.communityId, label: event.communityName })
+      if (!event.communityId) options.set('__independent__', { value: '__independent__', label: 'Eventos independientes' })
+    })
+    return [...options.values()].sort((first, second) => first.label.localeCompare(second.label, 'es'))
+  }, [events])
+  const filteredEvents = useMemo(() => filterEvents(events, { search, timeFilter, modalityFilter, locationFilter, communityFilter }), [communityFilter, events, locationFilter, modalityFilter, search, timeFilter])
   return <div className="dashboard-page community-events-page">
     <PanelEventSwitcher active="community" />
     <div className="panel-title"><div><h1>Eventos de la comunidad</h1><p>Consulta las actividades publicadas por las comunidades de la red.</p></div></div>
-    <div className="community-events-toolbar"><EventFilters timeFilter={timeFilter} modalityFilter={modalityFilter} locationFilter={locationFilter} search={search} onTimeChange={setTimeFilter} onModalityChange={(value) => { setModalityFilter(value); setLocationFilter('all') }} onLocationChange={setLocationFilter} onSearchChange={setSearch} /><EventViewSwitcher value={viewMode} onChange={setViewMode} /></div>
-    {loading ? <LoadingState label="Cargando eventos de la comunidad" /> : error ? <p className="form-message error">{error}</p> : <EventResults events={filteredEvents} viewMode={viewMode} showVisibility onEventOpen={setSelectedEvent} />}
+    <div className="community-events-toolbar"><EventFilters timeFilter={timeFilter} modalityFilter={modalityFilter} locationFilter={locationFilter} communityFilter={communityFilter} communityOptions={communityOptions} search={search} onTimeChange={setTimeFilter} onModalityChange={(value) => { setModalityFilter(value); setLocationFilter('all') }} onLocationChange={setLocationFilter} onCommunityChange={setCommunityFilter} onSearchChange={setSearch} /><EventViewSwitcher value={viewMode} onChange={setViewMode} /></div>
+    {loading ? <LoadingState label="Cargando eventos de la comunidad" /> : error ? <p className="form-message error">{error}</p> : <EventResults events={filteredEvents} viewMode={viewMode} showVisibility onEventOpen={setSelectedEvent} communityFilter={communityFilter} />}
     {selectedEvent && <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" />}
   </div>
 }

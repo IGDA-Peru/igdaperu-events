@@ -30,6 +30,9 @@ export function SiteHeader({ embed = false }: { embed?: boolean }) {
   if (embed) return null
 
   const isApp = location.pathname.startsWith('/app')
+  const isCommunities = location.pathname.startsWith('/comunidades')
+  const isCalendar = location.pathname === '/calendario'
+  const isEvents = !isApp && !isCommunities && !isCalendar
   const closeAccountMenu = () => setAccountMenuOpen(false)
   const accountCommunity = memberships.find((membership) => membership.communityLogoPath) || memberships[0]
   const accountCommunityLogoUrl = getCommunityLogoUrl(accountCommunity?.communityLogoPath)
@@ -45,8 +48,9 @@ export function SiteHeader({ embed = false }: { embed?: boolean }) {
           {menuOpen ? <X size={22} /> : <Menu size={22} />}
         </button>
         <nav className={`main-nav ${menuOpen ? 'open' : ''}`} aria-label="Navegación principal">
-          <Link className={!isApp && location.pathname !== '/comunidades' ? 'active' : ''} to="/">Eventos</Link>
-          <Link className={location.pathname.startsWith('/comunidades') ? 'active' : ''} to="/comunidades">Comunidades</Link>
+          <Link className={isEvents ? 'active' : ''} to="/">Eventos</Link>
+          <Link className={isCommunities ? 'active' : ''} to="/comunidades">Comunidades</Link>
+          <Link className={isCalendar ? 'active' : ''} to="/calendario">Calendario</Link>
         </nav>
         <div className="header-actions">
           {!isApp && !user && <Link className="publish-button" to="/proponer-evento" onClick={closeAccountMenu}><Send size={17} aria-hidden="true" /> Propón tu evento</Link>}

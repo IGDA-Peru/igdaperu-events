@@ -2,14 +2,14 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthContext, type AuthContextValue } from './auth/auth-context'
-import App from './App'
+import App, { PrivacyPage } from './App'
 import { SiteHeader } from './components/SiteHeader'
 import { EventPreviewDrawer } from './components/EventPreviewDrawer'
 import { EventResults } from './components/EventViews'
 import { CommunitySetupPrompt } from './components/CommunitySetupPrompt'
 import { CommunityEventsPage, CommunitySettingsPage, DashboardPage, EventEditorPage, ManagedEventsPage, PlatformAdminPage } from './pages/AppPages'
 import { ConversationsPage } from './pages/ChatPage'
-import { CommunityDetailPage, EventProposalPage, PublicAgendaPage } from './pages/PublicPages'
+import { CalendarAccessPage, CommunityDetailPage, EventProposalPage, PublicAgendaPage } from './pages/PublicPages'
 import { demoEvents } from './lib/demo-data'
 import * as data from './lib/data'
 
@@ -20,6 +20,36 @@ vi.mock('./lib/supabase', () => ({
 }))
 
 describe('public events', () => {
+  it('shows a structured privacy policy with the required legal sections', () => {
+    render(<MemoryRouter><PrivacyPage /></MemoryRouter>)
+
+    expect(screen.getByRole('heading', { name: 'Privacidad' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Datos que podemos usar' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Contenido público e integraciones' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Solicitudes y contacto' })).toBeInTheDocument()
+    expect(screen.getByText(/nombre legal de la organización responsable/i)).toBeInTheDocument()
+  })
+
+  it('shows the cross-platform calendar access page', () => {
+    render(<MemoryRouter initialEntries={['/calendario']}><CalendarAccessPage /></MemoryRouter>)
+
+    const googleUrl = 'https://calendar.google.com/calendar/u/3?cid=Y18zOWUwMGQzZjlkNjc2YzAxNTY0MGJhM2RhYmQxNTI3YThlZTNiMGEwNjAzZTgzNjhjOTIzNjZlZDM3Zjc0YmQ1QGdyb3VwLmNhbGVuZGFyLmdvb2dsZS5jb20'
+    const icalUrl = 'https://calendar.google.com/calendar/ical/c_39e00d3f9d676c015640ba3dabd1527a8ee3b0a0603e8368c92366ed37f74bd5%40group.calendar.google.com/public/basic.ics'
+    const platformLinks = screen.getAllByRole('link', { name: 'Suscríbete al calendario' })
+    expect(screen.getByRole('heading', { name: 'Suscríbete al calendario de IGDA Perú' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Suscríbete al calendario' })).toBeInTheDocument()
+    expect(platformLinks).toHaveLength(3)
+    expect(platformLinks[0]).toHaveAttribute('href', googleUrl)
+    expect(platformLinks[0]).toHaveAttribute('target', '_blank')
+    expect(platformLinks[1]).toHaveAttribute('href', 'https://outlook.live.com/calendar/0/addcalendar')
+    expect(platformLinks[2]).toHaveAttribute('href', 'webcal://calendar.google.com/calendar/ical/c_39e00d3f9d676c015640ba3dabd1527a8ee3b0a0603e8368c92366ed37f74bd5%40group.calendar.google.com/public/basic.ics')
+    expect(screen.queryByRole('link', { name: 'Abrir Google Calendar' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Microsoft Outlook' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Apple Calendar' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Abrir URL \.ics/ })).toHaveAttribute('href', icalUrl)
+    expect(screen.getByRole('button', { name: 'Copiar URL .ics' })).toBeInTheDocument()
+  })
+
   it('orders the community rail by the next upcoming event', async () => {
     const events = [
       { ...demoEvents[0], id: 'past-only', communityId: 'past-only', communityName: 'Comunidad pasada', communitySlug: 'past-only', startsAt: '2026-08-01T19:00:00-05:00', endsAt: '2026-08-01T21:00:00-05:00' },
@@ -180,11 +210,13 @@ describe('public events', () => {
       expect(screen.getByRole('combobox', { name: 'Modalidad' })).toHaveValue('venue')
       const timelineLocationSelect = screen.getByRole('combobox', { name: 'Lugar' })
       expect(timelineLocationSelect).toHaveValue('Lima')
-      expect(screen.getByRole('combobox', { name: 'Filtrar timeline por comunidad' })).toHaveValue(demoEvents[0].communityId)
-      expect(document.querySelector('.timeline-legend')).not.toBeInTheDocument()
-      expect(scrollIntoView).not.toHaveBeenCalled()
-      fireEvent.change(screen.getByRole('combobox', { name: 'Filtrar timeline por comunidad' }), { target: { value: demoEvents[1].communityId } })
-      expect(screen.getByRole('combobox', { name: 'Filtrar timeline por comunidad' })).toHaveValue(demoEvents[1].communityId)
+       expect(screen.queryByRole('combobox', { name: 'Filtrar timeline por comunidad' })).not.toBeInTheDocument()
+       const timelineCommunitySelect = screen.getByRole('combobox', { name: 'Comunidad' })
+       expect(timelineCommunitySelect).toHaveValue(demoEvents[0].communityId)
+       expect(document.querySelector('.timeline-legend')).not.toBeInTheDocument()
+       expect(scrollIntoView).not.toHaveBeenCalled()
+       fireEvent.change(timelineCommunitySelect, { target: { value: demoEvents[1].communityId } })
+       expect(timelineCommunitySelect).toHaveValue(demoEvents[1].communityId)
       expect(screen.getByRole('button', { name: /Introducción a Godot Engine/ })).toBeInTheDocument()
       fireEvent.change(timelineLocationSelect, { target: { value: 'Perú' } })
       fireEvent.click(screen.getByRole('button', { name: 'Tarjetas' }))
