@@ -14,6 +14,7 @@
 
 #root { min-height: 100vh; }
 #root:has(.home-events-embed-page) { min-height: 0; }
+#root:has(.spotlight-embed-page--fit-content) { min-height: 0; }
 html:has(.home-events-embed-page), body:has(.home-events-embed-page) { background: var(--surface); }
 html:has(.embed-page), body:has(.embed-page) { background: var(--surface); }
 
@@ -906,6 +907,7 @@ html:has(.embed-page), body:has(.embed-page) { background: var(--surface); }
 .embed-page .event-meta > span:last-child { display: none; }
 
 .spotlight-embed-page { min-height: 100vh; padding: 24px; color: var(--ink); background: var(--surface); }
+.spotlight-embed-page--fit-content { min-height: 0; }
 .spotlight-embed-page--embedded { padding-inline: 0; }
 .spotlight-embed { width: min(100%, 1120px); margin: 0 auto; }
 .spotlight-embed-heading { display: grid; gap: 4px; margin-top: 24px; }

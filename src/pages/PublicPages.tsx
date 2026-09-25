@@ -821,6 +821,7 @@ function SpotlightEventsEmbedContent() {
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const embedded = params.get('embedded') === '1'
   const hideUpcoming = params.get('hideUpcoming') === '1'
+  const fitContent = params.get('fit') === 'content'
   const { events, loading, error } = useEvents({ activeOrUpcoming: true, limit: 50 })
   const { now, liveEventIds, liveNoticeEvent, dismissLiveNotice } = useLiveEventNotice(events)
   const upcomingAndLiveEvents = useMemo(() => events
@@ -834,6 +835,7 @@ function SpotlightEventsEmbedContent() {
     .slice(0, 4), [events, now])
   const featuredEvent = upcomingAndLiveEvents[0]
   const upcomingEvents = upcomingAndLiveEvents.slice(1, 4)
+  const showUpcoming = !hideUpcoming && upcomingEvents.length > 0
   const communityName = 'IGDA Perú'
   const allEventsUrl = localizedPublicUrl(publicCalendarUrl, locale)
 
@@ -853,7 +855,7 @@ function SpotlightEventsEmbedContent() {
     return () => observer.disconnect()
   }, [upcomingAndLiveEvents.length, loading, error, Boolean(liveNoticeEvent)])
 
-  return <div className={`spotlight-embed-page${embedded ? ' spotlight-embed-page--embedded' : ''}`}>
+  return <div className={`spotlight-embed-page${embedded ? ' spotlight-embed-page--embedded' : ''}${fitContent ? ' spotlight-embed-page--fit-content' : ''}`}>
     <section className={`spotlight-embed${embedded ? ' spotlight-embed--embedded' : ''}`} aria-labelledby="spotlight-embed-title">
       {!embedded && <div className="spotlight-embed-heading">
         <span className="spotlight-embed-kicker">{t('embed.agenda')}</span>
@@ -862,9 +864,9 @@ function SpotlightEventsEmbedContent() {
       </div>}
       {loading && <LoadingState />}
       {error && <ErrorState message={error} />}
-      {!loading && !error && featuredEvent && <div className={`spotlight-embed-grid${hideUpcoming ? ' spotlight-embed-grid--single' : ''}`}>
+      {!loading && !error && featuredEvent && <div className={`spotlight-embed-grid${showUpcoming ? '' : ' spotlight-embed-grid--single'}`}>
         <SpotlightFeature event={featuredEvent} happeningNow={liveEventIds.has(featuredEvent.id)} onOpen={() => setSelectedEvent(featuredEvent)} />
-        {!hideUpcoming && <section className="spotlight-upcoming" aria-labelledby="spotlight-upcoming-title">
+        {showUpcoming && <section className="spotlight-upcoming" aria-labelledby="spotlight-upcoming-title">
           <div className="spotlight-upcoming-heading"><h2 id="spotlight-upcoming-title">{t('embed.nextEvents')}</h2></div>
           <div className="spotlight-upcoming-list">
             {upcomingEvents.map((event) => <SpotlightUpcomingItem event={event} happeningNow={liveEventIds.has(event.id)} onOpen={() => setSelectedEvent(event)} key={event.id} />)}
