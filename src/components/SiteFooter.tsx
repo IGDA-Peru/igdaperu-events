@@ -36,7 +36,7 @@ export function SiteFooter() {
           <nav className="footer-group" aria-label={t('footer.ecosystem')}>
             <h3>{t('footer.ecosystem')}</h3>
             <ul className="footer-group-links">
-              <li><a href="https://games.igda.pe/">{t('footer.gamesPeru')}</a></li>
+              <li><a href="https://igda.pe/industry/juegos/">{t('footer.gamesPeru')}</a></li>
               <li><Link to={withLocale('/comunidades', locale)}>{t('nav.communities')}</Link></li>
               <li><a href={mainSite('/comunidad/')}>{t('footer.igdaCommunity')}</a></li>
               <li><a href={mainSite('/industry/dir-prof/')}>{t('footer.directory')}</a></li>

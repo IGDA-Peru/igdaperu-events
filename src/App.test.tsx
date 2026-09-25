@@ -30,7 +30,7 @@ describe('public events', () => {
     expect(menu).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /IGDA Perú, Página principal/ })).toHaveAttribute('href', 'https://igda.pe/')
     expect(screen.getByRole('menuitem', { name: /Eventos, Agenda y comunidades/ })).toHaveAttribute('href', '/')
-    expect(screen.getByRole('menuitem', { name: /Juegos, Catálogo peruano/ })).toHaveAttribute('href', 'https://games.igda.pe/')
+    expect(screen.getByRole('menuitem', { name: /Juegos, Catálogo peruano/ })).toHaveAttribute('href', 'https://igda.pe/industry/juegos/')
     fireEvent.mouseEnter(menu)
     expect(screen.getByRole('menu', { name: 'Sitios de IGDA Perú' })).toBeInTheDocument()
     fireEvent.mouseLeave(switcher.parentElement as HTMLElement)

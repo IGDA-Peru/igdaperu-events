@@ -70,7 +70,7 @@ export function SiteHeader({ embed = false }: { embed?: boolean }) {
           {siteSwitcherOpen && <div className="site-switcher-menu" id="site-switcher-menu" role="menu" aria-label="Sitios de IGDA Perú">
             <a role="menuitem" href={`https://igda.pe${withLocale('/', locale)}`}><strong>{t('site.main')}</strong></a>
             <Link role="menuitem" className="is-active" to="/"><strong>{t('nav.events')}</strong></Link>
-            <a role="menuitem" href="https://games.igda.pe/"><strong>{t('site.games')}</strong></a>
+            <a role="menuitem" href="https://igda.pe/industry/juegos/"><strong>{t('site.games')}</strong></a>
           </div>}
         </div>
         <button className="mobile-menu" type="button" aria-label={menuOpen ? t('nav.closeMenu') : t('nav.openMenu')} onClick={() => setMenuOpen(!menuOpen)}>
