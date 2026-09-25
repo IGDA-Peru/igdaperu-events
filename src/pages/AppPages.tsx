@@ -7,7 +7,7 @@ import { EmptyEvents, EventCard } from '../components/EventCard'
 import { BannerCropDialog } from '../components/BannerCropDialog'
 import { CommunityLogo } from '../components/CommunityLogo'
 import { EventConflictNotice, type EventConflictStatus } from '../components/EventConflictNotice'
-import { EventFilters } from '../components/EventFilters'
+import { EventFiltersPopover, EventSearchField } from '../components/EventFilters'
 import { EventPreviewDrawer } from '../components/EventPreviewDrawer'
 import { EventResults, EventViewSwitcher } from '../components/EventViews'
 import { LoadingState } from '../components/Feedback'
@@ -42,8 +42,18 @@ function roleLabel(role: Role) {
   return { reader: 'Lector', community_editor: 'Editor de comunidad', community_admin: 'Administrador de comunidad', platform_admin: 'Administrador IGDA' }[role]
 }
 
+const PRIMARY_COMMUNITY_EMAIL = 'contacto@igda.pe'
+
+function isPrimaryCommunityMember(member: CommunityMember) {
+  return member.email.trim().toLowerCase() === PRIMARY_COMMUNITY_EMAIL
+}
+
 function canRemoveCommunityMember(member: CommunityMember, isPlatformAdmin: boolean) {
-  return Boolean(member.membershipId || member.invitationId) && (isPlatformAdmin || member.role === 'community_editor')
+  return !isPrimaryCommunityMember(member) && Boolean(member.membershipId || member.invitationId) && (isPlatformAdmin || member.role === 'community_editor')
+}
+
+function communityMemberActionId(member: CommunityMember) {
+  return member.status === 'invited' && member.invitationId ? member.invitationId : member.membershipId
 }
 
 function canDeleteEvent(event: EventItem, memberships: Pick<Membership, 'communityId' | 'role'>[], isPlatformAdmin: boolean) {
@@ -63,30 +73,24 @@ function sortManagedEvents(events: EventItem[]) {
 
 function splitManagedEvents(events: EventItem[]) {
   return {
-    active: sortManagedEvents(events.filter((event) => event.status !== 'archived')),
-    archived: sortManagedEvents(events.filter((event) => event.status === 'archived')),
+    active: sortManagedEvents(events.filter((event) => event.status !== 'draft' && event.status !== 'archived' && !isEventPast(event))),
+    drafts: sortManagedEvents(events.filter((event) => event.status === 'draft')),
+    pastArchived: sortManagedEvents(events.filter((event) => event.status === 'archived' || (event.status !== 'draft' && isEventPast(event)))),
   }
 }
 
 function ManagedEventSections({ events, onEventOpen, onArchive, onDelete, memberships, isPlatformAdmin }: { events: EventItem[]; onEventOpen: (event: EventItem) => void; onArchive: (event: EventItem) => void; onDelete: (event: EventItem) => void; memberships: Membership[]; isPlatformAdmin: boolean }) {
-  const { active, archived } = splitManagedEvents(events)
-  const upcoming = active.filter((event) => !isEventPast(event))
-  const past = active.filter((event) => isEventPast(event))
+  const { active, drafts, pastArchived } = splitManagedEvents(events)
   const renderCard = (event: EventItem) => <EventCard event={event} compact onOpen={() => onEventOpen(event)} panelActions={{ onArchive: () => onArchive(event), onDelete: () => onDelete(event), canDelete: canDeleteEvent(event, memberships, isPlatformAdmin) }} key={event.id} />
+  const renderSection = (id: string, title: string, sectionEvents: EventItem[]) => sectionEvents.length > 0 && <section className="managed-event-section" aria-labelledby={id}>
+    <div className="managed-section-heading"><h2 id={id}>{title}</h2><span className="admin-section-count">{sectionEvents.length}</span></div>
+    <div className="managed-event-list">{sectionEvents.map(renderCard)}</div>
+  </section>
 
   return <div className="managed-event-sections">
-    {active.length > 0 && <section className="managed-event-section" aria-labelledby="managed-active-events-title">
-      <div className="managed-section-heading"><div><h2 id="managed-active-events-title">Eventos activos</h2><p>Próximos eventos y eventos pasados que aún no has archivado.</p></div><span className="admin-section-count">{active.length}</span></div>
-      <div className="managed-event-list">
-        {upcoming.map(renderCard)}
-        {past.length > 0 && <div className="event-list-divider" role="separator" aria-label="Eventos activos que ya pasaron"><span>Eventos que ya pasaron</span></div>}
-        {past.map(renderCard)}
-      </div>
-    </section>}
-    {archived.length > 0 && <section className="managed-event-section" aria-labelledby="managed-archived-events-title">
-      <div className="managed-section-heading"><div><h2 id="managed-archived-events-title">Eventos archivados</h2><p>Estos eventos quedan fuera de la lista activa, pero puedes revisarlos o eliminarlos.</p></div><span className="admin-section-count">{archived.length}</span></div>
-      <div className="managed-event-list">{archived.map(renderCard)}</div>
-    </section>}
+    {renderSection('managed-active-events-title', 'Eventos activos', active)}
+    {renderSection('managed-draft-events-title', 'Borradores', drafts)}
+    {renderSection('managed-past-archived-events-title', 'Eventos pasados / archivados', pastArchived)}
   </div>
 }
 
@@ -106,7 +110,7 @@ export function DashboardPage() {
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const [message, setMessage] = useState('')
   const [actionError, setActionError] = useState('')
-  const managedEventGroups = useMemo(() => splitManagedEvents(events), [events])
+  const dashboardEvents = useMemo(() => sortManagedEvents(events.filter((event) => event.status !== 'archived')), [events])
   const sidebarDisclosureRef = useRef<HTMLDetailsElement>(null)
   useEffect(() => {
     void listManagedEvents(manageableIds ? manageableIds.split(',') : [], isPlatformAdmin).then(setEvents).finally(() => setLoading(false))
@@ -166,7 +170,7 @@ export function DashboardPage() {
           <div className="dashboard-panel-heading"><div><PanelEventSwitcher active="managed" /><h2>Tus eventos</h2></div><div className="dashboard-panel-actions">{canManage && <Link className="primary-button" to="/app/eventos/nuevo"><Plus size={17} /> Nuevo evento</Link>}</div></div>
           {message && <p className="form-message success">{message}</p>}
           {actionError && <p className="form-message error">{actionError}</p>}
-          {loading ? <LoadingState label="Cargando tus eventos" /> : managedEventGroups.active.length ? <><div className="event-list">{managedEventGroups.active.slice(0, 5).map((event) => <EventCard event={event} compact onOpen={() => setSelectedEvent(event)} panelActions={{ onArchive: () => void archive(event), onDelete: () => void remove(event), canDelete: canDeleteEvent(event, memberships, isPlatformAdmin) }} key={event.id} />)}</div><div className="dashboard-events-footer"><Link className="secondary-button" to="/app/eventos">Ver todos los eventos</Link></div></> : <EmptyEvents authenticated />}
+          {loading ? <LoadingState label="Cargando tus eventos" /> : dashboardEvents.length ? <><div className="event-list">{dashboardEvents.slice(0, 5).map((event) => <EventCard event={event} compact onOpen={() => setSelectedEvent(event)} panelActions={{ onArchive: () => void archive(event), onDelete: () => void remove(event), canDelete: canDeleteEvent(event, memberships, isPlatformAdmin) }} key={event.id} />)}</div><div className="dashboard-events-footer"><Link className="secondary-button" to="/app/eventos">Ver todos los eventos</Link></div></> : <EmptyEvents authenticated />}
         </section>
       </div>
       {user && <p className="account-caption">Sesión iniciada como {user.email}</p>}
@@ -190,7 +194,7 @@ export function ManagedEventsPage() {
   useEffect(load, [manageableIds, isPlatformAdmin])
   const archive = async (event: EventItem) => { setActionError(''); try { await archiveEvent(event.id); setMessage('Evento archivado.'); load() } catch (reason: unknown) { setActionError(reason instanceof Error ? reason.message : 'No pudimos archivar el evento.') } }
   const remove = async (event: EventItem) => { if (!window.confirm(`¿Eliminar “${event.title}”? Esta acción no se puede deshacer.`)) return; setActionError(''); try { await deleteEvent(event.id); setMessage('Evento eliminado.'); load() } catch (reason: unknown) { setActionError(reason instanceof Error ? reason.message : 'No pudimos eliminar el evento.') } }
-  return <div className="dashboard-page"><PanelEventSwitcher active="managed" /><PanelTitle title="Tus eventos" description="Crea, publica y actualiza los eventos de tus comunidades." action={<Link className="primary-button" to="/app/eventos/nuevo"><Plus size={17} /> Nuevo evento</Link>} />{message && <p className="form-message success">{message}</p>}{actionError && <p className="form-message error">{actionError}</p>}{loading ? <LoadingState label="Cargando eventos" /> : events.length ? <ManagedEventSections events={events} onEventOpen={setSelectedEvent} onArchive={archive} onDelete={remove} memberships={memberships} isPlatformAdmin={isPlatformAdmin} /> : <EmptyEvents authenticated />}<EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" /></div>
+  return <div className="dashboard-page"><div className="managed-page-toolbar"><PanelEventSwitcher active="managed" /><div className="dashboard-panel-actions"><Link className="primary-button" to="/app/eventos/nuevo"><Plus size={17} /> Nuevo evento</Link></div></div>{message && <p className="form-message success">{message}</p>}{actionError && <p className="form-message error">{actionError}</p>}{loading ? <LoadingState label="Cargando eventos" /> : events.length ? <ManagedEventSections events={events} onEventOpen={setSelectedEvent} onArchive={archive} onDelete={remove} memberships={memberships} isPlatformAdmin={isPlatformAdmin} /> : <EmptyEvents authenticated />}<EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" /></div>
 }
 
 export function CommunityEventsPage() {
@@ -222,11 +226,24 @@ export function CommunityEventsPage() {
     return [...options.values()].sort((first, second) => first.label.localeCompare(second.label, 'es'))
   }, [events])
   const filteredEvents = useMemo(() => filterEvents(events, { search, timeFilter, modalityFilter, locationFilter, communityFilter }), [communityFilter, events, locationFilter, modalityFilter, search, timeFilter])
+  const clearFilters = () => {
+    setTimeFilter('all')
+    setModalityFilter('all')
+    setLocationFilter('all')
+    setCommunityFilter('all')
+  }
   return <div className="dashboard-page community-events-page">
     <PanelEventSwitcher active="community" />
-    <div className="panel-title"><div><h1>Eventos de la comunidad</h1><p>Consulta las actividades publicadas por las comunidades de la red.</p></div></div>
-    <div className="community-events-toolbar"><EventFilters timeFilter={timeFilter} modalityFilter={modalityFilter} locationFilter={locationFilter} communityFilter={communityFilter} communityOptions={communityOptions} search={search} onTimeChange={setTimeFilter} onModalityChange={(value) => { setModalityFilter(value); setLocationFilter('all') }} onLocationChange={setLocationFilter} onCommunityChange={setCommunityFilter} onSearchChange={setSearch} /><EventViewSwitcher value={viewMode} onChange={setViewMode} /></div>
-    {loading ? <LoadingState label="Cargando eventos de la comunidad" /> : error ? <p className="form-message error">{error}</p> : <EventResults events={filteredEvents} viewMode={viewMode} showVisibility onEventOpen={setSelectedEvent} communityFilter={communityFilter} />}
+    {loading ? <LoadingState label="Cargando eventos de la comunidad" /> : error ? <p className="form-message error">{error}</p> : <EventResults
+      events={filteredEvents}
+      viewMode={viewMode}
+      showVisibility
+      onEventOpen={setSelectedEvent}
+      showViewLabel={false}
+      communityFilter={communityFilter}
+      toolbarCenter={<EventViewSwitcher value={viewMode} onChange={setViewMode} />}
+      toolbarEnd={<><EventFiltersPopover timeFilter={timeFilter} modalityFilter={modalityFilter} locationFilter={locationFilter} communityFilter={communityFilter} communityOptions={communityOptions} onTimeChange={setTimeFilter} onModalityChange={(value) => { setModalityFilter(value); setLocationFilter('all') }} onLocationChange={setLocationFilter} onCommunityChange={setCommunityFilter} onClear={clearFilters} showTimeFilter={viewMode === 'cards'} showCommunityFilter /><EventSearchField search={search} onSearchChange={setSearch} /></>}
+    />}
     {selectedEvent && <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" />}
   </div>
 }
@@ -923,13 +940,37 @@ function CommunityInviteForm({ community }: { community: Community }) {
   </section>
 }
 
+function MemberRemovalDialog({ member, loading, error, onClose, onConfirm }: { member: CommunityMember; loading: boolean; error: string; onClose: () => void; onConfirm: () => void }) {
+  const isInvitation = member.status === 'invited' && Boolean(member.invitationId)
+  const title = isInvitation ? 'Cancelar invitación' : 'Revocar acceso'
+  const description = isInvitation
+    ? `La invitación para ${member.email} dejará de estar disponible.`
+    : `${member.email} dejará de tener acceso a esta comunidad. Esta acción no elimina su cuenta.`
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape' && !loading) onClose() }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [loading, onClose])
+
+  return <div className="modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget && !loading) onClose() }}>
+    <section className="member-removal-modal" role="dialog" aria-modal="true" aria-labelledby="member-removal-dialog-title" aria-describedby="member-removal-dialog-description" onMouseDown={(event) => event.stopPropagation()}>
+      <div className="invite-modal-header"><div><span className="dashboard-kicker">Accesos de la comunidad</span><h2 id="member-removal-dialog-title">{title}</h2></div><button className="icon-button event-preview-close" type="button" onClick={onClose} disabled={loading} aria-label="Cerrar"><X size={18} /></button></div>
+      <p className="muted-copy" id="member-removal-dialog-description">{description}</p>
+      <div className="member-removal-identity"><Mail size={18} aria-hidden="true" /><div><strong>{member.email}</strong><small>{roleLabel(member.role)}</small></div></div>
+      {error && <FormError message={error} />}
+      <div className="invite-actions"><button className="secondary-button" type="button" onClick={onClose} disabled={loading}>Cancelar</button><button className="danger-button" type="button" onClick={onConfirm} disabled={loading}>{loading ? 'Actualizando…' : isInvitation ? 'Cancelar invitación' : 'Revocar acceso'}</button></div>
+    </section>
+  </div>
+}
+
 function buildCommunityEmbedCode(community: Community, variant: 'calendar' | 'cards' | 'spotlight') {
   const path = variant === 'calendar' ? '/embed' : variant === 'cards' ? '/embed/inicio' : '/embed/spotlight'
   const url = new URL(path, window.location.origin)
-  if (variant !== 'spotlight') url.searchParams.set('community', community.slug)
+  url.searchParams.set('community', community.slug)
   if (variant !== 'calendar') url.searchParams.set('embedded', '1')
-  const title = (variant === 'spotlight' ? 'Eventos de todas las comunidades de IGDA Perú' : `Eventos de ${community.name}`).replaceAll('"', '&quot;')
-  const height = variant === 'calendar' ? 900 : variant === 'cards' ? 600 : 760
+  const title = `Eventos de ${community.name}`.replaceAll('"', '&quot;')
+  const height = variant === 'calendar' ? 900 : 600
 
   return `<iframe
   src="${url.toString()}"
@@ -976,6 +1017,7 @@ export function CommunitySettingsPage() {
   const [memberLoading, setMemberLoading] = useState(false)
   const [memberError, setMemberError] = useState('')
   const [memberActionId, setMemberActionId] = useState<string | null>(null)
+  const [memberToRemove, setMemberToRemove] = useState<CommunityMember | null>(null)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState('')
   const [logoUploading, setLogoUploading] = useState(false)
@@ -1005,6 +1047,7 @@ export function CommunitySettingsPage() {
     setActiveSection('members')
     setCommunityMembers([])
     setMemberActionId(null)
+    setMemberToRemove(null)
     setLogoFile(null)
     setLogoPreview('')
     setLogoMessage('')
@@ -1024,19 +1067,24 @@ export function CommunitySettingsPage() {
       .finally(() => { if (!cancelled) setMemberLoading(false) })
     return () => { cancelled = true }
   }, [communityId])
-  const removeMember = async (member: CommunityMember) => {
+  const requestRemoveMember = (member: CommunityMember) => {
     if (!canRemoveCommunityMember(member, isPlatformAdmin)) return
+    setMemberError('')
+    setMemberToRemove(member)
+  }
+  const removeMember = async () => {
+    const member = memberToRemove
+    if (!member || !canRemoveCommunityMember(member, isPlatformAdmin)) return
     const isInvitation = member.status === 'invited' && Boolean(member.invitationId)
-    const actionId = isInvitation ? member.invitationId : member.membershipId
+    const actionId = communityMemberActionId(member)
     if (!actionId) return
-    const actionDescription = isInvitation ? `cancelar la invitación para ${member.email}` : `revocar el acceso de ${member.email}`
-    if (!window.confirm(`¿Quieres ${actionDescription}?`)) return
     setMemberActionId(actionId)
     setMemberError('')
     try {
       if (isInvitation) await cancelCommunityInvitation(actionId)
       else await revokeCommunityMember(actionId)
       setCommunityMembers((current) => current.filter((item) => item.membershipId !== member.membershipId && item.invitationId !== member.invitationId))
+      setMemberToRemove(null)
     } catch (reason: unknown) {
       setMemberError(reason instanceof Error ? reason.message : 'No pudimos actualizar el acceso.')
     } finally {
@@ -1118,13 +1166,13 @@ export function CommunitySettingsPage() {
          <div className="community-panel-heading"><div><h2>Miembros</h2><p className="muted-copy">Accesos activos e invitaciones pendientes. No mostramos nombres ni contraseñas.</p></div><span className="member-count" aria-label={`${communityMembers.length} miembros`}>{communityMembers.length}</span></div>
          {memberLoading && <LoadingState label="Cargando miembros" />}
          {memberError && <FormError message={memberError} />}
-         {!memberLoading && !memberError && (communityMembers.length ? <ul className="member-email-list">{communityMembers.map((member) => { const actionId = member.invitationId || member.membershipId; const removable = canRemoveCommunityMember(member, isPlatformAdmin); return <li className="member-email-row" key={actionId || member.email}><Mail size={16} aria-hidden="true" /><span className="member-email-content"><a className="member-email-link" href={`mailto:${member.email}`}>{member.email}</a><small className="member-email-meta">{member.status === 'invited' ? 'Invitación pendiente' : 'Acceso activo'} · {roleLabel(member.role)}</small></span>{removable && <button className="icon-button danger" type="button" disabled={memberActionId === actionId} onClick={() => void removeMember(member)} aria-label={member.status === 'invited' ? `Cancelar invitación a ${member.email}` : `Revocar acceso de ${member.email}`}>{memberActionId === actionId ? <RefreshCw size={16} className="spin" /> : <X size={16} />}</button>}</li> })}</ul> : <div className="members-empty"><Mail size={24} aria-hidden="true" /><p>Aún no hay personas registradas en esta comunidad.</p></div>)}
+         {!memberLoading && !memberError && (communityMembers.length ? <ul className="member-email-list">{communityMembers.map((member) => { const actionId = communityMemberActionId(member); const removable = canRemoveCommunityMember(member, isPlatformAdmin); const isPrimary = isPrimaryCommunityMember(member); return <li className="member-email-row" key={actionId || member.email}><Mail size={16} aria-hidden="true" /><span className="member-email-content"><a className="member-email-link" href={`mailto:${member.email}`}>{member.email}</a><small className="member-email-meta">{member.status === 'invited' ? 'Invitación pendiente' : 'Acceso activo'} · {roleLabel(member.role)}</small>{isPrimary && <span className="member-protected-badge">Cuenta principal · acceso protegido</span>}</span>{removable && <button className="icon-button danger" type="button" disabled={memberActionId === actionId} onClick={() => requestRemoveMember(member)} aria-label={member.status === 'invited' ? `Cancelar invitación a ${member.email}` : `Revocar acceso de ${member.email}`}>{memberActionId === actionId ? <RefreshCw size={16} className="spin" /> : <X size={16} />}</button>}</li> })}</ul> : <div className="members-empty"><Mail size={24} aria-hidden="true" /><p>Aún no hay personas registradas en esta comunidad.</p></div>)}
        </div> : activeSection === 'integration' ? <div className="community-tab-content" id="community-integration-panel" role="tabpanel" aria-label="Integración">
          <div className="community-panel-heading"><div><h2>Integración</h2><p className="muted-copy">Copia el código que necesites para mostrar los eventos de {community.name} en otra página.</p></div></div>
          <div className="community-embed-code-list">
            <CommunityEmbedCode key={calendarEmbedCode} title="Vista de calendario" description="Muestra la agenda completa en formato calendario." code={calendarEmbedCode} />
            <CommunityEmbedCode key={cardsEmbedCode} title="Vista simple de tarjetas" description="Muestra los próximos eventos en tarjetas compactas." code={cardsEmbedCode} />
-           <CommunityEmbedCode key={spotlightEmbedCode} title="Spotlight + 3 siguientes eventos" description="Destaca el próximo evento de todas las comunidades y muestra los tres siguientes en una columna lateral." code={spotlightEmbedCode} />
+           <CommunityEmbedCode key={spotlightEmbedCode} title="Próximos eventos destacados" description="Muestra hasta tres próximos eventos de esta comunidad en tarjetas compactas." code={spotlightEmbedCode} />
          </div>
          <p className="community-embed-admin-note"><Shield size={17} aria-hidden="true" /><span>Comparte el código elegido con el administrador de IGDA Perú. Debe habilitar el dominio de la página donde se insertará el embed para que pueda mostrarse correctamente.</span></p>
        </div> : <div className="community-tab-content" id="community-public-panel" role="tabpanel" aria-label="Información pública">
@@ -1151,6 +1199,7 @@ export function CommunitySettingsPage() {
         </dl>
        </div>}
     </section>
+    {memberToRemove && <MemberRemovalDialog member={memberToRemove} loading={memberActionId === communityMemberActionId(memberToRemove)} error={memberError} onClose={() => { if (!memberActionId) setMemberToRemove(null) }} onConfirm={() => void removeMember()} />}
   </div>
 }
 

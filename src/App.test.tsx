@@ -20,6 +20,27 @@ vi.mock('./lib/supabase', () => ({
 }))
 
 describe('public events', () => {
+  it('offers the IGDA Peru site switcher from the header', () => {
+    render(<AuthContext.Provider value={{ configured: false, loading: false, session: null, user: null, profile: null, memberships: [], roles: [], signOut: vi.fn().mockResolvedValue(undefined), refreshUserData: vi.fn().mockResolvedValue(undefined) }}><MemoryRouter><SiteHeader /></MemoryRouter></AuthContext.Provider>)
+
+    const switcher = screen.getByRole('link', { name: 'Cambiar sitio de IGDA Perú' })
+    expect(screen.queryByRole('menu', { name: 'Sitios de IGDA Perú' })).not.toBeInTheDocument()
+    fireEvent.mouseEnter(switcher.parentElement as HTMLElement)
+    const menu = screen.getByRole('menu', { name: 'Sitios de IGDA Perú' })
+    expect(menu).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /IGDA Perú, Página principal/ })).toHaveAttribute('href', 'https://igda.pe/')
+    expect(screen.getByRole('menuitem', { name: /Eventos, Agenda y comunidades/ })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('menuitem', { name: /Juegos, Catálogo peruano/ })).toHaveAttribute('href', 'https://games.igda.pe/')
+    fireEvent.mouseEnter(menu)
+    expect(screen.getByRole('menu', { name: 'Sitios de IGDA Perú' })).toBeInTheDocument()
+    fireEvent.mouseLeave(switcher.parentElement as HTMLElement)
+    expect(screen.queryByRole('menu', { name: 'Sitios de IGDA Perú' })).not.toBeInTheDocument()
+    fireEvent.focus(switcher)
+    expect(screen.getByRole('menu', { name: 'Sitios de IGDA Perú' })).toBeInTheDocument()
+    fireEvent.blur(switcher, { relatedTarget: document.body })
+    expect(screen.queryByRole('menu', { name: 'Sitios de IGDA Perú' })).not.toBeInTheDocument()
+  })
+
   it('shows a structured privacy policy with the required legal sections', () => {
     render(<MemoryRouter><PrivacyPage /></MemoryRouter>)
 
@@ -37,7 +58,8 @@ describe('public events', () => {
     const icalUrl = 'https://calendar.google.com/calendar/ical/c_39e00d3f9d676c015640ba3dabd1527a8ee3b0a0603e8368c92366ed37f74bd5%40group.calendar.google.com/public/basic.ics'
     const platformLinks = screen.getAllByRole('link', { name: 'Suscríbete al calendario' })
     expect(screen.getByRole('heading', { name: 'Suscríbete al calendario de IGDA Perú' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Suscríbete al calendario' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Elige tu plataforma de calendario' })).toHaveClass('sr-only')
+    expect(document.querySelectorAll('.calendar-platform-art')).toHaveLength(3)
     expect(platformLinks).toHaveLength(3)
     expect(platformLinks[0]).toHaveAttribute('href', googleUrl)
     expect(platformLinks[0]).toHaveAttribute('target', '_blank')
@@ -302,11 +324,15 @@ describe('public events', () => {
     expect(screen.getByRole('link', { name: /Ver todos los eventos/ })).toHaveAttribute('target', '_blank')
     expect(screen.getAllByRole('article')).toHaveLength(3)
 
-    fireEvent.click(screen.getAllByRole('button', { name: /Ver Diseño de niveles/ })[0])
-    expect(screen.getByRole('dialog', { name: /Diseño de niveles/ })).toHaveClass('event-preview-drawer--modal')
+    const firstEventButton = screen.getAllByRole('button', { name: /^Ver / })[0]
+    const firstEventTitle = firstEventButton.getAttribute('aria-label')?.replace(/^Ver /, '') || ''
+    fireEvent.click(firstEventButton)
+    expect(screen.getByRole('dialog', { name: firstEventTitle })).toHaveClass('event-preview-drawer--modal')
     expect(document.querySelector('.event-preview-layer--modal')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'IGDA Perú' })).toHaveAttribute('href', 'https://igda.pe/comunidad/')
-    expect(screen.getByRole('link', { name: 'IGDA Perú' })).toHaveAttribute('target', '_blank')
+    const dialog = screen.getByRole('dialog', { name: firstEventTitle })
+    const communityLink = within(dialog).getByRole('link', { name: /Comunidad/ })
+    expect(communityLink).toHaveAttribute('href', 'https://igda.pe/comunidad/')
+    expect(communityLink).toHaveAttribute('target', '_blank')
   })
 
   it('removes the featured slider from the embedded spotlight route', async () => {
@@ -588,12 +614,57 @@ describe('public events', () => {
     expect(screen.getByRole('tab', { name: 'Integración' })).toHaveAttribute('aria-selected', 'true')
     expect((screen.getByRole('textbox', { name: 'Código del embed: Vista de calendario' }) as HTMLTextAreaElement).value).toContain('/embed?community=igda-peru')
     expect((screen.getByRole('textbox', { name: 'Código del embed: Vista simple de tarjetas' }) as HTMLTextAreaElement).value).toContain('/embed/inicio?community=igda-peru&embedded=1')
-    const spotlightEmbedCode = (screen.getByRole('textbox', { name: 'Código del embed: Spotlight + 3 siguientes eventos' }) as HTMLTextAreaElement).value
-    expect(spotlightEmbedCode).toContain('/embed/spotlight?embedded=1')
-    expect(spotlightEmbedCode).not.toContain('community=')
+    const spotlightEmbedCode = (screen.getByRole('textbox', { name: 'Código del embed: Próximos eventos destacados' }) as HTMLTextAreaElement).value
+    expect(spotlightEmbedCode).toContain('/embed/spotlight?community=igda-peru&embedded=1')
+    expect(spotlightEmbedCode).toContain('title="Eventos de IGDA Perú"')
     expect(screen.getByText(/Comparte el código elegido con el administrador de IGDA Perú/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Volver al panel' })).toBe(backToDashboardLink)
     expect(screen.queryByTitle(/Eventos de IGDA Perú/)).not.toBeInTheDocument()
+  })
+
+  it('confirms member access removal and lets community admins remove editors only', async () => {
+    const listMembersSpy = vi.spyOn(data, 'listCommunityMembers').mockResolvedValue([
+      { membershipId: 'editor-membership', invitationId: null, email: 'editor@example.com', role: 'community_editor', status: 'active' },
+      { membershipId: 'admin-membership', invitationId: null, email: 'admin@example.com', role: 'community_admin', status: 'active' },
+      { membershipId: 'primary-membership', invitationId: null, email: 'contacto@igda.pe', role: 'community_editor', status: 'active' },
+    ])
+    const revokeSpy = vi.spyOn(data, 'revokeCommunityMember').mockResolvedValue(undefined)
+    const authValue = {
+      configured: false,
+      loading: false,
+      session: null,
+      user: { id: 'user-1', email: 'comunidad@igda.pe' } as NonNullable<AuthContextValue['user']>,
+      profile: { id: 'profile-1', displayName: 'Comunidad' },
+      memberships: [{ communityId: 'igda-peru', communityName: 'IGDA Perú', communitySlug: 'igda-peru', role: 'community_admin', status: 'active' }],
+      roles: ['community_admin'],
+      signOut: vi.fn().mockResolvedValue(undefined),
+      refreshUserData: vi.fn().mockResolvedValue(undefined),
+    } as AuthContextValue
+
+    try {
+      render(<AuthContext.Provider value={authValue}><MemoryRouter initialEntries={['/app/comunidad']}><CommunitySettingsPage /></MemoryRouter></AuthContext.Provider>)
+      const membersPanel = await screen.findByRole('tabpanel', { name: 'Miembros' })
+      expect(within(membersPanel).getByRole('button', { name: 'Revocar acceso de editor@example.com' })).toBeInTheDocument()
+      expect(within(membersPanel).queryByRole('button', { name: 'Revocar acceso de admin@example.com' })).not.toBeInTheDocument()
+      expect(within(membersPanel).getByText('Cuenta principal · acceso protegido')).toBeInTheDocument()
+      expect(within(membersPanel).queryByRole('button', { name: 'Revocar acceso de contacto@igda.pe' })).not.toBeInTheDocument()
+
+      fireEvent.click(within(membersPanel).getByRole('button', { name: 'Revocar acceso de editor@example.com' }))
+      const dialog = screen.getByRole('dialog', { name: 'Revocar acceso' })
+      expect(within(dialog).getByText('editor@example.com')).toBeInTheDocument()
+      expect(revokeSpy).not.toHaveBeenCalled()
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
+      expect(screen.queryByRole('dialog', { name: 'Revocar acceso' })).not.toBeInTheDocument()
+
+      fireEvent.click(within(membersPanel).getByRole('button', { name: 'Revocar acceso de editor@example.com' }))
+      fireEvent.click(within(screen.getByRole('dialog', { name: 'Revocar acceso' })).getByRole('button', { name: 'Revocar acceso' }))
+      await waitFor(() => expect(revokeSpy).toHaveBeenCalledWith('editor-membership'))
+      expect(screen.queryByText('editor@example.com')).not.toBeInTheDocument()
+    } finally {
+      listMembersSpy.mockRestore()
+      revokeSpy.mockRestore()
+    }
   })
 
   it('gives platform administrators the selectable invite flow and plural management link', async () => {
@@ -648,10 +719,12 @@ describe('public events', () => {
   it('lets authenticated users browse the community event network from the panel', async () => {
     render(<MemoryRouter initialEntries={['/app/eventos/comunidad']}><CommunityEventsPage /></MemoryRouter>)
 
-    expect(screen.getByRole('heading', { name: 'Eventos de la comunidad' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Eventos de la comunidad' })).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Eventos de la comunidad' })).toHaveAttribute('aria-selected', 'true')
     expect(await screen.findByRole('region', { name: /Línea de tiempo/ })).toBeInTheDocument()
-    expect(screen.getAllByText('Comunidad Godot Lima').length).toBeGreaterThan(0)
+    expect(screen.getByRole('textbox', { name: 'Buscar eventos' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Filtros' }))
+    expect(screen.getByRole('option', { name: 'Comunidad Godot Lima' })).toBeInTheDocument()
   })
 
   it('shows the private community inbox with identities and message composer', async () => {
@@ -854,8 +927,10 @@ describe('event preview layout', () => {
   it('always links the organizer to the public community directory', () => {
     render(<MemoryRouter><EventPreviewDrawer event={demoEvents[0]} onClose={vi.fn()} presentation="drawer" /></MemoryRouter>)
 
-    expect(screen.getByRole('link', { name: 'IGDA Perú' })).toHaveAttribute('href', 'https://igda.pe/comunidad/')
-    expect(screen.getByRole('link', { name: 'IGDA Perú' })).toHaveAttribute('target', '_blank')
+    const dialog = screen.getByRole('dialog', { name: demoEvents[0].title })
+    const communityLink = within(dialog).getByRole('link', { name: 'IGDA Perú' })
+    expect(communityLink).toHaveAttribute('href', 'https://igda.pe/comunidad/')
+    expect(communityLink).toHaveAttribute('target', '_blank')
   })
 
   it('keeps the Google Maps action in a compact metadata control', () => {
@@ -934,10 +1009,11 @@ describe('public event results', () => {
 })
 
 describe('managed event sections', () => {
-  it('separates active past events from archived events in the panel', async () => {
+  it('separates active, draft, past, and archived events in the panel', async () => {
     const listManagedEventsSpy = vi.spyOn(data, 'listManagedEvents').mockResolvedValue([
-      { ...demoEvents[0], id: 'managed-upcoming', title: 'Evento próximo del panel', status: 'published' },
+      { ...demoEvents[0], id: 'managed-upcoming', title: 'Evento próximo del panel', startsAt: '2026-10-01T19:00:00-05:00', endsAt: '2026-10-01T21:00:00-05:00', status: 'published' },
       { ...demoEvents[0], id: 'managed-past', title: 'Evento pasado activo', startsAt: '2026-08-19T19:00:00-05:00', endsAt: '2026-08-19T21:00:00-05:00', status: 'published' },
+      { ...demoEvents[0], id: 'managed-draft', title: 'Borrador del panel', startsAt: '2026-10-19T19:00:00-05:00', endsAt: '2026-10-19T21:00:00-05:00', status: 'draft' },
       { ...demoEvents[0], id: 'managed-archived', title: 'Evento archivado', startsAt: '2026-08-20T19:00:00-05:00', endsAt: '2026-08-20T21:00:00-05:00', status: 'archived' },
     ])
     const authValue = {
@@ -955,13 +1031,17 @@ describe('managed event sections', () => {
     render(<AuthContext.Provider value={authValue}><MemoryRouter initialEntries={['/app/eventos']}><ManagedEventsPage /></MemoryRouter></AuthContext.Provider>)
 
     const activeSection = await screen.findByRole('region', { name: 'Eventos activos' })
-    const archivedSection = screen.getByRole('region', { name: 'Eventos archivados' })
+    const draftSection = screen.getByRole('region', { name: 'Borradores' })
+    const pastArchivedSection = screen.getByRole('region', { name: 'Eventos pasados / archivados' })
     expect(within(activeSection).getByText('Evento próximo del panel')).toBeInTheDocument()
-    expect(within(activeSection).getByText('Evento pasado activo')).toBeInTheDocument()
-    expect(within(activeSection).queryByText('Evento archivado')).not.toBeInTheDocument()
-    expect(within(archivedSection).getByText('Evento archivado')).toBeInTheDocument()
-    expect(within(archivedSection).getByText('Archivado')).toBeInTheDocument()
-    expect(within(archivedSection).queryByText('Ya pasó')).not.toBeInTheDocument()
+    expect(within(activeSection).queryByText('Evento pasado activo')).not.toBeInTheDocument()
+    expect(within(activeSection).queryByText('Borrador del panel')).not.toBeInTheDocument()
+    expect(within(draftSection).getByText('Borrador del panel')).toBeInTheDocument()
+    expect(within(draftSection).getByText('Borrador')).toBeInTheDocument()
+    expect(within(pastArchivedSection).getByText('Evento pasado activo')).toBeInTheDocument()
+    expect(within(pastArchivedSection).getByText('Evento archivado')).toBeInTheDocument()
+    expect(within(pastArchivedSection).getByText('Archivado')).toBeInTheDocument()
+    expect(within(pastArchivedSection).getByText('Ya pasó')).toBeInTheDocument()
     listManagedEventsSpy.mockRestore()
   })
 })

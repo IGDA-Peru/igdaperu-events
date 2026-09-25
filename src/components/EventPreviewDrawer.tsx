@@ -3,16 +3,16 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { getEventCoverUrl } from '../lib/data'
-import { formatEventDateRange, formatEventLocation, formatTimeRange, isEventPast, meetingActionLabel } from '../lib/format'
+import { formatEventDateRange, formatEventLocation, formatTimeRange, isEventPast } from '../lib/format'
 import type { EventItem } from '../types'
 import { VisibilityBadge } from './EventCard'
 import { CommunityLogo } from './CommunityLogo'
+import { localeTags, useLocale, withLocale } from '../i18n'
 
 type EventPreviewPresentation = 'drawer' | 'modal'
-const publicCommunityUrl = 'https://igda.pe/comunidad/'
 
-function eventShareUrl(event: EventItem) {
-  const url = new URL('/', window.location.origin)
+function eventShareUrl(event: EventItem, locale: 'es' | 'en' | 'qu') {
+  const url = new URL(withLocale('/', locale), window.location.origin)
   url.searchParams.set('evento', event.slug || event.id)
   return url.toString()
 }
@@ -51,6 +51,9 @@ export function EventPreviewDrawer({
   onClose: () => void
   presentation?: EventPreviewPresentation
 }) {
+  const { locale, t } = useLocale()
+  const dateLocale = localeTags[locale]
+  const publicCommunityUrl = `https://igda.pe${withLocale('/comunidad/', locale)}`
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const [shareMessage, setShareMessage] = useState('')
 
@@ -78,12 +81,12 @@ export function EventPreviewDrawer({
 
   const copyEventLink = async () => {
     if (!event) return
-    const url = eventShareUrl(event)
+    const url = eventShareUrl(event, locale)
     try {
       await copyTextToClipboard(url)
-      setShareMessage('Enlace copiado.')
+      setShareMessage(t('event.linkCopied'))
     } catch {
-      setShareMessage('No pudimos copiar el enlace.')
+      setShareMessage(t('event.linkCopyError'))
     }
   }
 
@@ -91,16 +94,17 @@ export function EventPreviewDrawer({
   const isPast = isEventPast(event)
   const coverUrl = getEventCoverUrl(event.coverPath)
   const drawerClassName = `event-preview-drawer ${presentation === 'modal' ? 'event-preview-drawer--modal' : ''}`
+  const eventTypeLabel = t(`eventType.${event.type}`)
   const eventFlags = <div className="event-flags">
-    <span className={`event-type ${event.type === 'TALLER' ? 'yellow' : 'red'}`}>{event.type}</span>
-    {isPast && <span className="event-past-label">Ya pasó</span>}
+    <span className={`event-type ${event.type === 'TALLER' ? 'yellow' : 'red'}`}>{eventTypeLabel.startsWith('eventType.') ? event.type : eventTypeLabel}</span>
+    {isPast && <span className="event-past-label">{t('event.past')}</span>}
     {event.visibility === 'network' && <VisibilityBadge visibility={event.visibility} />}
   </div>
 
   return createPortal(
     <div className={`event-preview-layer ${presentation === 'modal' ? 'event-preview-layer--modal' : ''}`} role="presentation" onMouseDown={(mouseEvent) => { if (mouseEvent.target === mouseEvent.currentTarget) onClose() }}>
       <aside className={drawerClassName} style={{ '--community-color': event.communityColor || undefined } as CSSProperties} role="dialog" aria-modal="true" aria-labelledby="event-preview-title">
-        {presentation === 'modal' ? <button className="event-preview-close" type="button" aria-label="Cerrar vista previa" ref={closeButtonRef} onClick={onClose}><X size={20} /></button> : <div className="event-preview-topline">{eventFlags}<button className="event-preview-close" type="button" aria-label="Cerrar vista previa" ref={closeButtonRef} onClick={onClose}><X size={20} /></button></div>}
+        {presentation === 'modal' ? <button className="event-preview-close" type="button" aria-label={t('event.closePreview')} ref={closeButtonRef} onClick={onClose}><X size={20} /></button> : <div className="event-preview-topline">{eventFlags}<button className="event-preview-close" type="button" aria-label={t('event.closePreview')} ref={closeButtonRef} onClick={onClose}><X size={20} /></button></div>}
         <div className={`event-preview-left-column${coverUrl ? '' : ' event-preview-left-column--no-cover'}`}>
           <div className="event-preview-card-heading">{presentation === 'modal' && eventFlags}<h2 id="event-preview-title">{event.title}</h2></div>
           {coverUrl && <div className="event-preview-cover-frame"><img className="event-preview-cover" src={coverUrl} alt="" /></div>}
@@ -111,44 +115,44 @@ export function EventPreviewDrawer({
             <div className="event-preview-meta-item">
               <CalendarDays size={19} aria-hidden="true" />
               <div className="event-preview-meta-copy">
-                <strong>Fecha</strong>
-                <span className="event-preview-meta-value">{formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)}</span>
+                <strong>{t('event.date')}</strong>
+                <span className="event-preview-meta-value">{formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay, dateLocale)}</span>
               </div>
             </div>
             <div className="event-preview-meta-item">
               <Clock3 size={19} aria-hidden="true" />
               <div className="event-preview-meta-copy">
-                <strong>Hora</strong>
-                <span className="event-preview-meta-value">{formatTimeRange(event.startsAt, event.endsAt, event.isAllDay)}</span>
+                <strong>{t('event.time')}</strong>
+                <span className="event-preview-meta-value">{formatTimeRange(event.startsAt, event.endsAt, event.isAllDay, dateLocale)}</span>
               </div>
             </div>
             <div className="event-preview-meta-item">
               <MapPin size={19} aria-hidden="true" />
               <div className="event-preview-meta-copy">
-                <strong>Ubicación</strong>
-                <span className="event-preview-meta-value">{formatEventLocation(event)}</span>
-                {event.accessMode !== 'registration_only' && event.mapUrl && <a className="event-preview-map-link" href={event.mapUrl} target="_blank" rel="noreferrer">Ver en Google Maps <ExternalLink size={14} aria-hidden="true" /></a>}
+                <strong>{t('event.location')}</strong>
+                <span className="event-preview-meta-value">{formatEventLocation(event, dateLocale)}</span>
+                {event.accessMode !== 'registration_only' && event.mapUrl && <a className="event-preview-map-link" href={event.mapUrl} target="_blank" rel="noreferrer">{t('event.openMaps')} <ExternalLink size={14} aria-hidden="true" /></a>}
               </div>
             </div>
             {event.accessMode === 'registration_only' && event.registrationUrl && <div className="event-preview-meta-item">
               <ExternalLink size={19} aria-hidden="true" />
               <div className="event-preview-meta-copy">
-                <strong>Inscripción</strong>
-                <a className="event-preview-map-link event-preview-registration-link" href={event.registrationUrl} target="_blank" rel="noreferrer">Abrir enlace de inscripción <ExternalLink size={14} aria-hidden="true" /></a>
+                <strong>{t('event.registration')}</strong>
+                <a className="event-preview-map-link event-preview-registration-link" href={event.registrationUrl} target="_blank" rel="noreferrer">{t('event.openRegistration')} <ExternalLink size={14} aria-hidden="true" /></a>
               </div>
             </div>}
             <div className="event-preview-meta-item">
               <CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative />
               <div className="event-preview-meta-copy">
-                <strong>Organiza</strong>
-                <span className="event-preview-meta-value">{event.communityId ? <a href={publicCommunityUrl} target="_blank" rel="noreferrer">{event.communityName}</a> : (event.organizerName || event.communityName || 'Evento independiente')}</span>
+                <strong>{t('event.organizer')}</strong>
+                <span className="event-preview-meta-value">{event.communityId ? <a href={publicCommunityUrl} target="_blank" rel="noreferrer">{event.communityName}</a> : (event.organizerName || event.communityName || t('event.independent'))}</span>
               </div>
             </div>
           </div>
           <div className="event-preview-actions">
-            {!isPast && event.registrationUrl && <a className="primary-button event-preview-link" href={event.registrationUrl} target="_blank" rel="noreferrer">Inscribirme <ExternalLink size={17} /></a>}
-            {!isPast && event.meetingUrl && <a className={`${event.registrationUrl ? 'secondary-button' : 'primary-button'} event-preview-link`} href={event.meetingUrl} target="_blank" rel="noreferrer">{meetingActionLabel(event.meetingProvider)} <ExternalLink size={17} /></a>}
-            <button className="secondary-button event-preview-link" type="button" onClick={() => void copyEventLink()}><Copy size={17} /> Copiar enlace</button>
+            {!isPast && event.registrationUrl && <a className="primary-button event-preview-link" href={event.registrationUrl} target="_blank" rel="noreferrer">{t('event.register')} <ExternalLink size={17} /></a>}
+            {!isPast && event.meetingUrl && <a className={`${event.registrationUrl ? 'secondary-button' : 'primary-button'} event-preview-link`} href={event.meetingUrl} target="_blank" rel="noreferrer">{event.meetingProvider === 'google_meet' ? t('event.joinMeet') : event.meetingProvider === 'zoom' ? t('event.joinZoom') : event.meetingProvider === 'discord' ? t('event.joinDiscord') : t('event.openMeeting')} <ExternalLink size={17} /></a>}
+            <button className="secondary-button event-preview-link" type="button" onClick={() => void copyEventLink()}><Copy size={17} /> {t('event.copyLink')}</button>
             {shareMessage && <small className="event-share-message" role="status">{shareMessage}</small>}
           </div>
         </div>

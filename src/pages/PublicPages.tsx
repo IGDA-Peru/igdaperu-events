@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronDown, ChevronRight, Code2, Eye, ExternalLink, Gamepad2, PencilLine, Star, Users } from 'lucide-react'
+import { ArrowRight, ChevronDown, ChevronRight, Code2, Eye, ExternalLink, Gamepad2, PencilLine, Star, Users, X } from 'lucide-react'
 import { CalendarDays, CheckCircle2, Clock3, Link2, MapPin, Send, UserRound } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
@@ -17,8 +17,9 @@ import { isSupabaseConfigured } from '../lib/supabase'
 import { getEventCoverUrl, listCommunities, listEvents, listHomeEmbedEvents, submitEventProposal, type EventProposalSubmission, type EventQueryOptions } from '../lib/data'
 import { limaNowDateTimeInput } from '../lib/eventSchedule'
 import { EVENT_DESCRIPTION_MAX_LENGTH } from '../lib/eventLimits'
-import { formatDateParts, formatEventLocation, isEventPast } from '../lib/format'
+import { formatDateParts, formatEventLocation, isEventOngoing, isEventPast } from '../lib/format'
 import type { Community, EventItem } from '../types'
+import { useLocale, withLocale } from '../i18n'
 
 const notionCommunitiesEmbedUrl = 'https://igdape.notion.site/ebd/3b425d4453e08301bcef018ab661544a?v=12d25d4453e0825883398852a794ef21'
 const publicCalendarUrl = 'https://igda.pe/comunidad/calendario/'
@@ -26,6 +27,19 @@ const publicGoogleCalendarUrl = 'https://calendar.google.com/calendar/u/3?cid=Y1
 const publicGoogleCalendarIcalUrl = 'https://calendar.google.com/calendar/ical/c_39e00d3f9d676c015640ba3dabd1527a8ee3b0a0603e8368c92366ed37f74bd5%40group.calendar.google.com/public/basic.ics'
 const publicGoogleCalendarWebcalUrl = publicGoogleCalendarIcalUrl.replace('https://', 'webcal://')
 const outlookCalendarUrl = 'https://outlook.live.com/calendar/0/addcalendar'
+const liveEventNoticeStorageKey = 'igda-live-event-notices-v1'
+
+function localizedPublicUrl(url: string, locale: ReturnType<typeof useLocale>['locale']) {
+  if (locale === 'es') return url
+  const target = new URL(url)
+  if (target.hostname !== 'igda.pe') return url
+  target.pathname = withLocale(target.pathname, locale)
+  return target.toString()
+}
+
+function liveEventNoticeKey(event: EventItem) {
+  return `${event.id}:${event.startsAt || ''}`
+}
 
 type ProposalFormState = Omit<EventProposalSubmission, 'turnstileToken'> & { turnstileToken: string }
 
@@ -84,6 +98,7 @@ function ProposalConfirmationPanel() {
 }
 
 export function CalendarAccessPage() {
+  const { t } = useLocale()
   const [icalCopied, setIcalCopied] = useState(false)
 
   const copyIcalUrl = async () => {
@@ -99,53 +114,53 @@ export function CalendarAccessPage() {
   return <div className="calendar-access-page">
     <section className="calendar-access-hero" aria-labelledby="calendar-access-title">
       <div>
-        <span className="calendar-access-kicker">Agenda IGDA Perú</span>
-        <h1 id="calendar-access-title">Suscríbete al calendario de IGDA Perú</h1>
-        <p>Elige tu plataforma y mantente al día con las próximas actividades de la comunidad.</p>
+        <span className="calendar-access-kicker">{t('calendar.kicker')}</span>
+        <h1 id="calendar-access-title">{t('calendar.subscribeTitle')}</h1>
+        <p>{t('calendar.subscribeDescription')}</p>
       </div>
     </section>
 
     <section className="calendar-platforms" aria-labelledby="calendar-platforms-title">
-      <div className="calendar-platforms-heading">
-        <span className="section-kicker">Elige tu plataforma</span>
-        <h2 id="calendar-platforms-title">Suscríbete al calendario</h2>
-      </div>
+      <h2 className="sr-only" id="calendar-platforms-title">{t('calendar.choosePlatform')}</h2>
       <div className="calendar-platform-grid">
         <article className="calendar-platform-card calendar-platform-card--google">
+          <img className="calendar-platform-art" src="/calendar-platforms/google-calendar-official.jpg" alt="" aria-hidden="true" />
           <span className="calendar-platform-badge">Google Calendar</span>
           <h3>Google Calendar</h3>
-          <p>Agrega la agenda compartida directamente a tu cuenta de Google.</p>
+          <p>{t('calendar.addToGoogle')}</p>
           <a className="secondary-button calendar-platform-action" href={publicGoogleCalendarUrl} target="_blank" rel="noreferrer">
-            Suscríbete al calendario <ExternalLink size={15} aria-hidden="true" />
+            {t('calendar.subscribe')} <ExternalLink size={15} aria-hidden="true" />
           </a>
         </article>
         <article className="calendar-platform-card">
+          <img className="calendar-platform-art" src="/calendar-platforms/outlook-official.jpg" alt="" aria-hidden="true" />
           <span className="calendar-platform-badge">Outlook / Microsoft 365</span>
           <h3>Microsoft Outlook</h3>
-          <p>Abre Outlook para agregar la agenda de IGDA Perú desde tus calendarios.</p>
+          <p>{t('calendar.addToOutlook')}</p>
           <a className="secondary-button calendar-platform-action" href={outlookCalendarUrl} target="_blank" rel="noreferrer">
-            Suscríbete al calendario <ExternalLink size={15} aria-hidden="true" />
+            {t('calendar.subscribe')} <ExternalLink size={15} aria-hidden="true" />
           </a>
         </article>
         <article className="calendar-platform-card">
+          <img className="calendar-platform-art" src="/calendar-platforms/apple-calendar-official.jpg" alt="" aria-hidden="true" />
           <span className="calendar-platform-badge">iPhone / iPad / Mac</span>
           <h3>Apple Calendar</h3>
-          <p>Abre la suscripción en la aplicación Calendario de Apple.</p>
+          <p>{t('calendar.addToApple')}</p>
           <a className="secondary-button calendar-platform-action" href={publicGoogleCalendarWebcalUrl} target="_blank" rel="noreferrer">
-            Suscríbete al calendario <ExternalLink size={15} aria-hidden="true" />
+            {t('calendar.subscribe')} <ExternalLink size={15} aria-hidden="true" />
           </a>
         </article>
       </div>
     </section>
 
-    <aside className="calendar-access-note" aria-label="Compatibilidad entre plataformas">
+    <aside className="calendar-access-note" aria-label={t('calendar.notOpened')}>
       <CalendarDays size={22} aria-hidden="true" />
       <div>
-        <strong>¿No se abrió la suscripción?</strong>
-        <p>También puedes copiar la dirección pública iCalendar y pegarla en Outlook o Apple Calendar.</p>
+        <strong>{t('calendar.notOpened')}</strong>
+        <p>{t('calendar.copyDescription')}</p>
         <div className="calendar-access-note-actions">
-          <a className="secondary-button" href={publicGoogleCalendarIcalUrl} target="_blank" rel="noreferrer">Abrir URL .ics <ExternalLink size={15} aria-hidden="true" /></a>
-          <button className="secondary-button" type="button" onClick={() => void copyIcalUrl()}>{icalCopied ? 'URL copiada' : 'Copiar URL .ics'}</button>
+          <a className="secondary-button" href={publicGoogleCalendarIcalUrl} target="_blank" rel="noreferrer">{t('calendar.openIcal')} <ExternalLink size={15} aria-hidden="true" /></a>
+          <button className="secondary-button" type="button" onClick={() => void copyIcalUrl()}>{icalCopied ? t('calendar.copied') : t('calendar.copyIcal')}</button>
         </div>
       </div>
     </aside>
@@ -239,7 +254,6 @@ export function EventProposalPage() {
   if (submitted) return <div className="proposal-page"><ProposalConfirmationPanel /></div>
 
   return <div className="proposal-page">
-    <section className="proposal-intro"><h1>Propón tu evento</h1><p>Cuéntanos sobre la actividad y el equipo de IGDA Perú la revisará antes de publicarla.</p></section>
     <form className="proposal-layout" noValidate onSubmit={(event) => void submit(event)}>
       <div className="proposal-form-panel">
         <div className="proposal-section-heading"><UserRound size={19} aria-hidden="true" /><div><h2>Información principal</h2><p>Comparte los datos que las personas necesitarán para conocer la actividad.</p></div></div>
@@ -328,10 +342,11 @@ function CommunityIcon({ index, logoPath, name, brandColor, size = 'medium' }: {
 }
 
 function CommunityRail({ communities }: { communities: Pick<Community, 'id' | 'slug' | 'name' | 'logoPath' | 'brandColor'>[] }) {
+  const { t } = useLocale()
   return (
     <aside className="communities-panel" aria-labelledby="communities-title">
-      <h2 id="communities-title">Comunidades</h2>
-      <p>Explora más eventos de comunidades de la industria y afines.</p>
+      <h2 id="communities-title">{t('agenda.communityTitle')}</h2>
+      <p>{t('agenda.allCommunitiesDescription')}</p>
       <div className="community-list">
         {communities.slice(0, 5).map((community, index) => (
           <Link className="community-item" to={`/comunidades/${community.slug}`} key={community.id}>
@@ -340,7 +355,7 @@ function CommunityRail({ communities }: { communities: Pick<Community, 'id' | 's
           </Link>
         ))}
       </div>
-      <Link className="all-communities" to="/comunidades">Ver todas las comunidades <ChevronRight size={19} /></Link>
+      <Link className="all-communities" to="/comunidades">{t('agenda.allCommunitiesAction')} <ChevronRight size={19} /></Link>
     </aside>
   )
 }
@@ -353,25 +368,26 @@ function initialAgendaModePanelOpen() {
 }
 
 function AgendaModeToggle({ value, onChange, open, onToggle }: { value: AgendaMode; onChange: (mode: AgendaMode) => void; open: boolean; onToggle: () => void }) {
+  const { t } = useLocale()
   return (
     <div className={`agenda-mode-shell ${open ? 'is-open' : ''}`}>
       <button className="agenda-mode-trigger" type="button" aria-expanded={open} aria-controls="agenda-mode-panel" onClick={onToggle}>
         <Eye size={17} aria-hidden="true" />
-        <span>Visualización</span>
+        <span>{t('agenda.visualization')}</span>
         <ChevronDown size={16} aria-hidden="true" />
       </button>
       <aside id="agenda-mode-panel" className="agenda-mode-toggle" aria-labelledby="agenda-mode-title">
         <div className="agenda-mode-heading">
-          <span id="agenda-mode-title" className="agenda-mode-kicker">Visualización</span>
+          <span id="agenda-mode-title" className="agenda-mode-kicker">{t('agenda.visualization')}</span>
         </div>
         <div className="agenda-mode-control" role="group" aria-label="Modo de visualización">
           <button className={`agenda-mode-option ${value === 'editor' ? 'selected' : ''}`} type="button" aria-pressed={value === 'editor'} onClick={() => onChange('editor')}>
             <PencilLine size={16} aria-hidden="true" />
-            <span>Modo editor</span>
+            <span>{t('agenda.modeEditor')}</span>
           </button>
           <button className={`agenda-mode-option ${value === 'public' ? 'selected' : ''}`} type="button" aria-pressed={value === 'public'} onClick={() => onChange('public')}>
             <Eye size={16} aria-hidden="true" />
-            <span>Modo público</span>
+            <span>{t('agenda.modePublic')}</span>
           </button>
         </div>
       </aside>
@@ -393,7 +409,83 @@ function getRecentCommunities(events: EventItem[]) {
     .slice(0, 5)
 }
 
-export function PublicAgendaPage() {
+function LiveEventNotice({ event, onDismiss, onOpenEvent }: { event: EventItem; onDismiss: () => void; onOpenEvent: () => void }) {
+  const { t } = useLocale()
+  const meetingUrl = event.meetingUrl && event.meetingLinkVisibility !== 'none' ? event.meetingUrl : ''
+  const participationUrl = meetingUrl || event.registrationUrl || ''
+  const communityHref = event.communitySlug ? `/comunidades/${encodeURIComponent(event.communitySlug)}` : ''
+
+  return <aside className="live-event-toast" role="status" aria-live="polite" aria-labelledby="live-event-notice-title" aria-describedby="live-event-notice-description">
+    <div className="live-event-notice-heading">
+      <span className="live-event-notice-status"><span className="event-live-dot" aria-hidden="true" />{t('live.status')}</span>
+      <button className="icon-button" type="button" onClick={onDismiss} aria-label={t('live.close')}><X size={18} /></button>
+    </div>
+    <h2 id="live-event-notice-title">{t('live.title')}</h2>
+    <p id="live-event-notice-description"><strong>{event.title}</strong>{event.communityName ? ` · ${t('live.organizedBy', { community: event.communityName })}` : ` · ${t('live.joinActivity')}`}</p>
+    <div className="live-event-notice-actions">
+      {participationUrl
+        ? <a className="primary-button" href={participationUrl} target="_blank" rel="noreferrer">{meetingUrl ? t('live.join') : t('live.participate')} <ArrowRight size={17} aria-hidden="true" /></a>
+        : communityHref
+          ? <Link className="primary-button" to={communityHref} onClick={onDismiss}>{t('live.viewCommunity')} <ArrowRight size={17} aria-hidden="true" /></Link>
+          : <button className="primary-button" type="button" onClick={() => { onOpenEvent(); onDismiss() }}>{t('live.viewEvent')} <ArrowRight size={17} aria-hidden="true" /></button>}
+      {participationUrl && communityHref && <Link className="live-event-community-link" to={communityHref} onClick={onDismiss}>{t('live.viewCommunity')}</Link>}
+    </div>
+  </aside>
+}
+
+function useLiveEventNotice(events: EventItem[]) {
+  const [now, setNow] = useState(() => Date.now())
+  const [liveNoticeEvent, setLiveNoticeEvent] = useState<EventItem | null>(null)
+  const liveNoticeShownThisVisit = useRef(false)
+  const seenLiveEventKeys = useRef<Set<string> | null>(null)
+  const liveEvents = useMemo(() => events.filter((event) => isEventOngoing(event, now)), [events, now])
+  const liveEventIds = useMemo(() => new Set(liveEvents.map((event) => event.id)), [liveEvents])
+
+  useEffect(() => {
+    const updateClock = () => setNow(Date.now())
+    const interval = window.setInterval(updateClock, 30_000)
+    window.addEventListener('focus', updateClock)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('focus', updateClock)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (liveNoticeShownThisVisit.current || !liveEvents.length) return
+    if (!seenLiveEventKeys.current) {
+      let storedKeys: unknown
+      try {
+        storedKeys = JSON.parse(window.localStorage.getItem(liveEventNoticeStorageKey) || '[]')
+      } catch {
+        storedKeys = []
+      }
+      seenLiveEventKeys.current = new Set(Array.isArray(storedKeys) ? storedKeys.filter((key): key is string => typeof key === 'string') : [])
+    }
+
+    const seenKeys = seenLiveEventKeys.current
+    const nextNotice = liveEvents.find((event) => !seenKeys.has(liveEventNoticeKey(event)))
+    if (!nextNotice) return
+
+    liveNoticeShownThisVisit.current = true
+    liveEvents.forEach((event) => seenKeys.add(liveEventNoticeKey(event)))
+    try {
+      window.localStorage.setItem(liveEventNoticeStorageKey, JSON.stringify([...seenKeys]))
+    } catch {
+      // Keep the notification unique during this page visit when storage is unavailable.
+    }
+    setLiveNoticeEvent(nextNotice)
+  }, [liveEvents])
+
+  useEffect(() => {
+    if (liveNoticeEvent && !liveEventIds.has(liveNoticeEvent.id)) setLiveNoticeEvent(null)
+  }, [liveEventIds, liveNoticeEvent])
+
+  return { now, liveEvents, liveEventIds, liveNoticeEvent, dismissLiveNotice: () => setLiveNoticeEvent(null) }
+}
+
+export function PublicAgendaPage({ onLiveNoticeChange }: { onLiveNoticeChange?: (visible: boolean) => void } = {}) {
+  const { t } = useLocale()
   const { user, configured } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
@@ -407,7 +499,12 @@ export function PublicAgendaPage() {
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const editorMode = Boolean(user && agendaMode === 'editor')
   const { events, loading, error } = useEvents({ network: editorMode })
+  const { liveEventIds, liveNoticeEvent, dismissLiveNotice } = useLiveEventNotice(events)
   const sharedEventKey = searchParams.get('evento')
+
+  useEffect(() => {
+    onLiveNoticeChange?.(Boolean(liveNoticeEvent))
+  }, [liveNoticeEvent, onLiveNoticeChange])
 
   useEffect(() => {
     if (loading || !sharedEventKey) return
@@ -429,10 +526,10 @@ export function PublicAgendaPage() {
     const options = new Map<string, CommunityFilterOption>()
     events.forEach((event) => {
       if (event.communityId && event.communityName) options.set(event.communityId, { value: event.communityId, label: event.communityName })
-      if (!event.communityId) options.set('__independent__', { value: '__independent__', label: 'Eventos independientes' })
+      if (!event.communityId) options.set('__independent__', { value: '__independent__', label: t('filters.independentEvents') })
     })
     return [...options.values()].sort((first, second) => first.label.localeCompare(second.label, 'es'))
-  }, [events])
+  }, [events, t])
 
   const recentCommunities = useMemo(() => getRecentCommunities(events), [events])
   const clearFilters = () => {
@@ -446,11 +543,12 @@ export function PublicAgendaPage() {
     <div className="page-wrap page-wrap--events">
       {!configured && <DemoNotice />}
       <div className="content-grid">
-        <section className="events-section" aria-label="Próximos eventos">
+        <section className="events-section" aria-label={t('agenda.upcomingEvents')}>
           {loading && <LoadingState />}
           {error && <ErrorState message={error} />}
           {!loading && !error && <EventResults
             events={visibleEvents}
+            liveEventIds={liveEventIds}
             viewMode={viewMode}
             showVisibility={editorMode}
             onEventOpen={setSelectedEvent}
@@ -465,6 +563,7 @@ export function PublicAgendaPage() {
           <CommunityRail communities={recentCommunities} />
         </div>
       </div>
+      {liveNoticeEvent && <LiveEventNotice event={liveNoticeEvent} onDismiss={dismissLiveNotice} onOpenEvent={() => setSelectedEvent(liveNoticeEvent)} />}
       <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" />
     </div>
   )
@@ -503,8 +602,49 @@ export function HomeSpotlightPreviewPage() {
 }
 
 export function HomePage() {
+  const { t } = useLocale()
   const [params] = useSearchParams()
-  return params.get('spotlight') === '1' ? <HomeSpotlightPreviewPage /> : <PublicAgendaPage />
+  const [showCalendarReminder, setShowCalendarReminder] = useState(false)
+  const [liveNoticeVisible, setLiveNoticeVisible] = useState(false)
+  const visitCounted = useRef(false)
+
+  useEffect(() => {
+    if (params.get('spotlight') === '1' || visitCounted.current) return
+    visitCounted.current = true
+
+    const visitStorageKey = 'igda-calendar-reminder-home-visits-v1'
+    let visitCount = 0
+    try {
+      visitCount = Number.parseInt(window.localStorage.getItem(visitStorageKey) || '0', 10)
+      if (!Number.isFinite(visitCount) || visitCount < 0) visitCount = 0
+      visitCount += 1
+      window.localStorage.setItem(visitStorageKey, String(visitCount))
+    } catch {
+      // Keep the reminder usable when browser storage is unavailable.
+      visitCount = 1
+    }
+
+    if (visitCount === 1 || (visitCount - 1) % 12 === 0) setShowCalendarReminder(true)
+  }, [params])
+
+  if (params.get('spotlight') === '1') return <HomeSpotlightPreviewPage />
+
+  return <>
+    <PublicAgendaPage onLiveNoticeChange={setLiveNoticeVisible} />
+    {showCalendarReminder && !liveNoticeVisible && <aside className="calendar-reminder-toast" role="status" aria-live="polite" aria-labelledby="calendar-reminder-title" aria-describedby="calendar-reminder-description">
+      <div className="calendar-reminder-heading">
+        <span className="calendar-reminder-icon" aria-hidden="true"><CalendarDays size={25} /></span>
+        <button className="icon-button" type="button" onClick={() => setShowCalendarReminder(false)} aria-label={t('reminder.close')}><X size={18} /></button>
+      </div>
+      <span className="calendar-access-kicker">{t('reminder.kicker')}</span>
+      <h2 id="calendar-reminder-title">{t('reminder.title')}</h2>
+      <p id="calendar-reminder-description">{t('reminder.description')}</p>
+      <div className="calendar-reminder-actions">
+        <Link className="primary-button" to="/calendario" onClick={() => setShowCalendarReminder(false)}>{t('reminder.action')} <ArrowRight size={17} aria-hidden="true" /></Link>
+        <button className="calendar-reminder-dismiss" type="button" onClick={() => setShowCalendarReminder(false)}>{t('reminder.dismiss')}</button>
+      </div>
+    </aside>}
+  </>
 }
 
 export function CommunitiesPage() {
@@ -522,6 +662,7 @@ export function CommunityDetailPage() {
 }
 
 export function EmbedPage() {
+  const { t } = useLocale()
   const [params] = useSearchParams()
   const [viewMode, setViewMode] = useState<EventViewMode>('calendar')
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
@@ -538,25 +679,28 @@ export function EmbedPage() {
     const options = new Map<string, CommunityFilterOption>()
     events.forEach((event) => {
       if (event.communityId && event.communityName) options.set(event.communityId, { value: event.communityId, label: event.communityName })
-      if (!event.communityId) options.set('__independent__', { value: '__independent__', label: 'Eventos independientes' })
+      if (!event.communityId) options.set('__independent__', { value: '__independent__', label: t('filters.independentEvents') })
     })
     return [...options.values()].sort((first, second) => first.label.localeCompare(second.label, 'es'))
-  }, [events])
+  }, [events, t])
   const clearFilters = () => {
     setTimeFilter('all')
     setModalityFilter('all')
     setLocationFilter('all')
     setCommunityFilter('all')
   }
-  return <div className="embed-page"><div className="embed-header"><span className="compact-brand"><img src="/brand/logo-igda-peru.png" alt="" width="30" height="28" /> <span>Eventos IGDA Perú</span></span><Link to="/" target="_blank">Ver todos los eventos <ExternalLink size={14} /></Link></div>{loading && <LoadingState />}{error && <ErrorState message={error} />}{!loading && !error && <EventResults events={visibleEvents} viewMode={viewMode} showVisibility={false} onEventOpen={setSelectedEvent} showViewLabel={false} focusRequest={focusRequest} onFocusRequestChange={setFocusRequest} communityFilter={communityFilter} toolbarCenter={<EventViewSwitcher value={viewMode} onChange={setViewMode} />} toolbarEnd={<><EventFiltersPopover timeFilter={timeFilter} modalityFilter={modalityFilter} locationFilter={locationFilter} communityFilter={communityFilter} communityOptions={communityOptions} onTimeChange={setTimeFilter} onModalityChange={(value) => { setModalityFilter(value); setLocationFilter('all') }} onLocationChange={setLocationFilter} onCommunityChange={setCommunityFilter} onClear={clearFilters} showTimeFilter showCommunityFilter /><EventSearchField search={search} onSearchChange={setSearch} /></>} />}<EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" /></div>
+  return <div className="embed-page"><div className="embed-header"><span className="compact-brand"><img src="/brand/logo-igda-peru.png" alt="" width="30" height="28" /> <span>IGDA Perú {t('nav.events')}</span></span><Link to="/" target="_blank">{t('embed.allEvents')} <ExternalLink size={14} /></Link></div>{loading && <LoadingState />}{error && <ErrorState message={error} />}{!loading && !error && <EventResults events={visibleEvents} viewMode={viewMode} showVisibility={false} onEventOpen={setSelectedEvent} showViewLabel={false} focusRequest={focusRequest} onFocusRequestChange={setFocusRequest} communityFilter={communityFilter} toolbarCenter={<EventViewSwitcher value={viewMode} onChange={setViewMode} />} toolbarEnd={<><EventFiltersPopover timeFilter={timeFilter} modalityFilter={modalityFilter} locationFilter={locationFilter} communityFilter={communityFilter} communityOptions={communityOptions} onTimeChange={setTimeFilter} onModalityChange={(value) => { setModalityFilter(value); setLocationFilter('all') }} onLocationChange={setLocationFilter} onCommunityChange={setCommunityFilter} onClear={clearFilters} showTimeFilter showCommunityFilter /><EventSearchField search={search} onSearchChange={setSearch} /></>} />}<EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" /></div>
 }
 
 export function HomeEventsEmbedPage() {
+  const { locale, t } = useLocale()
   const [params] = useSearchParams()
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const communitySlug = params.get('community') || undefined
   const embedded = params.get('embedded') === '1'
   const { events, loading, error } = useHomeEmbedEvents(communitySlug)
+  const { liveEventIds, liveNoticeEvent, dismissLiveNotice } = useLiveEventNotice(events)
+  const communityName = events.find((event) => event.communityName)?.communityName
 
   useEffect(() => {
     if (window.parent === window) return undefined
@@ -581,19 +725,20 @@ export function HomeEventsEmbedPage() {
       <section className="home-events-embed" aria-labelledby="home-events-embed-title">
         <div className="home-events-embed-heading">
           <div>
-            <span className="home-events-embed-kicker">Agenda</span>
-            <h1 id="home-events-embed-title">Próximos eventos</h1>
-            <p>Actividades de la comunidad IGDA Perú.</p>
+            <span className="home-events-embed-kicker">{t('embed.agenda')}</span>
+            <h1 id="home-events-embed-title">{t('embed.upcomingEvents')}</h1>
+            <p>{communitySlug ? t('embed.communityActivitiesOf', { community: communityName || t('agenda.community').toLowerCase() }) : t('embed.communityActivities')}</p>
           </div>
         </div>
         {loading && <LoadingState />}
         {error && <ErrorState message={error} />}
-        {!loading && !error && (events.length ? <div className="event-list">{events.map((event) => <EventCard event={event} compact showCover onOpen={() => setSelectedEvent(event)} key={event.id} />)}</div> : <EmptyEvents />)}
+        {!loading && !error && (events.length ? <div className="event-list">{events.map((event) => <EventCard event={event} compact showCover happeningNow={liveEventIds.has(event.id)} onOpen={() => setSelectedEvent(event)} key={event.id} />)}</div> : <EmptyEvents />)}
         <div className="home-events-embed-cta-row">
-          <a className="primary-button home-events-embed-cta" href={publicCalendarUrl} target="_blank" rel="noreferrer">Ver todos los eventos <ExternalLink size={16} aria-hidden="true" /></a>
+          <a className="primary-button home-events-embed-cta" href={localizedPublicUrl(publicCalendarUrl, locale)} target="_blank" rel="noreferrer">{t('embed.allEvents')} <ExternalLink size={16} aria-hidden="true" /></a>
         </div>
       </section>
       <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" />
+      {liveNoticeEvent && <LiveEventNotice event={liveNoticeEvent} onDismiss={dismissLiveNotice} onOpenEvent={() => setSelectedEvent(liveNoticeEvent)} />}
     </div>
   )
 }
@@ -610,6 +755,10 @@ function SpotlightNextBadge({ inline = false }: { inline?: boolean }) {
   return <span className={`spotlight-feature-badge${inline ? ' spotlight-feature-badge--inline' : ''}`} role="img" aria-label="Próximo evento" title="Próximo evento"><Star size={16} fill="currentColor" aria-hidden="true" /></span>
 }
 
+function SpotlightLiveBadge({ inline = false }: { inline?: boolean }) {
+  return <span className={`spotlight-live-badge${inline ? ' spotlight-live-badge--inline' : ''}`}><span className="event-live-dot" aria-hidden="true" />En curso</span>
+}
+
 function SpotlightEventDate({ event, large = false }: { event: EventItem; large?: boolean }) {
   const parts = formatDateParts(event.startsAt)
   return <time className={`spotlight-event-date${large ? ' spotlight-event-date--large' : ''}`} dateTime={event.startsAt || undefined}>
@@ -623,37 +772,42 @@ function SpotlightEventLocation({ event }: { event: EventItem }) {
   return <span className="spotlight-event-location"><MapPin size={15} aria-hidden="true" />{formatEventLocation(event)}</span>
 }
 
-function SpotlightFeature({ event, onOpen }: { event: EventItem; onOpen: () => void }) {
+function SpotlightFeature({ event, onOpen, happeningNow = false }: { event: EventItem; onOpen: () => void; happeningNow?: boolean }) {
   const hasCover = Boolean(getEventCoverUrl(event.coverPath))
-  return <article className={`spotlight-feature-card spotlight-feature-card--interactive${hasCover ? '' : ' spotlight-feature-card--no-media'}`} style={{ '--community-color': event.communityColor || undefined } as CSSProperties} onClick={(interaction) => {
+  const meetingUrl = event.meetingUrl && event.meetingLinkVisibility !== 'none' ? event.meetingUrl : ''
+  const participationUrl = happeningNow ? meetingUrl || event.registrationUrl : event.registrationUrl
+  let actionLabel = 'Inscribirme'
+  if (happeningNow) actionLabel = meetingUrl ? 'Unirme ahora' : 'Participar ahora'
+  return <article className={`spotlight-feature-card spotlight-feature-card--interactive${hasCover ? '' : ' spotlight-feature-card--no-media'}${happeningNow ? ' live-event' : ''}`} style={{ '--community-color': event.communityColor || undefined } as CSSProperties} onClick={(interaction) => {
     if ((interaction.target as HTMLElement).closest('a, button')) return
     onOpen()
   }}>
     {hasCover && <div className="spotlight-feature-media">
       <SpotlightEventMedia event={event} size="feature" />
-      <SpotlightNextBadge />
+      {happeningNow ? <SpotlightLiveBadge /> : <SpotlightNextBadge />}
     </div>}
     <div className="spotlight-feature-body">
       <SpotlightEventDate event={event} large />
       <div className="spotlight-feature-copy">
         <div className="spotlight-feature-eyebrow">
-          {!hasCover && <SpotlightNextBadge inline />}
+          {!hasCover && (happeningNow ? <SpotlightLiveBadge inline /> : <SpotlightNextBadge inline />)}
           <span className="spotlight-event-type">{event.type}</span>
         </div>
         <h2><button className="spotlight-feature-title" type="button" onClick={onOpen}>{event.title}</button></h2>
         <SpotlightEventLocation event={event} />
         <div className="spotlight-feature-community"><CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative /><span>Organiza {event.communityName}</span></div>
       </div>
-      {event.registrationUrl ? <a className="primary-button spotlight-feature-action spotlight-feature-action--registration" href={event.registrationUrl} target="_blank" rel="noreferrer">Inscribirme <ExternalLink size={16} aria-hidden="true" /></a> : <button className="spotlight-feature-action spotlight-feature-action--icon" aria-label="Ver evento" type="button" onClick={onOpen}><ChevronRight size={24} aria-hidden="true" /></button>}
+      {participationUrl ? <a className="primary-button spotlight-feature-action spotlight-feature-action--registration" href={participationUrl} target="_blank" rel="noreferrer">{actionLabel} <ExternalLink size={16} aria-hidden="true" /></a> : <button className="spotlight-feature-action spotlight-feature-action--icon" aria-label="Ver evento" type="button" onClick={onOpen}><ChevronRight size={24} aria-hidden="true" /></button>}
     </div>
   </article>
 }
 
-function SpotlightUpcomingItem({ event, onOpen }: { event: EventItem; onOpen: () => void }) {
-  return <button className="spotlight-upcoming-item" type="button" onClick={onOpen} aria-label={`Ver ${event.title}`}>
+function SpotlightUpcomingItem({ event, onOpen, happeningNow = false }: { event: EventItem; onOpen: () => void; happeningNow?: boolean }) {
+  return <button className={`spotlight-upcoming-item${happeningNow ? ' live-event' : ''}`} type="button" onClick={onOpen} aria-label={`${happeningNow ? 'En curso: ' : ''}Ver ${event.title}`}>
     <SpotlightEventMedia event={event} size="small" showCommunityLogo />
     <SpotlightEventDate event={event} />
     <span className="spotlight-upcoming-copy">
+      {happeningNow && <SpotlightLiveBadge inline />}
       <strong>{event.title}</strong>
       <SpotlightEventLocation event={event} />
     </span>
@@ -662,15 +816,26 @@ function SpotlightUpcomingItem({ event, onOpen }: { event: EventItem; onOpen: ()
 }
 
 function SpotlightEventsEmbedContent() {
+  const { locale, t } = useLocale()
   const [params] = useSearchParams()
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
   const embedded = params.get('embedded') === '1'
   const hideUpcoming = params.get('hideUpcoming') === '1'
-  const { events, loading, error } = useEvents({ upcomingOnly: true, limit: 4 })
-  const featuredEvent = events[0]
-  const upcomingEvents = events.slice(1, 4)
+  const { events, loading, error } = useEvents({ activeOrUpcoming: true, limit: 50 })
+  const { now, liveEventIds, liveNoticeEvent, dismissLiveNotice } = useLiveEventNotice(events)
+  const upcomingAndLiveEvents = useMemo(() => events
+    .filter((event) => isEventOngoing(event, now) || !isEventPast(event))
+    .sort((first, second) => {
+      const firstLive = isEventOngoing(first, now)
+      const secondLive = isEventOngoing(second, now)
+      if (firstLive !== secondLive) return firstLive ? -1 : 1
+      return new Date(first.startsAt || 0).getTime() - new Date(second.startsAt || 0).getTime()
+    })
+    .slice(0, 4), [events, now])
+  const featuredEvent = upcomingAndLiveEvents[0]
+  const upcomingEvents = upcomingAndLiveEvents.slice(1, 4)
   const communityName = 'IGDA Perú'
-  const allEventsUrl = publicCalendarUrl
+  const allEventsUrl = localizedPublicUrl(publicCalendarUrl, locale)
 
   useEffect(() => {
     if (window.parent === window) return undefined
@@ -686,30 +851,31 @@ function SpotlightEventsEmbedContent() {
     const observer = new ResizeObserver(notifyParent)
     observer.observe(document.documentElement)
     return () => observer.disconnect()
-  }, [events.length, loading, error])
+  }, [upcomingAndLiveEvents.length, loading, error, Boolean(liveNoticeEvent)])
 
   return <div className={`spotlight-embed-page${embedded ? ' spotlight-embed-page--embedded' : ''}`}>
     <section className={`spotlight-embed${embedded ? ' spotlight-embed--embedded' : ''}`} aria-labelledby="spotlight-embed-title">
       {!embedded && <div className="spotlight-embed-heading">
-        <span className="spotlight-embed-kicker">Agenda</span>
-        <h1 id="spotlight-embed-title">Próximos eventos</h1>
-        <p>Actividades de todas las comunidades de {communityName}.</p>
+        <span className="spotlight-embed-kicker">{t('embed.agenda')}</span>
+        <h1 id="spotlight-embed-title">{t('embed.upcomingEvents')}</h1>
+        <p>{t('embed.communityActivitiesOf', { community: communityName })}</p>
       </div>}
       {loading && <LoadingState />}
       {error && <ErrorState message={error} />}
       {!loading && !error && featuredEvent && <div className={`spotlight-embed-grid${hideUpcoming ? ' spotlight-embed-grid--single' : ''}`}>
-        <SpotlightFeature event={featuredEvent} onOpen={() => setSelectedEvent(featuredEvent)} />
+        <SpotlightFeature event={featuredEvent} happeningNow={liveEventIds.has(featuredEvent.id)} onOpen={() => setSelectedEvent(featuredEvent)} />
         {!hideUpcoming && <section className="spotlight-upcoming" aria-labelledby="spotlight-upcoming-title">
-          <div className="spotlight-upcoming-heading"><h2 id="spotlight-upcoming-title">Siguientes eventos</h2></div>
+          <div className="spotlight-upcoming-heading"><h2 id="spotlight-upcoming-title">{t('embed.nextEvents')}</h2></div>
           <div className="spotlight-upcoming-list">
-            {upcomingEvents.map((event) => <SpotlightUpcomingItem event={event} onOpen={() => setSelectedEvent(event)} key={event.id} />)}
+            {upcomingEvents.map((event) => <SpotlightUpcomingItem event={event} happeningNow={liveEventIds.has(event.id)} onOpen={() => setSelectedEvent(event)} key={event.id} />)}
           </div>
         </section>}
       </div>}
-      {!loading && !error && featuredEvent && <a className="spotlight-all-events" href={allEventsUrl} target="_blank" rel="noreferrer">Ver todos los eventos <ArrowRight size={18} aria-hidden="true" /></a>}
+      {!loading && !error && featuredEvent && <a className="spotlight-all-events" href={allEventsUrl} target="_blank" rel="noreferrer">{t('embed.allEvents')} <ArrowRight size={18} aria-hidden="true" /></a>}
       {!loading && !error && !featuredEvent && <EmptyEvents />}
     </section>
     <EventPreviewDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} presentation="modal" />
+    {liveNoticeEvent && <LiveEventNotice event={liveNoticeEvent} onDismiss={dismissLiveNotice} onOpenEvent={() => setSelectedEvent(liveNoticeEvent)} />}
   </div>
 }
 

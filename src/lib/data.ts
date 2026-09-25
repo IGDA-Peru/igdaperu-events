@@ -5,7 +5,7 @@ import type { ChatIdentity, ChatMessage, Community, CommunityConversation, Commu
 import { isEventPast } from './format'
 import { communityLogoOptimization, eventBannerOptimization, optimizeImageForUpload } from './imageOptimization'
 
-export type EventQueryOptions = { communitySlug?: string; search?: string; network?: boolean; upcomingOnly?: boolean; limit?: number }
+export type EventQueryOptions = { communitySlug?: string; search?: string; network?: boolean; upcomingOnly?: boolean; activeOrUpcoming?: boolean; limit?: number }
 
 type PublicCacheEntry<T> = {
   expiresAt: number
@@ -29,6 +29,7 @@ function getPublicEventsCacheKey(options: EventQueryOptions) {
     communitySlug: options.communitySlug || '',
     search: options.search?.trim() || '',
     upcomingOnly: Boolean(options.upcomingOnly),
+    activeOrUpcoming: Boolean(options.activeOrUpcoming),
     limit: options.limit || 50,
   })
 }
@@ -365,7 +366,9 @@ export async function listEvents(options: EventQueryOptions = {}): Promise<Event
       const matchesCommunity = !options.communitySlug || event.communitySlug === options.communitySlug
       const matchesSearch = !query || `${event.title} ${event.description} ${event.communityName}`.toLowerCase().includes(query)
       const matchesVisibility = options.network || event.visibility === 'public'
-      const matchesUpcoming = !options.upcomingOnly || Boolean(event.startsAt && new Date(event.startsAt).getTime() >= Date.now())
+      const startsInFuture = Boolean(event.startsAt && new Date(event.startsAt).getTime() >= Date.now())
+      const hasNotEnded = Boolean(event.endsAt && new Date(event.endsAt).getTime() > Date.now())
+      const matchesUpcoming = options.activeOrUpcoming ? startsInFuture || hasNotEnded : !options.upcomingOnly || startsInFuture
       return matchesCommunity && matchesSearch && matchesVisibility && matchesUpcoming
     })
     events.sort((first, second) => {
@@ -391,7 +394,8 @@ export async function listEvents(options: EventQueryOptions = {}): Promise<Event
     const endpoint = new URL('/api/public-events', window.location.origin)
     if (options.communitySlug) endpoint.searchParams.set('community', options.communitySlug)
     if (options.search?.trim()) endpoint.searchParams.set('search', options.search.trim())
-    if (options.upcomingOnly) endpoint.searchParams.set('upcoming', '1')
+    if (options.activeOrUpcoming) endpoint.searchParams.set('activeOrUpcoming', '1')
+    else if (options.upcomingOnly) endpoint.searchParams.set('upcoming', '1')
     if (options.limit) endpoint.searchParams.set('limit', String(options.limit))
     const request = (async () => {
       const response = await fetch(endpoint)
@@ -420,7 +424,10 @@ export async function listEvents(options: EventQueryOptions = {}): Promise<Event
   if (!options.network) query = query.eq('visibility', 'public')
   if (options.communitySlug) query = query.eq('community.slug', options.communitySlug)
   if (options.search?.trim()) query = query.ilike('title', `%${options.search.trim()}%`)
-  if (options.upcomingOnly) query = query.gte('starts_at', new Date().toISOString())
+  if (options.activeOrUpcoming) {
+    const now = new Date().toISOString()
+    query = query.or(`starts_at.gte.${now},ends_at.gte.${now}`)
+  } else if (options.upcomingOnly) query = query.gte('starts_at', new Date().toISOString())
 
   const { data, error } = await query
   if (error) throw error
@@ -440,7 +447,7 @@ export async function listHomeEmbedEvents(communitySlug?: string): Promise<Event
   const hostname = typeof window === 'undefined' ? '' : window.location.hostname
   const localHost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
 
-  if (!import.meta.env.PROD || localHost) return listEvents({ communitySlug, upcomingOnly: true, limit: 3 })
+  if (!import.meta.env.PROD || localHost) return listEvents({ communitySlug, activeOrUpcoming: true, limit: 3 })
 
   const endpoint = new URL('/api/home-events', window.location.origin)
   if (communitySlug) endpoint.searchParams.set('community', communitySlug)

@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { bearerToken, corsHeaders, json, options, readJsonBody, sha256 } from '../_shared/cors.ts'
 import { enforceRateLimit, rateLimitResponse } from '../_shared/rate-limit.ts'
 import { verifyTurnstile } from '../_shared/turnstile.ts'
+import { isGamesAccountSyncConfigured, syncGamesAccount } from '../_shared/games-account.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -38,6 +39,14 @@ Deno.serve(async (request) => {
     if (acceptError || !result?.length) return json({ error: acceptError?.message || 'No pudimos aceptar la invitación' }, 400)
 
     const accepted = result[0]
+    if (isGamesAccountSyncConfigured()) {
+      const accountSync = await syncGamesAccount('activate', authData.user.email || '', authData.user.id)
+      if (!accountSync.ok) {
+        // The membership is already committed. Leave the invitation accepted and
+        // let Games' login resolver repair a reserved route on the next sign-in.
+        console.error('games_account_activation_failed', accountSync.status, accountSync.errorCode || 'unknown')
+      }
+    }
     await admin.from('audit_log').insert({ actor_id: authData.user.id, action: 'invitation.accepted', entity_type: 'community', entity_id: accepted.community_id, metadata: { role: accepted.role } })
     return new Response(JSON.stringify({ communityId: accepted.community_id, role: accepted.role }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (error) {

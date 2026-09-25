@@ -44,6 +44,7 @@ export const onRequestGet = async ({ request, env, waitUntil }: PagesContext<Pub
   const communitySlug = requestUrl.searchParams.get('community') || ''
   const search = safeSearch(requestUrl.searchParams.get('search') || '')
   const upcomingOnly = requestUrl.searchParams.get('upcoming') === '1'
+  const activeOrUpcoming = requestUrl.searchParams.get('activeOrUpcoming') === '1'
   const parsedLimit = Number(requestUrl.searchParams.get('limit') || '50')
   const limit = Number.isInteger(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 50) : 50
 
@@ -57,6 +58,7 @@ export const onRequestGet = async ({ request, env, waitUntil }: PagesContext<Pub
     ...(communitySlug ? { community: communitySlug } : {}),
     ...(search ? { search } : {}),
     ...(upcomingOnly ? { upcoming: '1' } : {}),
+    ...(activeOrUpcoming ? { activeOrUpcoming: '1' } : {}),
     limit: String(limit),
   }).toString()
   const cacheKey = new Request(cacheUrl.toString(), { method: 'GET' })
@@ -77,7 +79,7 @@ export const onRequestGet = async ({ request, env, waitUntil }: PagesContext<Pub
     ...(slug ? { slug: `eq.${slug}` } : {}),
     ...(communitySlug ? { 'community.slug': `eq.${communitySlug}` } : {}),
     ...(search ? { title: `ilike.*${search}*` } : {}),
-    ...(upcomingOnly ? { starts_at: `gte.${new Date().toISOString()}` } : {}),
+    ...(activeOrUpcoming ? { or: `(starts_at.gte.${new Date().toISOString()},ends_at.gte.${new Date().toISOString()})` } : upcomingOnly ? { starts_at: `gte.${new Date().toISOString()}` } : {}),
   }
   upstreamUrl.search = new URLSearchParams(query).toString()
 

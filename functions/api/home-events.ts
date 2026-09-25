@@ -51,11 +51,12 @@ export const onRequestGet = async ({ request, env, waitUntil }: PagesContext<Hom
   }
 
   const upstreamUrl = new URL(`${env.SUPABASE_URL.replace(/\/$/, '')}/rest/v1/events`)
+  const now = new Date().toISOString()
   upstreamUrl.search = new URLSearchParams({
     select: communitySlug ? eventSelect.replace('community:communities(', 'community:communities!inner(') : eventSelect,
     status: 'eq.published',
     visibility: 'eq.public',
-    starts_at: `gte.${new Date().toISOString()}`,
+    or: `(starts_at.gte.${now},ends_at.gte.${now})`,
     order: 'starts_at.asc',
     limit: '3',
     ...(communitySlug ? { 'community.slug': `eq.${communitySlug}` } : {}),

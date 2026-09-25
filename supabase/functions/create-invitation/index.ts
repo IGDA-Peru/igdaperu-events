@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { bearerToken, corsHeaders, json, options, randomToken, readJsonBody, sha256 } from '../_shared/cors.ts'
 import { enforceRateLimit, rateLimitResponse } from '../_shared/rate-limit.ts'
 import { verifyTurnstile } from '../_shared/turnstile.ts'
+import { isGamesAccountSyncConfigured, syncGamesAccount } from '../_shared/games-account.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -57,6 +58,12 @@ Deno.serve(async (request) => {
       .maybeSingle()
     if (pendingInvitationError) return json({ error: `No pudimos comprobar las invitaciones existentes: ${pendingInvitationError.message}` }, 500)
     if (pendingInvitation) return json({ error: 'Ya existe una invitación pendiente para ese correo en esta comunidad. Revisa el correo enviado o cancela la invitación anterior antes de crear otra.' }, 409)
+
+    if (isGamesAccountSyncConfigured()) {
+      const reservation = await syncGamesAccount('reserve', email)
+      if (reservation.status === 409) return json({ error: 'Ese correo ya está registrado para una cuenta de estudio o equipo. Usa otro correo para invitar a esta comunidad.' }, 409)
+      if (!reservation.ok) return json({ error: 'No pudimos comprobar que el correo esté disponible. Inténtalo nuevamente más tarde.' }, 503)
+    }
 
     const rawToken = randomToken()
     const tokenHash = await sha256(rawToken)

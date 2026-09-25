@@ -9,14 +9,17 @@ import { matchesCommunityFilter } from '../lib/eventFilters'
 import { EmptyEvents, EventCard } from './EventCard'
 import { CommunityLogo } from './CommunityLogo'
 import { eventViewModes, type EventViewMode } from './eventViewModes'
+import { localeTags, useLocale } from '../i18n'
 
 export function EventViewSwitcher({ value, onChange }: { value: EventViewMode; onChange: (mode: EventViewMode) => void }) {
+  const { t } = useLocale()
+  const labels: Record<EventViewMode, string> = { cards: t('agenda.cards'), calendar: t('agenda.calendar'), timeline: t('agenda.timeline') }
   return (
-    <div className="view-switcher" role="group" aria-label="Vista de eventos">
-      {eventViewModes.map(({ value: mode, label, Icon }) => (
+    <div className="view-switcher" role="group" aria-label={`${t('agenda.view')}: ${t('agenda.events').toLowerCase()}`}>
+      {eventViewModes.map(({ value: mode, Icon }) => (
         <button className={`view-switch ${value === mode ? 'selected' : ''}`} type="button" aria-pressed={value === mode} key={mode} onClick={() => onChange(mode)}>
           <Icon size={16} aria-hidden="true" />
-          <span>{label}</span>
+          <span>{labels[mode]}</span>
         </button>
       ))}
     </div>
@@ -28,7 +31,6 @@ function calendarDateKey(date: Date) {
 }
 
 const limaDateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima', year: 'numeric', month: '2-digit', day: '2-digit' })
-const eventMonthFormatter = new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', month: 'long', year: 'numeric' })
 
 function limaDateKey(value: string | Date) {
   return limaDateFormatter.format(typeof value === 'string' ? new Date(value) : value)
@@ -40,11 +42,11 @@ function monthDateForEvent(event: EventItem) {
   return new Date(year, month - 1, 1)
 }
 
-function eventMonthLabel(event: EventItem) {
-  if (!event.startsAt) return 'Fecha por confirmar'
+function eventMonthLabel(event: EventItem, locale = 'es-PE') {
+  if (!event.startsAt) return locale.startsWith('en') ? 'Date to be confirmed' : locale.startsWith('qu') ? 'P’unchawta qhawarisunchik' : 'Fecha por confirmar'
   const parsed = new Date(event.startsAt)
-  if (Number.isNaN(parsed.getTime())) return 'Fecha por confirmar'
-  return capitalize(eventMonthFormatter.format(parsed))
+  if (Number.isNaN(parsed.getTime())) return locale.startsWith('en') ? 'Date to be confirmed' : locale.startsWith('qu') ? 'P’unchawta qhawarisunchik' : 'Fecha por confirmar'
+  return capitalize(new Intl.DateTimeFormat(locale, { timeZone: 'America/Lima', month: 'long', year: 'numeric' }).format(parsed))
 }
 
 export type EventFocusRequest = { eventId: string; nonce: number }
@@ -127,16 +129,19 @@ function capitalize(value: string) {
 }
 
 function CalendarEventHoverPreview({ event, coverUrl }: { event: EventItem; coverUrl: string | null }) {
+  const { locale, t } = useLocale()
+  const dateLocale = localeTags[locale]
+  const eventTypeLabel = t(`eventType.${event.type}`)
   return (
     <span className="calendar-event-hover-card" aria-hidden="true">
       <span className={`calendar-event-hover-media ${coverUrl ? '' : 'fallback'}`}>
         {coverUrl ? <img src={coverUrl} alt="" /> : <CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="medium" decorative />}
       </span>
       <span className="calendar-event-hover-copy">
-        <span className="calendar-event-type">{event.type}</span>
+        <span className="calendar-event-type">{eventTypeLabel.startsWith('eventType.') ? event.type : eventTypeLabel}</span>
         <strong>{event.title}</strong>
-        <small>{formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)}</small>
-        <small>{formatEventLocation(event)}</small>
+        <small>{formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay, dateLocale)}</small>
+        <small>{formatEventLocation(event, dateLocale)}</small>
       </span>
     </span>
   )
@@ -194,10 +199,12 @@ function useContainedHoverPlacement(containerSelector: string) {
 }
 
 function CalendarEventBar({ segment, coverUrl, onEventOpen, focused, onFocusClear }: { segment: CalendarEventSegment; coverUrl: string | null; onEventOpen?: (event: EventItem) => void; focused?: boolean; onFocusClear?: () => void }) {
+  const { locale } = useLocale()
+  const dateLocale = localeTags[locale]
   const { barRef, hoverPlacement, updateHoverPlacement } = useContainedHoverPlacement('.calendar-view')
   const { event } = segment
 
-  return <button ref={barRef} className={`calendar-event-bar ${segment.isSingleDay ? 'single-day' : 'multi-day'} ${event.visibility === 'network' ? 'private' : 'public'} ${focused ? 'focused' : ''} ${isEventPast(event) ? 'past' : ''} hover-${hoverPlacement.side} ${segment.continuesBefore ? 'continues-before' : ''} ${segment.continuesAfter ? 'continues-after' : ''}`} data-event-focus-id={event.id} type="button" style={{ gridColumn: `${segment.startColumn + 1} / ${segment.endColumn + 2}`, gridRow: segment.lane + 1, '--community-color': event.communityColor || undefined, '--calendar-hover-width': `${hoverPlacement.width}px`, '--calendar-hover-offset-y': `${hoverPlacement.offsetY}px`, '--calendar-hover-offset-x': `${hoverPlacement.offsetX}px` } as CSSProperties} aria-label={`${event.title}, ${formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay)} · ${formatTimeRange(event.startsAt, event.endsAt, event.isAllDay)}`} onPointerEnter={(pointerEvent) => updateHoverPlacement(pointerEvent.currentTarget)} onFocus={(focusEvent) => updateHoverPlacement(focusEvent.currentTarget)} onClick={() => { onFocusClear?.(); onEventOpen?.(event) }}>
+  return <button ref={barRef} className={`calendar-event-bar ${segment.isSingleDay ? 'single-day' : 'multi-day'} ${event.visibility === 'network' ? 'private' : 'public'} ${focused ? 'focused' : ''} ${isEventPast(event) ? 'past' : ''} hover-${hoverPlacement.side} ${segment.continuesBefore ? 'continues-before' : ''} ${segment.continuesAfter ? 'continues-after' : ''}`} data-event-focus-id={event.id} type="button" style={{ gridColumn: `${segment.startColumn + 1} / ${segment.endColumn + 2}`, gridRow: segment.lane + 1, '--community-color': event.communityColor || undefined, '--calendar-hover-width': `${hoverPlacement.width}px`, '--calendar-hover-offset-y': `${hoverPlacement.offsetY}px`, '--calendar-hover-offset-x': `${hoverPlacement.offsetX}px` } as CSSProperties} aria-label={`${event.title}, ${formatEventDateRange(event.startsAt, event.endsAt, event.isAllDay, dateLocale)} · ${formatTimeRange(event.startsAt, event.endsAt, event.isAllDay, dateLocale)}`} onPointerEnter={(pointerEvent) => updateHoverPlacement(pointerEvent.currentTarget)} onFocus={(focusEvent) => updateHoverPlacement(focusEvent.currentTarget)} onClick={() => { onFocusClear?.(); onEventOpen?.(event) }}>
     {!segment.continuesBefore && <CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative />}
     {!segment.continuesBefore && <span className="calendar-event-dot" aria-hidden="true" />}
     <span className="calendar-event-title">{event.title}</span>
@@ -206,9 +213,15 @@ function CalendarEventBar({ segment, coverUrl, onEventOpen, focused, onFocusClea
 }
 
 export function CalendarView({ events, onEventOpen, focusRequest, focusedEventId, onFocusClear, communityFilter = 'all' }: { events: EventItem[]; onEventOpen?: (event: EventItem) => void; focusRequest?: EventFocusRequest | null; focusedEventId?: string | null; onFocusClear?: () => void; communityFilter?: string }) {
+  const { locale, t } = useLocale()
+  const dateLocale = localeTags[locale]
   const scheduledEvents = useMemo(() => events.filter((event) => event.startsAt), [events])
   const [visibleMonth, setVisibleMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1))
-  const monthLabel = capitalize(new Intl.DateTimeFormat('es-PE', { month: 'long', year: 'numeric' }).format(visibleMonth))
+  const monthLabel = capitalize(new Intl.DateTimeFormat(dateLocale, { month: 'long', year: 'numeric' }).format(visibleMonth))
+  const weekdays = useMemo(() => Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(Date.UTC(2024, 0, index + 1, 12))
+    return new Intl.DateTimeFormat(dateLocale, { weekday: 'short', timeZone: 'UTC' }).format(date).replace('.', '')
+  }), [dateLocale])
   const days = useMemo(() => calendarDays(visibleMonth.getFullYear(), visibleMonth.getMonth()), [visibleMonth])
   const weeks = useMemo(() => Array.from({ length: 6 }, (_, index) => days.slice(index * 7, index * 7 + 7)), [days])
   const filteredEvents = useMemo(() => scheduledEvents.filter((event) => matchesCommunityFilter(event, communityFilter)), [communityFilter, scheduledEvents])
@@ -245,14 +258,14 @@ export function CalendarView({ events, onEventOpen, focusRequest, focusedEventId
             <h3 className="timeline-month-title">{monthLabel}</h3>
           </div>
           <div className="timeline-period-controls">
-            <button className="timeline-control-button" type="button" aria-label="Mes anterior" onClick={() => changeMonth(-1)}><ChevronLeft size={17} /> <span>Anterior</span></button>
-            <button className={`timeline-control-button ${isCurrentMonth ? 'selected' : ''}`} type="button" onClick={goToCurrentMonth}><CalendarDays size={16} /> Hoy</button>
-            <button className="timeline-control-button" type="button" aria-label="Mes siguiente" onClick={() => changeMonth(1)}><span>Siguiente</span> <ChevronRight size={17} /></button>
+            <button className="timeline-control-button" type="button" aria-label={t('agenda.previousMonth')} onClick={() => changeMonth(-1)}><ChevronLeft size={17} /> <span>{t('agenda.previous')}</span></button>
+            <button className={`timeline-control-button ${isCurrentMonth ? 'selected' : ''}`} type="button" onClick={goToCurrentMonth}><CalendarDays size={16} /> {t('agenda.today')}</button>
+            <button className="timeline-control-button" type="button" aria-label={t('agenda.nextMonth')} onClick={() => changeMonth(1)}><span>{t('agenda.next')}</span> <ChevronRight size={17} /></button>
           </div>
         </div>
       </div>
       <div className="calendar-scroll">
-        <div className="calendar-weekdays" aria-hidden="true">{['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((day) => <span key={day}>{day}</span>)}</div>
+        <div className="calendar-weekdays" aria-hidden="true">{weekdays.map((day) => <span key={day}>{day}</span>)}</div>
         <div className="calendar-grid">
           {weeks.map((week, weekIndex) => {
             const segments = weekSegments[weekIndex]
@@ -265,7 +278,7 @@ export function CalendarView({ events, onEventOpen, focusRequest, focusedEventId
                   return <div className={`calendar-cell ${inMonth ? '' : 'other-month'} ${isToday ? 'today' : ''}`} key={key}><span className="calendar-day-number">{date.getDate()}</span></div>
                 })}
               </div>
-              <div className="calendar-week-events" aria-label={`Eventos de la semana del ${week[0].key}`}>
+              <div className="calendar-week-events" aria-label={t('agenda.calendarWeek', { date: week[0].key })}>
                 {segments.map((segment) => {
                   const event = segment.event
                   const coverUrl = getEventCoverUrl(event.coverPath)
@@ -289,9 +302,6 @@ const timelineLaneHeight = 38
 const timelineTrackPadding = 20
 const timelineSingleDayLabelMaxWidth = 160
 const timelineSingleDayLabelMinWidth = 64
-const timelineWeekFormatter = new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', day: 'numeric', month: 'short' })
-const timelineMonthFormatter = new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', month: 'long', year: 'numeric' })
-const timelineDayFormatter = new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', weekday: 'short', day: 'numeric' })
 const timelinePalette = [
   { color: '#d82028', tint: 'rgb(216 32 40 / 14%)' },
   { color: '#2c73b7', tint: 'rgb(44 115 183 / 14%)' },
@@ -401,18 +411,20 @@ export function buildTimelineSegments(events: EventItem[], range: TimelineRange)
   })
 }
 
-function formatTimelineMonth(month: Date) {
-  const label = timelineMonthFormatter.format(month).replace('.', '')
+function formatTimelineMonth(month: Date, locale = 'es-PE') {
+  const label = new Intl.DateTimeFormat(locale, { timeZone: 'America/Lima', month: 'long', year: 'numeric' }).format(month).replace('.', '')
   return label.charAt(0).toUpperCase() + label.slice(1)
 }
 
-function formatTimelineWeek(startKey: string, endKey: string) {
-  return `${timelineWeekFormatter.format(dateFromKey(startKey)).replace('.', '')} – ${timelineWeekFormatter.format(dateFromKey(endKey)).replace('.', '')}`
+function formatTimelineWeek(startKey: string, endKey: string, locale = 'es-PE') {
+  const formatter = new Intl.DateTimeFormat(locale, { timeZone: 'America/Lima', day: 'numeric', month: 'short' })
+  return `${formatter.format(dateFromKey(startKey)).replace('.', '')} – ${formatter.format(dateFromKey(endKey)).replace('.', '')}`
 }
 
-function formatTimelineDay(key: string) {
-  const label = timelineDayFormatter.format(dateFromKey(key)).replace('.', '')
-  const [weekday, day] = label.split(' ')
+function formatTimelineDay(key: string, locale = 'es-PE') {
+  const parts = new Intl.DateTimeFormat(locale, { timeZone: 'America/Lima', weekday: 'short', day: 'numeric' }).formatToParts(dateFromKey(key))
+  const weekday = parts.find((part) => part.type === 'weekday')?.value.replace('.', '') || ''
+  const day = parts.find((part) => part.type === 'day')?.value || ''
   return { weekday: weekday.slice(0, 3), day }
 }
 
@@ -481,12 +493,16 @@ function TimelinePlaceholderRow({ visibleDays, range }: { visibleDays: string[];
 }
 
 function TimelineEventBar({ segment, segmentStyle, labelBefore, labelHidden, labelWidth, privateEvent, label, coverUrl, onEventOpen, focused, onFocusClear }: { segment: TimelineSegment; segmentStyle: CSSProperties; labelBefore: boolean; labelHidden: boolean; labelWidth: number; privateEvent: boolean; label: string; coverUrl: string | null; onEventOpen: (event: EventItem) => void; focused?: boolean; onFocusClear?: () => void }) {
+  const { locale, t } = useLocale()
+  const dateLocale = localeTags[locale]
   const { barRef, hoverPlacement, updateHoverPlacement } = useContainedHoverPlacement('.timeline-scroll')
   const { event } = segment
-  return <button ref={barRef} className={`timeline-event-bar ${segment.isSingleDay ? 'single-day' : ''} ${labelBefore ? 'label-before' : ''} ${labelHidden ? 'label-hidden' : ''} ${privateEvent ? 'private' : 'public'} ${focused ? 'focused' : ''} ${isEventPast(event) ? 'past' : ''} ${segment.continuesBefore ? 'continues-before' : ''} ${segment.continuesAfter ? 'continues-after' : ''} hover-${hoverPlacement.side}`} data-event-focus-id={event.id} style={{ ...segmentStyle, '--timeline-single-day-label-width': `${labelWidth}px`, '--calendar-hover-width': `${hoverPlacement.width}px`, '--calendar-hover-offset-y': `${hoverPlacement.offsetY}px`, '--calendar-hover-offset-x': `${hoverPlacement.offsetX}px` } as CSSProperties} type="button" data-lane={segment.lane} aria-label={`${label} · ${formatTimeRange(segment.event.startsAt, segment.event.endsAt, segment.event.isAllDay)}`} title={event.title} onPointerEnter={(pointerEvent) => updateHoverPlacement(pointerEvent.currentTarget)} onFocus={(focusEvent) => updateHoverPlacement(focusEvent.currentTarget)} onClick={() => { onFocusClear?.(); onEventOpen(event) }}><span className="timeline-event-diamond" aria-hidden="true" />{privateEvent && !segment.isSingleDay && <LockKeyhole size={12} aria-hidden="true" />}<span className="timeline-event-label">{event.title}</span>{isEventPast(event) && <span className="sr-only">Ya pasó</span>}<CalendarEventHoverPreview event={event} coverUrl={coverUrl} /></button>
+  return <button ref={barRef} className={`timeline-event-bar ${segment.isSingleDay ? 'single-day' : ''} ${labelBefore ? 'label-before' : ''} ${labelHidden ? 'label-hidden' : ''} ${privateEvent ? 'private' : 'public'} ${focused ? 'focused' : ''} ${isEventPast(event) ? 'past' : ''} ${segment.continuesBefore ? 'continues-before' : ''} ${segment.continuesAfter ? 'continues-after' : ''} hover-${hoverPlacement.side}`} data-event-focus-id={event.id} style={{ ...segmentStyle, '--timeline-single-day-label-width': `${labelWidth}px`, '--calendar-hover-width': `${hoverPlacement.width}px`, '--calendar-hover-offset-y': `${hoverPlacement.offsetY}px`, '--calendar-hover-offset-x': `${hoverPlacement.offsetX}px` } as CSSProperties} type="button" data-lane={segment.lane} aria-label={`${label} · ${formatTimeRange(segment.event.startsAt, segment.event.endsAt, segment.event.isAllDay, dateLocale)}`} title={event.title} onPointerEnter={(pointerEvent) => updateHoverPlacement(pointerEvent.currentTarget)} onFocus={(focusEvent) => updateHoverPlacement(focusEvent.currentTarget)} onClick={() => { onFocusClear?.(); onEventOpen(event) }}><span className="timeline-event-diamond" aria-hidden="true" />{privateEvent && !segment.isSingleDay && <LockKeyhole size={12} aria-hidden="true" />}<span className="timeline-event-label">{event.title}</span>{isEventPast(event) && <span className="sr-only">{t('event.past')}</span>}<CalendarEventHoverPreview event={event} coverUrl={coverUrl} /></button>
 }
 
 export function TimelineView({ events, showVisibility, onEventOpen, focusRequest, focusedEventId, onFocusClear, communityFilter }: { events: EventItem[]; showVisibility: boolean; onEventOpen: (event: EventItem) => void; focusRequest?: EventFocusRequest | null; focusedEventId?: string | null; onFocusClear?: () => void; communityFilter?: string }) {
+  const { locale, t } = useLocale()
+  const dateLocale = localeTags[locale]
   const scheduledEvents = useMemo(() => events.filter((event) => event.startsAt), [events])
   const communities = useMemo(() => stableCommunities(scheduledEvents), [scheduledEvents])
   const [visibleMonth, setVisibleMonth] = useState(() => timelineMonthDate(new Date()))
@@ -583,38 +599,38 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
   }, [currentSection, focusRequest, range, scheduledEvents, sectionCount, visibleMonth, weeksPerSection])
 
   return (
-    <section className="timeline-view" aria-label={`Línea de tiempo de ${formatTimelineMonth(visibleMonth)}`}>
+    <section className="timeline-view" aria-label={`${t('agenda.timeline')} · ${formatTimelineMonth(visibleMonth, dateLocale)}`}>
       <div className="timeline-toolbar">
         <div className="timeline-toolbar-main">
           <div className="timeline-month-heading">
-            <h3 className="timeline-month-title">{formatTimelineMonth(visibleMonth)}</h3>
+            <h3 className="timeline-month-title">{formatTimelineMonth(visibleMonth, dateLocale)}</h3>
           </div>
           <div className="timeline-period-controls">
-            <button className="timeline-control-button" type="button" aria-label="Mes anterior" onClick={() => changeMonth(-1)}><ChevronLeft size={17} /> <span>Anterior</span></button>
-            <button className={`timeline-control-button ${isCurrentMonth ? 'selected' : ''}`} type="button" onClick={returnToToday}><CalendarDays size={16} /> Hoy</button>
-            <button className="timeline-control-button" type="button" aria-label="Mes siguiente" onClick={() => changeMonth(1)}><span>Siguiente</span> <ChevronRight size={17} /></button>
+            <button className="timeline-control-button" type="button" aria-label={t('agenda.previousMonth')} onClick={() => changeMonth(-1)}><ChevronLeft size={17} /> <span>{t('agenda.previous')}</span></button>
+            <button className={`timeline-control-button ${isCurrentMonth ? 'selected' : ''}`} type="button" onClick={returnToToday}><CalendarDays size={16} /> {t('agenda.today')}</button>
+            <button className="timeline-control-button" type="button" aria-label={t('agenda.nextMonth')} onClick={() => changeMonth(1)}><span>{t('agenda.next')}</span> <ChevronRight size={17} /></button>
           </div>
         </div>
       </div>
       <div className="timeline-scroll" ref={timelineScrollRef} style={canvasStyle}>
-        {sectionCount > 1 && <div className="timeline-board-controls" aria-label="Secciones del mes">
-          <button className="timeline-section-button" type="button" aria-label="Ver semanas anteriores" title="Ver semanas anteriores" disabled={currentSection === 0} onClick={() => setTimelineSection((section) => Math.max(0, section - 1))}><ChevronLeft size={14} /></button>
-          <button className="timeline-section-button" type="button" aria-label="Ver semanas siguientes" title="Ver semanas siguientes" disabled={currentSection === sectionCount - 1} onClick={() => setTimelineSection((section) => Math.min(sectionCount - 1, section + 1))}><ChevronRight size={14} /></button>
+        {sectionCount > 1 && <div className="timeline-board-controls" aria-label={t('agenda.filterSections')}>
+          <button className="timeline-section-button" type="button" aria-label={t('agenda.showPreviousWeeks')} title={t('agenda.showPreviousWeeks')} disabled={currentSection === 0} onClick={() => setTimelineSection((section) => Math.max(0, section - 1))}><ChevronLeft size={14} /></button>
+          <button className="timeline-section-button" type="button" aria-label={t('agenda.showNextWeeks')} title={t('agenda.showNextWeeks')} disabled={currentSection === sectionCount - 1} onClick={() => setTimelineSection((section) => Math.min(sectionCount - 1, section + 1))}><ChevronRight size={14} /></button>
         </div>}
         <div className="timeline-canvas">
           <div className="timeline-header-row timeline-week-header">
-            <div className="timeline-label-header">Comunidad</div>
-            <div className="timeline-axis timeline-week-axis">{visibleWeeks.map((week) => <div className="timeline-week" style={{ gridColumn: `span ${week.length}` }} key={week[0]}>{formatTimelineWeek(week[0], week[week.length - 1])}</div>)}</div>
+            <div className="timeline-label-header">{t('agenda.community')}</div>
+            <div className="timeline-axis timeline-week-axis">{visibleWeeks.map((week) => <div className="timeline-week" style={{ gridColumn: `span ${week.length}` }} key={week[0]}>{formatTimelineWeek(week[0], week[week.length - 1], dateLocale)}</div>)}</div>
           </div>
           <div className="timeline-header-row timeline-day-header">
-            <div className="timeline-label-header timeline-day-label">Eventos</div>
-            <div className="timeline-axis timeline-day-axis">{visibleDays.map((key) => { const day = formatTimelineDay(key); return <div className={`timeline-day ${key === todayKey ? 'today' : ''} ${key < range.monthStartKey || key > range.monthEndKey ? 'outside-month' : ''}`} key={key}><span>{day.weekday}</span><strong>{day.day}</strong></div> })}</div>
+            <div className="timeline-label-header timeline-day-label">{t('agenda.events')}</div>
+            <div className="timeline-axis timeline-day-axis">{visibleDays.map((key) => { const day = formatTimelineDay(key, dateLocale); return <div className={`timeline-day ${key === todayKey ? 'today' : ''} ${key < range.monthStartKey || key > range.monthEndKey ? 'outside-month' : ''}`} key={key}><span>{day.weekday}</span><strong>{day.day}</strong></div> })}</div>
           </div>
           <div className="timeline-body" style={bodyStyle}>
-            {todayIndex >= 0 && <div className="timeline-today-line" aria-label={`Hoy: ${formatTimelineDay(todayKey).day} de ${formatTimelineMonth(visibleMonth)}`}><span>Hoy</span></div>}
+            {todayIndex >= 0 && <div className="timeline-today-line" aria-label={t('agenda.todayDate', { date: formatTimelineDay(todayKey, dateLocale).day, month: formatTimelineMonth(visibleMonth, dateLocale) })}><span>{t('agenda.today')}</span></div>}
             {groupedCommunities.length ? <>
               {groupedCommunities.map((community) => <div className="timeline-community-row" key={community.id}>
-              <div className="timeline-community-label" style={timelineStyle(community.color)}><span className="timeline-community-dot" /><CommunityLogo path={community.logoPath} name={community.name} color={community.brandColor} size="small" decorative /><strong>{community.name}</strong><small>{community.segments.length} {community.segments.length === 1 ? 'evento' : 'eventos'}</small></div>
+              <div className="timeline-community-label" style={timelineStyle(community.color)}><span className="timeline-community-dot" /><CommunityLogo path={community.logoPath} name={community.name} color={community.brandColor} size="small" decorative /><strong>{community.name}</strong><small>{community.segments.length} {t(community.segments.length === 1 ? 'agenda.oneEvent' : 'agenda.manyEvents')}</small></div>
               <div className="timeline-track" style={{ minHeight: `${Math.max(timelineCommunityRowHeight, community.laneCount * timelineLaneHeight + timelineTrackPadding)}px` }}>
                 <TimelineDayGrid visibleDays={visibleDays} range={range} />
                 {timelineSingleDayLabelLayouts(community.segments, visibleDays.length, dayWidth).map((labelLayout, index) => {
@@ -624,13 +640,13 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
                   const segmentWidth = segment.isSingleDay ? Math.min(28, dayWidth - 8) : (segment.endIndex - segment.startIndex + 1) * dayWidth - 8
                   const segmentLeft = segment.isSingleDay ? segment.startIndex * dayWidth + (dayWidth - segmentWidth) / 2 : segment.startIndex * dayWidth + 4
                   const segmentStyle = { ...timelineStyle(community.color), left: `${segmentLeft}px`, width: `${segmentWidth}px`, top: `${segment.lane * timelineLaneHeight + 10}px` }
-                  const label = `${segment.event.title}, ${segment.event.communityName}, ${formatEventDateRange(segment.event.startsAt, segment.event.endsAt, segment.event.isAllDay)}${privateEvent ? ', Solo Comunidades' : ''}`
+                  const label = `${segment.event.title}, ${segment.event.communityName}, ${formatEventDateRange(segment.event.startsAt, segment.event.endsAt, segment.event.isAllDay, dateLocale)}${privateEvent ? `, ${t('event.network')}` : ''}`
                   return <TimelineEventBar key={segment.event.id} segment={segment} segmentStyle={segmentStyle} {...labelLayout} privateEvent={privateEvent} label={label} coverUrl={coverUrl} onEventOpen={onEventOpen} focused={focusedEventId === segment.event.id} onFocusClear={onFocusClear} />
                 })}
               </div>
               </div>)}
               {Array.from({ length: reservedCommunityRows }, (_, index) => <TimelinePlaceholderRow key={`placeholder-${index}`} visibleDays={visibleDays} range={range} />)}
-            </> : <div className="timeline-empty"><CalendarDays size={24} aria-hidden="true" /><strong>No hay eventos en esta sección</strong><span>{sectionCount > 1 ? 'Usa las flechas junto al mes para ver las semanas siguientes.' : 'Prueba con otro mes o cambia el filtro de comunidad.'}</span></div>}
+            </> : <div className="timeline-empty"><CalendarDays size={24} aria-hidden="true" /><strong>{t('agenda.noEventsSection')}</strong><span>{sectionCount > 1 ? t('agenda.navigateWeeks') : t('agenda.tryAnotherFilter')}</span></div>}
           </div>
         </div>
       </div>
@@ -639,14 +655,15 @@ export function TimelineView({ events, showVisibility, onEventOpen, focusRequest
 }
 
 export function EventFocusButton({ onClick, onPreviousClick, onNextClick, navigationActive = false, previousDisabled = false, nextDisabled = false }: { onClick: () => void; onPreviousClick?: () => void; onNextClick?: () => void; navigationActive?: boolean; previousDisabled?: boolean; nextDisabled?: boolean }) {
+  const { t } = useLocale()
   const showNavigation = navigationActive || Boolean(onPreviousClick) || Boolean(onNextClick)
   return <div className="event-focus-actions">
-    {showNavigation && <button className="event-previous-button" type="button" aria-label="Evento anterior" title="Ir al evento anterior" disabled={previousDisabled || !onPreviousClick} onClick={onPreviousClick}><ChevronLeft size={18} aria-hidden="true" /></button>}
-    <button className={`event-focus-button${navigationActive ? ' active' : ''}`} type="button" aria-label="Próximo evento" aria-pressed={navigationActive} title={navigationActive ? 'Salir del modo guiado' : 'Ir al próximo evento'} onClick={onClick}>
+    {showNavigation && <button className="event-previous-button" type="button" aria-label={t('agenda.previousEvent')} title={`${t('agenda.goTo')} ${t('agenda.previousEvent').toLowerCase()}`} disabled={previousDisabled || !onPreviousClick} onClick={onPreviousClick}><ChevronLeft size={18} aria-hidden="true" /></button>}
+    <button className={`event-focus-button${navigationActive ? ' active' : ''}`} type="button" aria-label={t('agenda.nextEvent')} aria-pressed={navigationActive} title={navigationActive ? t('agenda.exitGuided') : `${t('agenda.goTo')} ${t('agenda.nextEvent').toLowerCase()}`} onClick={onClick}>
       <LocateFixed size={16} aria-hidden="true" />
-      {!showNavigation && <span>Próximo evento</span>}
+      {!showNavigation && <span>{t('agenda.nextEvent')}</span>}
     </button>
-    {showNavigation && <button className="event-next-button" type="button" aria-label="Siguiente evento" title="Ir al siguiente evento" disabled={nextDisabled || !onNextClick} onClick={onNextClick}><ChevronRight size={18} aria-hidden="true" /></button>}
+    {showNavigation && <button className="event-next-button" type="button" aria-label={t('agenda.nextEvent')} title={`${t('agenda.goTo')} ${t('agenda.nextEvent').toLowerCase()}`} disabled={nextDisabled || !onNextClick} onClick={onNextClick}><ChevronRight size={18} aria-hidden="true" /></button>}
   </div>
 }
 
@@ -661,13 +678,16 @@ type EventResultsProps = {
   toolbarEnd?: ReactNode
   contentBefore?: ReactNode
   communityFilter?: string
+  liveEventIds?: ReadonlySet<string>
   focusRequest?: EventFocusRequest | null
   onFocusRequestChange?: (request: EventFocusRequest | null) => void
 }
 
 const EVENT_CARDS_PAGE_SIZE = 6
 
-export function EventResults({ events, viewMode, showVisibility, onEventOpen, showViewLabel = true, showFocusButton = true, toolbarCenter, toolbarEnd, contentBefore, communityFilter, focusRequest: controlledFocusRequest, onFocusRequestChange }: EventResultsProps) {
+export function EventResults({ events, viewMode, showVisibility, onEventOpen, showViewLabel = true, showFocusButton = true, toolbarCenter, toolbarEnd, contentBefore, communityFilter, liveEventIds, focusRequest: controlledFocusRequest, onFocusRequestChange }: EventResultsProps) {
+  const { locale, t } = useLocale()
+  const dateLocale = localeTags[locale]
   const [internalFocusRequest, setInternalFocusRequest] = useState<EventFocusRequest | null>(null)
   const [activeFocusEventId, setActiveFocusEventId] = useState<string | null>(null)
   const [visibleCardCount, setVisibleCardCount] = useState(EVENT_CARDS_PAGE_SIZE)
@@ -706,7 +726,7 @@ export function EventResults({ events, viewMode, showVisibility, onEventOpen, sh
     return () => window.cancelAnimationFrame(frame)
   }, [displayedEvents, focusRequest, viewMode])
 
-  const viewLabel = viewMode === 'cards' ? 'Tarjetas' : viewMode === 'calendar' ? 'Calendario' : 'Línea de tiempo'
+  const viewLabel = viewMode === 'cards' ? t('agenda.cards') : viewMode === 'calendar' ? t('agenda.calendar') : t('agenda.timeline')
   const requestEventFocus = (event: EventItem) => {
     if (viewMode === 'cards') {
       const eventIndex = cardEvents.findIndex((item) => item.id === event.id)
@@ -732,19 +752,19 @@ export function EventResults({ events, viewMode, showVisibility, onEventOpen, sh
   const toggleFocus = () => { if (activeEventId) clearFocus(); else requestFocus() }
   const focusButton = showFocusButton && nextEvent ? <EventFocusButton onClick={toggleFocus} navigationActive={Boolean(activeEventId)} onPreviousClick={activeEventId ? requestPreviousFocus : undefined} onNextClick={activeEventId ? requestNextFocus : undefined} previousDisabled={!previousEventBeforeFocus} nextDisabled={!nextEventAfterFocus} /> : null
   const renderCardEvents = (eventsToRender: EventItem[], priorMonthLabel: string | null = null) => eventsToRender.map((event, index) => {
-    const monthLabel = eventMonthLabel(event)
-    const previousMonthLabel = index > 0 ? eventMonthLabel(eventsToRender[index - 1]) : priorMonthLabel
+    const monthLabel = eventMonthLabel(event, dateLocale)
+    const previousMonthLabel = index > 0 ? eventMonthLabel(eventsToRender[index - 1], dateLocale) : priorMonthLabel
     const shouldShowMonthDivider = monthLabel !== previousMonthLabel
     return <Fragment key={event.id}>
-      {shouldShowMonthDivider && <div className="event-month-divider" role="separator" aria-label={`Mes ${monthLabel}`}><span>{monthLabel}</span></div>}
-      <EventCard event={event} showVisibility={showVisibility} focused={activeEventId === event.id} onOpen={() => { clearFocus(); onEventOpen(event) }} />
+      {shouldShowMonthDivider && <div className="event-month-divider" role="separator" aria-label={`${t('agenda.month')} ${monthLabel}`}><span>{monthLabel}</span></div>}
+      <EventCard event={event} showVisibility={showVisibility} focused={activeEventId === event.id} happeningNow={liveEventIds?.has(event.id)} onOpen={() => { clearFocus(); onEventOpen(event) }} />
     </Fragment>
   })
   const showToolbar = showViewLabel || Boolean(focusButton) || Boolean(toolbarCenter) || Boolean(toolbarEnd)
   return <div className="event-results">
     {showToolbar && <div className="event-results-toolbar">
       <div className="event-results-toolbar-start">
-        {showViewLabel && <span>Vista: {viewLabel}</span>}
+        {showViewLabel && <span>{t('agenda.view')}: {viewLabel}</span>}
         {!showViewLabel && focusButton}
       </div>
       <div className="event-results-toolbar-center">{toolbarCenter}</div>
@@ -763,15 +783,15 @@ export function EventResults({ events, viewMode, showVisibility, onEventOpen, sh
           {renderCardEvents(visibleUpcomingEvents)}
           {visiblePastEvents.length > 0 && <>
             <button className="event-list-divider" type="button" aria-expanded={pastEventsOpen} aria-controls={pastEventsId} onClick={() => setPastEventsOpen((current) => !current)}>
-              <span>Eventos que ya pasaron</span>
+              <span>{t('agenda.pastEvents')}</span>
               <ChevronDown size={15} aria-hidden="true" />
             </button>
             <div id={pastEventsId} className="event-list-past" hidden={!pastEventsOpen}>
-              {renderCardEvents(visiblePastEvents, visibleUpcomingEvents.length ? eventMonthLabel(visibleUpcomingEvents[visibleUpcomingEvents.length - 1]) : null)}
+              {renderCardEvents(visiblePastEvents, visibleUpcomingEvents.length ? eventMonthLabel(visibleUpcomingEvents[visibleUpcomingEvents.length - 1], dateLocale) : null)}
             </div>
           </>}
         </div>
-        {visibleCardCount < cardEvents.length && <div className="event-load-more"><button className="secondary-button" type="button" onClick={() => setVisibleCardCount((current) => Math.min(current + EVENT_CARDS_PAGE_SIZE, cardEvents.length))}>Cargar más eventos</button></div>}
+        {visibleCardCount < cardEvents.length && <div className="event-load-more"><button className="secondary-button" type="button" onClick={() => setVisibleCardCount((current) => Math.min(current + EVENT_CARDS_PAGE_SIZE, cardEvents.length))}>{t('agenda.loadMore')}</button></div>}
       </>}
     </>}
   </div>
