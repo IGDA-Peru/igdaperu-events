@@ -8,6 +8,7 @@ import { DemoNotice, ErrorState, LoadingState } from '../components/Feedback'
 import { EventPreviewDrawer } from '../components/EventPreviewDrawer'
 import { CommunityLogo } from '../components/CommunityLogo'
 import { EventFiltersPopover, EventSearchField } from '../components/EventFilters'
+import { PageIndex } from '../components/PageIndex'
 import { TurnstileWidget } from '../components/TurnstileWidget'
 import { EventResults, EventViewSwitcher, type EventFocusRequest } from '../components/EventViews'
 import type { EventViewMode } from '../components/eventViewModes'
@@ -22,7 +23,7 @@ import type { Community, EventItem } from '../types'
 import { useLocale, withLocale } from '../i18n'
 
 const notionCommunitiesEmbedUrl = 'https://igdape.notion.site/ebd/3b425d4453e08301bcef018ab661544a?v=12d25d4453e0825883398852a794ef21'
-const publicCalendarUrl = 'https://igda.pe/comunidad/calendario/'
+const publicCalendarUrl = 'https://eventos.igda.pe/'
 const publicGoogleCalendarUrl = 'https://calendar.google.com/calendar/u/3?cid=Y18zOWUwMGQzZjlkNjc2YzAxNTY0MGJhM2RhYmQxNTI3YThlZTNiMGEwNjAzZTgzNjhjOTIzNjZlZDM3Zjc0YmQ1QGdyb3VwLmNhbGVuZGFyLmdvb2dsZS5jb20'
 const publicGoogleCalendarIcalUrl = 'https://calendar.google.com/calendar/ical/c_39e00d3f9d676c015640ba3dabd1527a8ee3b0a0603e8368c92366ed37f74bd5%40group.calendar.google.com/public/basic.ics'
 const publicGoogleCalendarWebcalUrl = publicGoogleCalendarIcalUrl.replace('https://', 'webcal://')
@@ -541,9 +542,16 @@ export function PublicAgendaPage({ onLiveNoticeChange }: { onLiveNoticeChange?: 
 
   return (
     <div className="page-wrap page-wrap--events">
+      <PageIndex
+        label={t('nav.pageIndex')}
+        links={[
+          { label: t('agenda.upcomingEvents'), href: '#public-agenda-section' },
+          { label: t('agenda.communityTitle'), href: '#public-communities-section' },
+        ]}
+      />
       {!configured && <DemoNotice />}
       <div className="content-grid">
-        <section className="events-section" aria-label={t('agenda.upcomingEvents')}>
+        <section id="public-agenda-section" className="events-section" aria-label={t('agenda.upcomingEvents')}>
           {loading && <LoadingState />}
           {error && <ErrorState message={error} />}
           {!loading && !error && <EventResults
@@ -558,7 +566,7 @@ export function PublicAgendaPage({ onLiveNoticeChange }: { onLiveNoticeChange?: 
             toolbarEnd={<><EventFiltersPopover timeFilter={timeFilter} modalityFilter={modalityFilter} locationFilter={locationFilter} communityFilter={communityFilter} communityOptions={communityOptions} onTimeChange={setTimeFilter} onModalityChange={(value) => { setModalityFilter(value); setLocationFilter('all') }} onLocationChange={setLocationFilter} onCommunityChange={setCommunityFilter} onClear={clearFilters} showTimeFilter={viewMode === 'cards'} showCommunityFilter /><EventSearchField search={search} onSearchChange={setSearch} /></>}
           />}
         </section>
-        <div className="events-sidebar">
+        <div id="public-communities-section" className="events-sidebar">
           {user && <AgendaModeToggle value={agendaMode} onChange={setAgendaMode} open={modePanelOpen} onToggle={() => setModePanelOpen((current) => !current)} />}
           <CommunityRail communities={recentCommunities} />
         </div>

@@ -57,7 +57,7 @@ export function EventCard({ event, compact = false, showCover = false, showVisib
         <div className="event-meta">
           <span><MapPin size={15} aria-hidden="true" />{formatEventLocation(event, dateLocale)}</span>
           <span><CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative />{event.communityName}</span>
-          <span><Clock3 size={15} aria-hidden="true" />{formatEventSchedule(event.startsAt, event.endsAt, event.isAllDay, dateLocale)}</span>
+          <span className="event-time-meta"><Clock3 size={15} aria-hidden="true" />{formatEventSchedule(event.startsAt, event.endsAt, event.isAllDay, dateLocale)}</span>
           {managed && event.creatorEmail && <span className="event-creator-meta" title={t('event.emailCreator')}><Mail size={15} aria-hidden="true" />{t('event.createdBy', { email: event.creatorEmail })}</span>}
         </div>
       </div>
