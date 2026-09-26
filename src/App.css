@@ -985,6 +985,7 @@ html:has(.embed-page), body:has(.embed-page) { background: var(--surface); }
 .spotlight-feature-title:hover { color: var(--red); }
 .spotlight-event-location { display: inline-flex; align-items: center; gap: 5px; min-width: 0; color: var(--muted); font-size: .78rem; line-height: 1.3; }
 .spotlight-event-location svg { flex: 0 0 auto; color: var(--yellow); }
+.spotlight-event-time { font-variant-numeric: tabular-nums; }
 .spotlight-feature-copy > p { margin: 12px 0 0; color: var(--muted); font-size: .84rem; line-height: 1.45; }
 .spotlight-feature-action { grid-column: 2; grid-row: 2; align-self: start; justify-self: start; min-width: 132px; white-space: nowrap; }
 .spotlight-feature-action--icon { display: grid; justify-self: end; width: 36px; min-width: 36px; height: 36px; margin: 0; padding: 0; place-items: center; border: 0; border-radius: 999px; color: var(--red); background: transparent; cursor: pointer; transition: transform 160ms ease, color 160ms ease, background 160ms ease; }
@@ -1006,6 +1007,7 @@ html:has(.embed-page), body:has(.embed-page) { background: var(--surface); }
 .spotlight-upcoming-copy { display: grid; gap: 6px; min-width: 0; }
 .spotlight-upcoming-copy strong { overflow: hidden; font-family: 'Museo Sans Rounded', var(--font-sans); font-size: .88rem; line-height: 1.15; text-overflow: ellipsis; }
 .spotlight-upcoming-copy .spotlight-event-location { overflow: hidden; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
+.spotlight-upcoming-copy .spotlight-event-time { overflow-wrap: anywhere; white-space: normal; }
 .spotlight-all-events { display: flex; align-items: center; justify-content: center; gap: 10px; width: min(100%, 248px); min-height: 48px; margin: 24px auto 0; padding: 0 16px; border: 1.5px solid var(--red); border-radius: 9px; color: var(--red); background: var(--surface); font-size: .84rem; font-weight: 900; text-decoration: none; transition: background 160ms ease, color 160ms ease, transform 160ms ease; }
 .spotlight-all-events:hover { color: #fff; background: var(--red); transform: translateY(-1px); }
 .home-spotlight-preview { width: min(calc(100% - 32px), 1360px); margin: 0 auto; padding: clamp(24px, 3vw, 40px) 0 56px; }

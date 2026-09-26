@@ -18,9 +18,9 @@ import { isSupabaseConfigured } from '../lib/supabase'
 import { getEventCoverUrl, listCommunities, listEvents, listHomeEmbedEvents, submitEventProposal, type EventProposalSubmission, type EventQueryOptions } from '../lib/data'
 import { limaNowDateTimeInput } from '../lib/eventSchedule'
 import { EVENT_DESCRIPTION_MAX_LENGTH } from '../lib/eventLimits'
-import { formatDateParts, formatEventLocation, isEventOngoing, isEventPast } from '../lib/format'
+import { formatDateParts, formatEventLocation, formatTimeRange, isEventOngoing, isEventPast } from '../lib/format'
 import type { Community, EventItem } from '../types'
-import { useLocale, withLocale } from '../i18n'
+import { localeTags, useLocale, withLocale } from '../i18n'
 
 const notionCommunitiesEmbedUrl = 'https://igdape.notion.site/ebd/3b425d4453e08301bcef018ab661544a?v=12d25d4453e0825883398852a794ef21'
 const publicCalendarUrl = 'https://eventos.igda.pe/'
@@ -780,6 +780,13 @@ function SpotlightEventLocation({ event }: { event: EventItem }) {
   return <span className="spotlight-event-location"><MapPin size={15} aria-hidden="true" />{formatEventLocation(event)}</span>
 }
 
+function SpotlightEventTime({ event }: { event: EventItem }) {
+  const { locale } = useLocale()
+  return <time className="spotlight-event-location spotlight-event-time" dateTime={event.startsAt || undefined}>
+    <Clock3 size={15} aria-hidden="true" />{formatTimeRange(event.startsAt, event.endsAt, event.isAllDay, localeTags[locale])}
+  </time>
+}
+
 function SpotlightFeature({ event, onOpen, happeningNow = false }: { event: EventItem; onOpen: () => void; happeningNow?: boolean }) {
   const hasCover = Boolean(getEventCoverUrl(event.coverPath))
   const meetingUrl = event.meetingUrl && event.meetingLinkVisibility !== 'none' ? event.meetingUrl : ''
@@ -803,6 +810,7 @@ function SpotlightFeature({ event, onOpen, happeningNow = false }: { event: Even
         </div>
         <h2><button className="spotlight-feature-title" type="button" onClick={onOpen}>{event.title}</button></h2>
         <SpotlightEventLocation event={event} />
+        <SpotlightEventTime event={event} />
         <div className="spotlight-feature-community"><CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative /><span>Organiza {event.communityName}</span></div>
       </div>
       {participationUrl ? <a className="primary-button spotlight-feature-action spotlight-feature-action--registration" href={participationUrl} target="_blank" rel="noreferrer">{actionLabel} <ExternalLink size={16} aria-hidden="true" /></a> : <button className="spotlight-feature-action spotlight-feature-action--icon" aria-label="Ver evento" type="button" onClick={onOpen}><ChevronRight size={24} aria-hidden="true" /></button>}
@@ -818,6 +826,7 @@ function SpotlightUpcomingItem({ event, onOpen, happeningNow = false }: { event:
       {happeningNow && <SpotlightLiveBadge inline />}
       <strong>{event.title}</strong>
       <SpotlightEventLocation event={event} />
+      <SpotlightEventTime event={event} />
     </span>
     <ChevronRight size={20} aria-hidden="true" />
   </button>
