@@ -198,7 +198,7 @@ export function SiteHeader({ embed = false }: { embed?: boolean }) {
       {menuOpen && <button className="mobile-menu-backdrop" type="button" tabIndex={-1} aria-hidden="true" aria-label={t('nav.closeMenu')} onClick={() => setMenuOpen(false)} />}
       <div className="site-header-inner">
         <div
-          className="site-switcher"
+          className="brand-switcher site-switcher"
           onMouseEnter={() => setSiteSwitcherOpen(true)}
           onMouseLeave={() => setSiteSwitcherOpen(false)}
           onFocus={() => setSiteSwitcherOpen(true)}
@@ -209,17 +209,17 @@ export function SiteHeader({ embed = false }: { embed?: boolean }) {
             if (event.key === 'Escape') setSiteSwitcherOpen(false)
           }}
         >
-          <Link className="site-switcher-trigger" to="/" aria-label={t('nav.switchSite')} aria-haspopup="menu" aria-expanded={siteSwitcherOpen} aria-controls="site-switcher-menu">
+          <Link className="site-switcher-trigger" to="/" aria-label={t('nav.switchSite')} aria-expanded={siteSwitcherOpen} aria-controls="site-switcher-menu">
             <span className="brand">
               <img className="brand-logo" src="/brand/logo-igda-peru.png" alt="" width="56" height="50" />
               <span className="brand-copy"><img className="brand-wordmark" src="/brand/igda-peru-wordmark.svg" alt={t('site.main')} width="112" height="25" /><small>{t('nav.events')}</small></span>
             </span>
           </Link>
-          {siteSwitcherOpen && <div className="site-switcher-menu" id="site-switcher-menu" role="menu" aria-label="Sitios de IGDA Perú">
-            <a role="menuitem" href={`https://igda.pe${withLocale('/', locale)}`}><strong>{t('site.main')}</strong></a>
-            <Link role="menuitem" className="is-active" to="/"><strong>{t('nav.events')}</strong></Link>
-            <a role="menuitem" href="https://games.igda.pe/#juegos"><strong>{t('site.games')}</strong></a>
-          </div>}
+          {siteSwitcherOpen && <nav className="brand-switcher-menu site-switcher-menu" id="site-switcher-menu" aria-label="Sitios de IGDA Perú">
+            <a href={`https://igda.pe${withLocale('/', locale)}`}>{t('site.main')}</a>
+            <Link className="is-current" to="/" aria-current="page">{t('nav.events')}</Link>
+            <a href="https://games.igda.pe/#juegos">{t('site.games')}</a>
+          </nav>}
         </div>
         <button className="mobile-menu" type="button" aria-label={menuOpen ? t('nav.closeMenu') : t('nav.openMenu')} aria-controls="events-mobile-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
           {menuOpen ? <X size={22} /> : <Menu size={22} />}
