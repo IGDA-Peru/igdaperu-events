@@ -25,7 +25,7 @@ export function PageIndex({ label, links }: PageIndexProps) {
   if (!links.length) return null
 
   return <>
-    <details ref={floatingIndexRef} className="page-index page-index--floating page-index--floating-above-assistant" data-page-index>
+    <details ref={floatingIndexRef} className="page-index page-index--floating" data-page-index>
       <summary className="page-index__toggle" aria-label={label} title={label}>
         <span className="page-index__icon" aria-hidden="true">
           <svg viewBox="0 0 20 20" focusable="false"><path d="M4 5.5h12M4 10h12M4 14.5h12" /></svg>

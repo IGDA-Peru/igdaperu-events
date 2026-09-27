@@ -299,6 +299,7 @@ describe('EventResults cards', () => {
       render(<MemoryRouter><EventResults events={[past, upcoming]} viewMode="cards" showVisibility={false} onEventOpen={vi.fn()} /></MemoryRouter>)
 
       expect(screen.getByRole('button', { name: /^Evento próximo$/ })).toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: '¡Pronto habrá nuevos eventos!' })).not.toBeInTheDocument()
       const pastEventsToggle = screen.getByRole('button', { name: 'Eventos que ya pasaron' })
       expect(pastEventsToggle).toHaveAttribute('aria-expanded', 'false')
       expect(screen.queryByRole('button', { name: /^Evento pasado$/ })).not.toBeInTheDocument()
@@ -309,6 +310,31 @@ describe('EventResults cards', () => {
 
       const eventListText = document.querySelector('.event-list')?.textContent ?? ''
       expect(eventListText.indexOf('Evento próximo')).toBeLessThan(eventListText.indexOf('Evento pasado'))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows the public empty-state notice above expanded past events when there are no upcoming events', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-11T12:00:00-05:00'))
+    try {
+      const past = timelineEvent({ id: 'past-only-card', title: 'Evento pasado', startsAt: '2026-08-19T09:00:00-05:00', endsAt: '2026-08-19T18:00:00-05:00' })
+      const { rerender } = render(<MemoryRouter><EventResults events={[past]} viewMode="cards" showVisibility={false} onEventOpen={vi.fn()} /></MemoryRouter>)
+
+      const emptyNotice = screen.getByRole('heading', { name: '¡Pronto habrá nuevos eventos!' })
+      const pastEventsToggle = screen.getByRole('button', { name: 'Eventos que ya pasaron' })
+      expect(emptyNotice.compareDocumentPosition(pastEventsToggle) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+      expect(pastEventsToggle).toHaveAttribute('aria-expanded', 'true')
+      expect(document.getElementById('past-events-list')).not.toHaveAttribute('hidden')
+      expect(screen.getByRole('button', { name: /^Evento pasado$/ })).toBeInTheDocument()
+
+      const upcoming = timelineEvent({ id: 'upcoming-after-refresh', title: 'Evento próximo', startsAt: '2026-09-19T09:00:00-05:00', endsAt: '2026-09-19T18:00:00-05:00' })
+      rerender(<MemoryRouter><EventResults events={[past, upcoming]} viewMode="cards" showVisibility={false} onEventOpen={vi.fn()} /></MemoryRouter>)
+
+      expect(screen.queryByRole('heading', { name: '¡Pronto habrá nuevos eventos!' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Eventos que ya pasaron' })).toHaveAttribute('aria-expanded', 'false')
+      expect(document.getElementById('past-events-list')).toHaveAttribute('hidden')
     } finally {
       vi.useRealTimers()
     }

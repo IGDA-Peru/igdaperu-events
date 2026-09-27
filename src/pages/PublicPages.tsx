@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEven
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { EventCard, EmptyEvents } from '../components/EventCard'
-import { DemoNotice, ErrorState, LoadingState } from '../components/Feedback'
+import { DemoNotice, ErrorState, LoadingState, PageLoadingState } from '../components/Feedback'
 import { EventPreviewDrawer } from '../components/EventPreviewDrawer'
 import { CommunityLogo } from '../components/CommunityLogo'
 import { EventFiltersPopover, EventSearchField } from '../components/EventFilters'
@@ -552,7 +552,7 @@ export function PublicAgendaPage({ onLiveNoticeChange }: { onLiveNoticeChange?: 
       {!configured && <DemoNotice />}
       <div className="content-grid">
         <section id="public-agenda-section" className="events-section" aria-label={t('agenda.upcomingEvents')}>
-          {loading && <LoadingState />}
+          {loading && <PageLoadingState />}
           {error && <ErrorState message={error} />}
           {!loading && !error && <EventResults
             events={visibleEvents}

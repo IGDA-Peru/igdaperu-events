@@ -30,7 +30,7 @@ describe('public events', () => {
     expect(menu).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /IGDA Perú, Página principal/ })).toHaveAttribute('href', 'https://igda.pe/')
     expect(screen.getByRole('menuitem', { name: /Eventos, Agenda y comunidades/ })).toHaveAttribute('href', '/')
-    expect(screen.getByRole('menuitem', { name: /Juegos, Catálogo peruano/ })).toHaveAttribute('href', 'https://igda.pe/industry/juegos/')
+    expect(screen.getByRole('menuitem', { name: /Juegos/ })).toHaveAttribute('href', 'https://games.igda.pe/#juegos')
     fireEvent.mouseEnter(menu)
     expect(screen.getByRole('menu', { name: 'Sitios de IGDA Perú' })).toBeInTheDocument()
     fireEvent.mouseLeave(switcher.parentElement as HTMLElement)
@@ -39,6 +39,38 @@ describe('public events', () => {
     expect(screen.getByRole('menu', { name: 'Sitios de IGDA Perú' })).toBeInTheDocument()
     fireEvent.blur(switcher, { relatedTarget: document.body })
     expect(screen.queryByRole('menu', { name: 'Sitios de IGDA Perú' })).not.toBeInTheDocument()
+  })
+
+  it('separates language and appearance controls and saves the selected theme', () => {
+    window.localStorage.removeItem('igda-theme')
+    document.cookie = 'igda_theme=; Max-Age=0; path=/'
+    delete document.documentElement.dataset.theme
+    delete document.documentElement.dataset.themePreference
+
+    render(<AuthContext.Provider value={{ configured: false, loading: false, session: null, user: null, profile: null, memberships: [], roles: [], signOut: vi.fn().mockResolvedValue(undefined), refreshUserData: vi.fn().mockResolvedValue(undefined) }}><MemoryRouter><SiteHeader /></MemoryRouter></AuthContext.Provider>)
+
+    const login = screen.getByRole('link', { name: 'Ingresar' })
+    expect(login.nextElementSibling).toHaveAttribute('data-language-control')
+    expect(login.nextElementSibling?.nextElementSibling).toHaveAttribute('data-appearance-control')
+
+    const languageButton = screen.getByRole('button', { name: 'Idioma' })
+    expect(languageButton.querySelector('.language-switcher__flag')).toHaveClass('language-switcher__flag--es')
+    fireEvent.click(languageButton)
+    expect(screen.getByRole('group', { name: 'Idioma' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Apariencia' }))
+    expect(screen.getByRole('group', { name: 'Apariencia' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Sistema' })).toBeChecked()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Claro' }))
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+    expect(document.documentElement).toHaveAttribute('data-theme-preference', 'light')
+    expect(window.localStorage.getItem('igda-theme')).toBe('light')
+    expect(screen.getByRole('radio', { name: 'Claro' })).toBeChecked()
+
+    window.localStorage.removeItem('igda-theme')
+    document.cookie = 'igda_theme=; Max-Age=0; path=/'
+    delete document.documentElement.dataset.theme
+    delete document.documentElement.dataset.themePreference
   })
 
   it('shows a structured privacy policy with the required legal sections', () => {

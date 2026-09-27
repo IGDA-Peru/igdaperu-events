@@ -19,6 +19,20 @@ export function LoadingState({ label }: { label?: string }) {
   return <div className="loading-state"><LoaderCircle className="spin" size={26} aria-hidden="true" /><span>{message}</span></div>
 }
 
+export function PageLoadingState({ label }: { label?: string }) {
+  const { t } = useLocale()
+  const message = label ? t(loadingMessageKeys[label] || '') || label : t('feedback.pageLoading')
+  return <div className="page-loading-state" role="status" aria-live="polite">
+    <span className="page-loading-orbit" aria-hidden="true">
+      <span className="page-loading-brand">
+        <img className="page-loading-mark" src="/brand/igda-peru-footer-mark.svg" alt="" />
+        <img className="page-loading-wordmark" src="/brand/igda-peru-footer-wordmark.svg" alt="" />
+      </span>
+    </span>
+    <span className="page-loading-title">{message}</span>
+  </div>
+}
+
 export function ErrorState({ message }: { message?: string }) {
   const { t } = useLocale()
   const errorMessage = message ?? t('feedback.loadError')

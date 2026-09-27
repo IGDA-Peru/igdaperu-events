@@ -3,7 +3,7 @@ import { AuthProvider } from './auth/AuthProvider'
 import { SiteFooter } from './components/SiteFooter'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { SiteHeader } from './components/SiteHeader'
-import { LoadingState } from './components/Feedback'
+import { PageLoadingState } from './components/Feedback'
 import { LocaleProvider, stripLocaleFromPath } from './i18n'
 import { AcceptInvitationPage, AuthCallbackPage, ChangePasswordPage, EditProfilePage, ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from './pages/AuthPages'
 import { CalendarAccessPage, CommunityDetailPage, CommunitiesPage, EmbedPage, EventProposalPage, HomeEventsEmbedPage, HomePage, SpotlightEventsEmbedPage } from './pages/PublicPages'
@@ -85,5 +85,5 @@ function App() {
   return <BrowserRouter><LocaleProvider><AuthProvider><LocalizedRoutes /></AuthProvider></LocaleProvider></BrowserRouter>
 }
 
-export function AppLoading() { return <LoadingState /> }
+export function AppLoading() { return <PageLoadingState /> }
 export default App

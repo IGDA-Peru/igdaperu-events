@@ -59,6 +59,13 @@
   --color-igda-yellow-soft: #ffe0a0;
   --color-igda-black: #090909;
   --color-igda-white: #ffffff;
+  --color-surface-card: rgb(255 255 255 / 84%);
+  --color-surface-glass: rgb(255 250 240 / 92%);
+  --color-surface-warning: #fff4ce;
+  --color-surface-red-tint: #fff3f0;
+  --color-warning-line: #e8c878;
+  --color-warning-ink: #604a1a;
+  --color-page-background: radial-gradient(circle at 11% 0%, rgb(248 184 48 / 24%), transparent 26rem), radial-gradient(circle at 92% 16%, rgb(216 32 40 / 13%), transparent 24rem), linear-gradient(180deg, #fff9ec 0%, #fff4dc 48%, #ffffff 100%);
   --gradient-igda: linear-gradient(135deg, var(--color-igda-yellow) 0%, #ffc95d 42%, var(--color-igda-red) 100%);
   --shadow-soft: 0 20px 60px rgb(9 9 9 / 12%);
   --radius-sm: 6px;
@@ -90,10 +97,7 @@ body {
   min-width: 320px;
   margin: 0;
   color: var(--color-ink);
-  background:
-    radial-gradient(circle at 11% 0%, rgb(248 184 48 / 24%), transparent 26rem),
-    radial-gradient(circle at 92% 16%, rgb(216 32 40 / 13%), transparent 24rem),
-    linear-gradient(180deg, #fff9ec 0%, #fff4dc 48%, #ffffff 100%);
+  background: var(--color-page-background);
   font-size: 16px;
   line-height: 1.6;
 }
@@ -104,3 +108,27 @@ button, a { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
 a { color: inherit; }
 :focus-visible { outline: 3px solid var(--color-igda-yellow); outline-offset: 3px; }
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --color-ink: #f7f0e6;
+  --color-muted: #c4b9aa;
+  --color-hueso: #101012;
+  --color-surface: #19191c;
+  --color-surface-strong: #202023;
+  --color-line: rgb(255 249 236 / 16%);
+  --color-igda-red: #ff625b;
+  --color-igda-yellow: #f8c64f;
+  --color-igda-yellow-soft: #4b391a;
+  --color-igda-black: #09090b;
+  --color-surface-card: #1b1b1e;
+  --color-surface-glass: rgb(15 15 17 / 92%);
+  --color-surface-warning: #332b1a;
+  --color-surface-red-tint: #29191c;
+  --color-warning-line: rgb(248 198 79 / 35%);
+  --color-warning-ink: #f5d681;
+  --color-page-background: radial-gradient(ellipse at 4% 4%, rgb(112 24 33 / 23%), transparent 38rem), radial-gradient(ellipse at 96% 10%, rgb(119 76 13 / 18%), transparent 36rem), linear-gradient(180deg, #101012 0%, #141416 56%, #101012 100%);
+  --shadow-soft: 0 20px 60px rgb(0 0 0 / 34%);
+}
+
+html[data-theme='dark'] .brand-wordmark { filter: brightness(0) invert(1); }

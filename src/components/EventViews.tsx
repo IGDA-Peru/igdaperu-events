@@ -694,6 +694,8 @@ export function EventResults({ events, viewMode, showVisibility, onEventOpen, sh
   const [pastEventsOpen, setPastEventsOpen] = useState(false)
   const focusNonce = useRef(0)
   const displayedEvents = useMemo(() => events.filter((event) => matchesCommunityFilter(event, communityFilter)), [communityFilter, events])
+  const hasUpcomingEvents = displayedEvents.some((event) => !isEventPast(event))
+  const hasPastEvents = displayedEvents.some((event) => isEventPast(event))
   const cardEvents = useMemo(() => {
     const upcomingEvents = displayedEvents.filter((event) => !isEventPast(event))
     const pastEvents = displayedEvents.filter((event) => isEventPast(event))
@@ -711,8 +713,8 @@ export function EventResults({ events, viewMode, showVisibility, onEventOpen, sh
 
   useEffect(() => {
     setVisibleCardCount(EVENT_CARDS_PAGE_SIZE)
-    setPastEventsOpen(false)
-  }, [controlledFocusRequest, displayedEvents, viewMode])
+    setPastEventsOpen(hasPastEvents && !hasUpcomingEvents)
+  }, [controlledFocusRequest, displayedEvents, hasPastEvents, hasUpcomingEvents, viewMode])
 
   useEffect(() => {
     if (controlledFocusRequest !== undefined) return
@@ -779,6 +781,7 @@ export function EventResults({ events, viewMode, showVisibility, onEventOpen, sh
       {viewMode === 'calendar' && <CalendarView events={events} onEventOpen={onEventOpen} focusRequest={focusRequest} focusedEventId={activeEventId} onFocusClear={clearFocus} communityFilter={communityFilter} />}
       {viewMode === 'timeline' && <TimelineView events={events} showVisibility={showVisibility} onEventOpen={onEventOpen} focusRequest={focusRequest} focusedEventId={activeEventId} onFocusClear={clearFocus} communityFilter={communityFilter} />}
       {viewMode === 'cards' && <>
+        {!hasUpcomingEvents && hasPastEvents && <EmptyEvents />}
         <div className="event-list">
           {renderCardEvents(visibleUpcomingEvents)}
           {visiblePastEvents.length > 0 && <>

@@ -74,10 +74,10 @@ export function EventCard({ event, compact = false, showCover = false, showVisib
 export function EmptyEvents({ authenticated = false }: { authenticated?: boolean }) {
   const { t } = useLocale()
   return (
-    <div className="empty-state">
-      <CalendarDays size={30} aria-hidden="true" />
+    <div className={`empty-state${authenticated ? '' : ' empty-state--public'}`}>
+      <span className="empty-state-icon"><CalendarDays size={24} aria-hidden="true" /></span>
       <h3>{authenticated ? t('agenda.noEventsView') : t('agenda.noEventsPublic')}</h3>
-      <p>{t('agenda.noEventsDescription')}</p>
+      <p>{authenticated ? t('agenda.noEventsDescription') : t('agenda.noEventsPublicDescription')}</p>
     </div>
   )
 }
