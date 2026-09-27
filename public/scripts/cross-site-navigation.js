@@ -31,6 +31,9 @@
   }
 
   const pageTitle = () => {
+    if (siteForHost(window.location.hostname) === 'main' && /^\/(?:es|en|qu)?\/?$/.test(window.location.pathname)) {
+      return 'igda.pe'
+    }
     const heading = document.querySelector('main h1, #root h1')
     return heading?.textContent?.trim().replace(/\s+/g, ' ')
       || document.title.split(/\s*[|–—]\s*/)[0].trim()
@@ -79,6 +82,7 @@
     if (!(event.target instanceof Element)) return
     const link = event.target.closest('a[href]')
     if (!link) return
+    if (link.matches('.brand-switcher-menu a, .site-switcher-menu a, .cross-site-return')) return
 
     try {
       const targetUrl = new URL(link.href, window.location.href)
