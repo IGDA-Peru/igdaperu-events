@@ -1,7 +1,16 @@
 (() => {
-  const igdaHosts = new Set(['igda.pe', 'www.igda.pe', 'eventos.igda.pe', 'games.igda.pe'])
-  const isIgdaUrl = (url) => ['http:', 'https:'].includes(url.protocol) && igdaHosts.has(url.hostname)
-  const siteForHost = (hostname) => hostname === 'igda.pe' || hostname === 'www.igda.pe' ? 'main' : hostname
+  const igdaSites = new Map([
+    ['igda.pe', 'main'],
+    ['www.igda.pe', 'main'],
+    ['eventos.igda.pe', 'events'],
+    ['events.igda.pe', 'events'],
+    ['calendar.igda.pe', 'events'],
+    ['calendario.igda.pe', 'events'],
+    ['games.igda.pe', 'games'],
+    ['juegos.igda.pe', 'games'],
+  ])
+  const isIgdaUrl = (url) => ['http:', 'https:'].includes(url.protocol) && igdaSites.has(url.hostname)
+  const siteForHost = (hostname) => igdaSites.get(hostname) || null
   const params = new URLSearchParams(window.location.search)
   const sourceHref = params.get('igda_from')
   const sourceTitle = params.get('igda_from_title')
