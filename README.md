@@ -37,6 +37,14 @@ Esta configuración debe hacerse en la cuenta de Cloudflare que administra la zo
 7. En **Settings → Variables and Secrets**, agrega también `SUPABASE_URL` y `SUPABASE_PUBLISHABLE_KEY` como variables de runtime para Production y Preview. La Pages Function usa la clave publicable y sigue protegida por RLS; nunca agregues `service_role` al frontend ni a esta función.
 8. Agrega `VITE_TURNSTILE_SITE_KEY` con la clave pública del widget de Turnstile para mostrar el formulario público de propuestas.
 
+Los cuatro dominios (`eventos.igda.pe`, `events.igda.pe`, `calendar.igda.pe` y `calendario.igda.pe`) deben permanecer configurados y activos en este proyecto de Pages. La canonicalización se aplica en **Rules → Redirect Rules** de la zona `igda.pe`, para cubrir todas las rutas antes de que lleguen a Pages:
+
+- Coincidencia: `(http.host eq "events.igda.pe" or http.host eq "calendar.igda.pe" or http.host eq "calendario.igda.pe")`.
+- Destino dinámico: `concat("https://eventos.igda.pe", http.request.uri.path)`.
+- Código `308` y **Preserve query string** activado.
+
+La regla solo coincide con los tres alias; no cambies sus dominios ni sus registros DNS. Mantén `VITE_APP_URL`, los callbacks de Supabase y los enlaces generados en `eventos.igda.pe` para evitar redirecciones repetidas durante el inicio de sesión. No implementes esta canonicalización en `public/_redirects`, porque ese archivo no filtra por hostname.
+
 Las rutas públicas `/api/home-events`, `/api/public-events` y `/api/public-communities` consultan Supabase usando solo la clave publicable, limitan los campos y resultados devueltos y almacenan temporalmente las respuestas en la caché de Cloudflare. Los eventos del embed se cachean durante dos minutos y las comunidades durante diez minutos. El archivo `public/_routes.json` limita las invocaciones de Pages Functions a esas rutas y deja los assets estáticos fuera de la función.
 
 La zona `igda.pe` también tiene una regla de Rate Limiting en Cloudflare para esas tres rutas: bloquea temporalmente una IP que supere 10 solicitudes en 10 segundos. Esta regla protege el acceso al servicio público, pero no reemplaza las políticas RLS de Supabase ni los límites propios de las operaciones autenticadas.
