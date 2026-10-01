@@ -1,4 +1,4 @@
-import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Clipboard, Clock3, Eye, Globe2, ImagePlus, Link2, Link2Off, LockKeyhole, Mail, MapPinned, Plus, RefreshCw, Save, Search, Send, Shield, UserPlus, Users, Video, X } from 'lucide-react'
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Clipboard, Clock3, ExternalLink, Globe2, ImagePlus, Link2, Link2Off, LockKeyhole, Mail, MapPinned, Plus, RefreshCw, Save, Search, Send, Shield, UserPlus, Users, Video, X } from 'lucide-react'
 import type { ChangeEvent, FormEvent, MouseEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
@@ -18,7 +18,7 @@ import { approveEventProposal, archiveEvent, cancelCommunityInvitation, createCo
 import { eventFieldLabels, validateEvent, type EventField } from '../lib/eventValidation'
 import { eventTypeOptions, isStandardEventType } from '../lib/eventTypes'
 import { filterEvents, type CommunityFilterOption, type ModalityFilter, type TimeFilter } from '../lib/eventFilters'
-import { eventSlug, formatEventDateRange, formatEventLocation, formatTimeRange, isEventPast, slugify } from '../lib/format'
+import { eventSlug, formatEventDateRange, formatEventLocation, formatTimeRange, isEventPast, meetingActionLabel, slugify } from '../lib/format'
 import { peruDepartments, peruLocations } from '../lib/peruLocations'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { eventBannerOptimization, optimizeImageForUpload } from '../lib/imageOptimization'
@@ -253,12 +253,12 @@ const emptyEvent: EventInput = { communityId: '', organizerName: '', title: '', 
 type EditorSectionId = 'information' | 'datetime' | 'registration' | 'location' | 'publication'
 
 const editorSections = [
-  { id: 'information', label: 'Información principal' },
-  { id: 'datetime', label: 'Fecha y hora' },
-  { id: 'registration', label: 'Inscripción' },
-  { id: 'location', label: 'Ubicación y Acceso' },
-  { id: 'publication', label: 'Publicación' },
-] as const satisfies Array<{ id: EditorSectionId; label: string }>
+  { id: 'information', number: '01', label: 'Información principal' },
+  { id: 'datetime', number: '02', label: 'Fecha y hora' },
+  { id: 'registration', number: '03', label: 'Inscripción' },
+  { id: 'location', number: '04', label: 'Ubicación y Acceso' },
+  { id: 'publication', number: '05', label: 'Publicación' },
+] as const satisfies Array<{ id: EditorSectionId; number: string; label: string }>
 
 function toLimaIso(value: string) {
   if (!value) return ''
@@ -304,9 +304,7 @@ export function EventEditorPage() {
   const [bannerCropSource, setBannerCropSource] = useState<{ file: File; url: string } | null>(null)
   const [bannerProcessing, setBannerProcessing] = useState(false)
   const [savedEventId, setSavedEventId] = useState<string | undefined>(eventId)
-  const [previewOpen, setPreviewOpen] = useState(false)
-  const previewToggleRef = useRef<HTMLButtonElement>(null)
-  const lastActiveEditorSectionRef = useRef(activeSection)
+  const [summaryOpen, setSummaryOpen] = useState(false)
   const removedCoverPathRef = useRef<string | null>(null)
   const intentionalNavigationRef = useRef(false)
   const currentEvent = managedEvents.find((event) => event.id === eventId)
@@ -366,25 +364,6 @@ export function EventEditorPage() {
   useEffect(() => { if (!dirty) return; const warn = (event: BeforeUnloadEvent) => { if (intentionalNavigationRef.current) return; event.preventDefault(); event.returnValue = '' }; window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn) }, [dirty])
   useEffect(() => () => { if (bannerPreview.startsWith('blob:')) URL.revokeObjectURL(bannerPreview) }, [bannerPreview])
   useEffect(() => () => { if (bannerCropSource?.url.startsWith('blob:')) URL.revokeObjectURL(bannerCropSource.url) }, [bannerCropSource?.url])
-  useEffect(() => {
-    if (!previewOpen) return
-    const handlePreviewKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      setPreviewOpen(false)
-      previewToggleRef.current?.focus()
-    }
-    window.addEventListener('keydown', handlePreviewKeyDown)
-    return () => window.removeEventListener('keydown', handlePreviewKeyDown)
-  }, [previewOpen])
-  useEffect(() => {
-    if (lastActiveEditorSectionRef.current === activeSection) return
-    lastActiveEditorSectionRef.current = activeSection
-    const frame = window.requestAnimationFrame(() => {
-      const panel = document.getElementById('editor-active-panel')
-      if (panel && typeof panel.scrollIntoView === 'function') panel.scrollIntoView({ block: 'start', behavior: 'smooth' })
-    })
-    return () => window.cancelAnimationFrame(frame)
-  }, [activeSection])
   useEffect(() => {
     let active = true
     if (!scheduleIsComplete) {
@@ -577,45 +556,9 @@ export function EventEditorPage() {
   const summaryProgressPercent = summaryMilestoneReady ? 100 : Math.max(8, 100 - summaryMilestoneMissing.length * 20)
   const statusLabel = currentEvent ? (hasPast ? 'Ya pasó' : currentEvent.status === 'published' ? 'Publicado' : currentEvent.status === 'draft' ? 'Borrador' : 'Archivado') : 'Borrador nuevo'
   const visibleEditorSections = useMemo(() => editorSections.filter((section) => section.id !== 'location' || needsLocationAccess), [needsLocationAccess])
-  const previewCommunity = availableCommunities.find((community) => community.id === form.communityId)
-  const previewMembership = memberships.find((membership) => membership.communityId === form.communityId)
-  const previewEvent: EventItem = {
-    id: savedEventId || 'event-preview',
-    slug: form.slug || eventSlug(form.title, previewCommunity?.slug || previewMembership?.communitySlug) || 'evento-preview',
-    communityId: form.communityId,
-    communityName: previewCommunity?.name || previewMembership?.communityName || form.organizerName || 'Tu comunidad',
-    communitySlug: previewCommunity?.slug || previewMembership?.communitySlug || '',
-    communityLogoPath: previewCommunity?.logoPath || previewMembership?.communityLogoPath || null,
-    communityColor: previewCommunity?.brandColor || previewMembership?.communityColor || null,
-    organizerName: form.organizerName || previewMembership?.communityName || null,
-    creatorEmail: null,
-    title: form.title.trim() || 'Título del evento',
-    description: form.description,
-    type: form.type,
-    startsAt: conflictStart || null,
-    endsAt: conflictEnd || null,
-    isAllDay: form.isAllDay,
-    timezone: 'America/Lima',
-    locationType: form.locationType,
-    accessMode: form.accessMode,
-    locationPrecision: form.locationPrecision,
-    locationDepartment: form.locationDepartment,
-    locationProvince: form.locationProvince,
-    venueName: form.venueName,
-    address: form.address,
-    mapUrl: form.mapUrl,
-    placeId: form.placeId,
-    formattedAddress: form.formattedAddress,
-    latitude: form.latitude,
-    longitude: form.longitude,
-    meetingUrl: form.meetingUrl || null,
-    meetingProvider: form.meetingProvider,
-    meetingLinkVisibility: form.meetingLinkVisibility,
-    registrationUrl: form.registrationUrl || null,
-    coverPath: bannerPreview || form.coverPath || null,
-    visibility: form.visibility,
-    status: form.status,
-  }
+  const activeSectionIndex = visibleEditorSections.findIndex((section) => section.id === activeSection)
+  const previousSection = activeSectionIndex > 0 ? visibleEditorSections[activeSectionIndex - 1] : undefined
+  const nextSection = activeSectionIndex < visibleEditorSections.length - 1 ? visibleEditorSections[activeSectionIndex + 1] : undefined
 
   const persist = async (status: EventInput['status'], visibility = form.visibility) => {
     const validationInput = { ...form, visibility }
@@ -683,25 +626,12 @@ export function EventEditorPage() {
   if (loading) return <LoadingState label="Cargando editor" />
   return (
     <div className="dashboard-page event-editor-page">
-      <div className="event-editor-toolbar">
-        <Link className="editor-back-button" to="/app/eventos" onClick={confirmLeave} aria-label="Volver a eventos" title="Volver a eventos"><ChevronLeft size={20} aria-hidden="true" /></Link>
-        <div className="editor-progress" role="tablist" aria-label="Secciones del evento" onKeyDown={(event) => {
-          const tab = (event.target as HTMLElement).closest<HTMLButtonElement>('[role="tab"]')
-          const index = visibleEditorSections.findIndex((section) => `editor-tab-${section.id}` === tab?.id)
-          if (index < 0) return
-          const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? visibleEditorSections.length - 1 : event.key === 'ArrowRight' ? (index + 1) % visibleEditorSections.length : event.key === 'ArrowLeft' ? (index - 1 + visibleEditorSections.length) % visibleEditorSections.length : -1
-          if (nextIndex < 0) return
-          event.preventDefault()
-          setActiveSection(visibleEditorSections[nextIndex].id)
-          event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus()
-        }}>
-          {visibleEditorSections.map((section) => <EditorProgressStep key={section.id} {...section} active={activeSection === section.id} onClick={() => setActiveSection(section.id)} />)}
-        </div>
-        <button className="editor-toolbar-save" type="submit" form="event-editor-form" disabled={saving || !draftValidation.valid} aria-label={saving ? 'Guardando evento…' : form.status === 'published' ? 'Guardar cambios' : 'Guardar borrador'} title={saving ? 'Guardando…' : form.status === 'published' ? 'Guardar cambios' : 'Guardar borrador'}><Check size={19} strokeWidth={2.5} aria-hidden="true" /></button>
+      <div className={`editor-progress editor-progress--${visibleEditorSections.length}`} role="tablist" aria-label="Secciones del evento">
+        {visibleEditorSections.map((section) => <EditorProgressStep key={section.id} {...section} active={activeSection === section.id} complete={section.id === 'publication'} onClick={() => setActiveSection(section.id)} />)}
       </div>
       <div className="event-editor-layout">
-        <form id="event-editor-form" className="event-editor-card" onSubmit={(event) => void save(event)}>
-          {activeSection === 'information' && <section className="editor-section" id="editor-active-panel" role="tabpanel" aria-labelledby="editor-tab-information" tabIndex={-1}>
+        <form className="event-editor-card" onSubmit={(event) => void save(event)}>
+          {activeSection === 'information' && <section className="editor-section" id="editor-information" role="tabpanel" aria-labelledby="editor-tab-information" tabIndex={-1}>
             <div className={`form-grid ${isPlatformAdmin ? '' : 'form-grid--single'}`}>
               {isPlatformAdmin && <label className="editor-field"><FieldLabel required={!form.communityId}>Comunidad</FieldLabel><select aria-invalid={Boolean(fieldErrors.communityId)} aria-describedby={fieldErrors.communityId ? 'event-community-error' : undefined} value={form.communityId || ''} onChange={(event) => update('communityId', event.target.value || null)}><option value="">Evento independiente</option>{availableCommunities.map((community) => <option value={community.id} key={community.id}>{community.name}</option>)}</select><FieldError id="event-community-error" message={fieldErrors.communityId} /></label>}
               {isPlatformAdmin && !form.communityId && <label className="editor-field"><FieldLabel required>Organizador</FieldLabel><input aria-invalid={Boolean(fieldErrors.organizerName)} aria-describedby={fieldErrors.organizerName ? 'event-organizer-error' : undefined} value={form.organizerName || ''} onChange={(event) => update('organizerName', event.target.value)} placeholder="Ej. Asociación de desarrolladores" /><FieldError id="event-organizer-error" message={fieldErrors.organizerName} /></label>}
@@ -719,7 +649,7 @@ export function EventEditorPage() {
               <label className="editor-field"><FieldLabel required={form.visibility === 'public'}>Descripción</FieldLabel><textarea aria-invalid={Boolean(fieldErrors.description)} aria-describedby={fieldErrors.description ? 'event-description-error' : undefined} rows={5} maxLength={EVENT_DESCRIPTION_MAX_LENGTH} value={form.description} onChange={(event) => update('description', event.target.value)} placeholder="Cuenta qué aprenderán o encontrarán las personas asistentes." /><div className="field-meta"><small className="field-help">Usa una descripción breve y concreta.</small><small className="field-count">{form.description.length}/{EVENT_DESCRIPTION_MAX_LENGTH}</small></div><FieldError id="event-description-error" message={fieldErrors.description} /></label>
           </section>}
 
-          {activeSection === 'registration' && <section className="editor-section" id="editor-active-panel" role="tabpanel" aria-labelledby="editor-tab-registration" tabIndex={-1}>
+          {activeSection === 'registration' && <section className="editor-section" id="editor-registration" role="tabpanel" aria-labelledby="editor-tab-registration" tabIndex={-1}>
             <div className="registration-editor-intro"><h2>Inscripción</h2><p>Añade un enlace y gestiona las inscripciones desde tu comunidad, o activa las opciones de ubicación y conexión para compartir dónde y cómo participar.</p></div>
             <label className="editor-field"><FieldLabel required={false}>Enlace de inscripción</FieldLabel><input type="url" aria-invalid={Boolean(fieldErrors.registrationUrl)} aria-describedby="event-registration-help event-registration-error" value={form.registrationUrl} onChange={(event) => update('registrationUrl', event.target.value)} placeholder="https://…" /><small className="field-help" id="event-registration-help">La comunidad puede gestionar la plataforma de inscripción que prefiera.</small><FieldError id="event-registration-error" message={fieldErrors.registrationUrl} /></label>
             <fieldset className="editor-choice-group registration-mode-group"><legend><FieldLabel required={false}>¿Qué quieres gestionar en este evento?</FieldLabel></legend><div className="choice-grid choice-grid-two">
@@ -729,7 +659,7 @@ export function EventEditorPage() {
             <p className="editor-inline-note"><CircleAlert size={16} aria-hidden="true" /> Si activas “Ubicación y acceso”, aparecerá una sección adicional antes de Publicación.</p>
           </section>}
 
-          {activeSection === 'datetime' && <section className="editor-section" id="editor-active-panel" role="tabpanel" aria-labelledby="editor-tab-datetime" tabIndex={-1}>
+          {activeSection === 'datetime' && <section className="editor-section" id="editor-datetime" role="tabpanel" aria-labelledby="editor-tab-datetime" tabIndex={-1}>
             <fieldset className="editor-choice-group schedule-mode-group"><legend><FieldLabel required={false}>Duración del evento</FieldLabel></legend><div className="choice-grid choice-grid-two"><ChoiceCard name="event-date-mode" value="single" checked={schedule.mode === 'single'} onChange={() => updateSchedule({ mode: 'single' })} icon={<CalendarDays size={19} aria-hidden="true" />} label="Un día" description="Una fecha con hora de inicio y fin" /><ChoiceCard name="event-date-mode" value="range" checked={schedule.mode === 'range'} onChange={() => updateSchedule({ mode: 'range' })} icon={<CalendarDays size={19} aria-hidden="true" />} label="Varias fechas" description="Un rango continuo de días" /></div></fieldset>
             <div className="form-grid schedule-dates">
               <label className="editor-field"><FieldLabel required>{schedule.mode === 'single' ? 'Fecha del evento' : 'Fecha de inicio'}</FieldLabel><input type="date" min={todayDateKey} aria-invalid={Boolean(fieldErrors.startsAt)} aria-describedby={fieldErrors.startsAt ? 'event-start-error event-start-help' : 'event-start-help'} value={schedule.startDate} onChange={(event) => updateSchedule({ startDate: event.target.value })} /><small className="field-help" id="event-start-help">Desde hoy · Formato: dd/mm/aaaa</small><FieldError id="event-start-error" message={fieldErrors.startsAt} /></label>
@@ -740,7 +670,7 @@ export function EventEditorPage() {
             <EventConflictNotice status={conflictState.status} conflicts={conflictState.conflicts} hasMore={conflictState.hasMore} error={conflictState.error} />
           </section>}
 
-          {activeSection === 'location' && <section className="editor-section" id="editor-active-panel" role="tabpanel" aria-labelledby="editor-tab-location" tabIndex={-1}>
+          {activeSection === 'location' && <section className="editor-section" id="editor-location" role="tabpanel" aria-labelledby="editor-tab-location" tabIndex={-1}>
             <fieldset className="editor-choice-group"><legend><FieldLabel required={false}>Modalidad</FieldLabel></legend><div className="choice-grid choice-grid-three">{(['venue', 'online', 'hybrid'] as const).map((locationType) => <ChoiceCard key={locationType} name="locationType" value={locationType} checked={form.locationType === locationType} onChange={() => updateLocationType(locationType)} icon={locationType === 'venue' ? <MapPinned size={19} aria-hidden="true" /> : locationType === 'online' ? <Video size={19} aria-hidden="true" /> : <><MapPinned size={19} aria-hidden="true" /><Video size={17} aria-hidden="true" /></>} label={locationType === 'venue' ? 'Presencial' : locationType === 'online' ? 'Online' : 'Híbrido'} description={locationType === 'venue' ? 'En un lugar físico' : locationType === 'online' ? 'Solo por videollamada' : 'Lugar y videollamada'} />)}</div></fieldset>
             <p className="editor-inline-note"><CircleAlert size={16} aria-hidden="true" /> La modalidad es obligatoria. Para publicar, completa la ubicación o elige «No compartir» y decide si compartir el enlace de sesión cuando corresponda.</p>
             {needsPhysicalLocation && <>
@@ -776,7 +706,7 @@ export function EventEditorPage() {
             </div>}
           </section>}
 
-          {activeSection === 'publication' && <section className="editor-section" id="editor-active-panel" role="tabpanel" aria-labelledby="editor-tab-publication" tabIndex={-1}>
+          {activeSection === 'publication' && <section className="editor-section" id="editor-publication" role="tabpanel" aria-labelledby="editor-tab-publication" tabIndex={-1}>
             <fieldset className="editor-choice-group"><legend><FieldLabel required={false}>Visibilidad</FieldLabel></legend><div className="choice-grid choice-grid-two"><ChoiceCard name="visibility" value="network" checked={form.visibility === 'network'} onChange={() => update('visibility', 'network')} icon={<LockKeyhole size={19} aria-hidden="true" />} label="Solo Comunidades" description="Personas de comunidades aliadas de IGDA Perú" /><ChoiceCard name="visibility" value="public" checked={form.visibility === 'public'} onChange={() => update('visibility', 'public')} icon={<Globe2 size={19} aria-hidden="true" />} label="Público" description="Cualquier visitante, agenda y embed" /></div></fieldset>
             <p className="editor-inline-note"><CircleAlert size={16} aria-hidden="true" /> La visibilidad se confirma justo antes de publicar.</p>
           </section>}
@@ -784,22 +714,41 @@ export function EventEditorPage() {
           <FormError message={error} />
           <div className="editor-actions">
             <div className="editor-actions-left"><Link className="secondary-button" to="/app/eventos" onClick={confirmLeave}>Cancelar</Link>{deleteAllowed && <button className="danger-button" type="button" disabled={saving} onClick={() => void remove()}>Eliminar evento</button>}</div>
-            {activeSection === 'publication' && form.status !== 'published' && !hasPast && <div className="editor-actions-primary"><button className="primary-button publish-action" type="button" disabled={saving} onClick={requestPublish}>Revisar y publicar <ChevronRight size={17} /></button></div>}
+            <div className="editor-actions-primary">
+              <button className="primary-button" disabled={saving || !draftValidation.valid}>{saving ? 'Guardando…' : form.status === 'published' ? 'Guardar cambios' : 'Guardar borrador'}</button>
+              <div className="editor-navigation">
+                {previousSection && <button className="secondary-button section-navigation-button" type="button" onClick={() => setActiveSection(previousSection.id)}><ChevronLeft size={17} /> Sección anterior</button>}
+                {nextSection && <button className="primary-button section-navigation-button" type="button" onClick={() => setActiveSection(nextSection.id)}>Siguiente <ChevronRight size={17} /></button>}
+                {activeSection === 'publication' && form.status !== 'published' && !hasPast && <button className="secondary-button publish-action" type="button" disabled={saving} onClick={requestPublish}>Revisar y publicar <ChevronRight size={17} /></button>}
+              </div>
+            </div>
           </div>
         </form>
+        <div className={`editor-summary-shell ${summaryOpen ? 'is-open' : ''}`}>
+          <button className="editor-summary-toggle" type="button" aria-expanded={summaryOpen} aria-controls="event-editor-summary" onClick={() => setSummaryOpen((current) => !current)}>
+            <Clipboard size={17} aria-hidden="true" /> {summaryOpen ? 'Ocultar resumen' : 'Resumen'}
+          </button>
+          <aside className="editor-summary" id="event-editor-summary" aria-label="Resumen del evento">
+            <div className="editor-summary-card">
+              <div className="summary-card-heading"><span className={`status-label ${currentEvent?.status || 'draft'}`}>{statusLabel}</span>{dirty && <span className="unsaved-label">Cambios sin guardar</span>}</div>
+               {bannerPreview && <img className="summary-cover" src={bannerPreview} alt={form.title.trim() ? `Banner de ${form.title.trim()}` : 'Vista previa del banner'} />}
+               <h2>{form.title.trim() || 'Tu evento aparecerá aquí'}</h2>
+               <p>{form.description.trim() || 'Completa la información para preparar una publicación clara.'}</p>
+               <div className="summary-divider" />
+               <div className="summary-schedule"><CalendarDays size={17} aria-hidden="true" /><span><strong>{formatEventDateRange(conflictStart, conflictEnd, form.isAllDay)}</strong><small>{formatTimeRange(conflictStart, conflictEnd, form.isAllDay)} · Hora de Lima</small></span></div>
+                <div className="summary-location-access">
+                  <div><MapPinned size={17} aria-hidden="true" /><span><strong>Ubicación</strong><small>{formatEventLocation(form)}</small></span></div>
+                  {form.accessMode === 'registration_only' && form.registrationUrl.trim() ? <div><ExternalLink size={17} aria-hidden="true" /><span><strong>Inscripción</strong><a className="summary-registration-link" href={form.registrationUrl.trim()} target="_blank" rel="noreferrer">Abrir enlace de inscripción <ExternalLink size={13} aria-hidden="true" /></a></span></div> : <div><Video size={17} aria-hidden="true" /><span><strong>Acceso</strong><small>{[form.registrationUrl.trim() ? 'Inscripción disponible' : '', form.meetingUrl.trim() ? meetingActionLabel(form.meetingProvider) : ''].filter(Boolean).join(' · ') || 'Sin enlace compartido'}</small></span></div>}
+               </div>
+               <div className="summary-progress"><div className="summary-progress-top"><span>Listo para publicar</span><strong>{summaryProgressPercent}%</strong></div><div className="summary-progress-track"><span style={{ width: `${summaryProgressPercent}%` }} /></div></div>
+               <div className={`summary-missing ${summaryMilestoneReady ? 'summary-missing-ready' : ''}`}><strong>{summaryMilestoneLabel}{summaryMilestoneReady ? ' listo' : ''}</strong>{summaryMilestoneReady ? <small>{form.visibility === 'network' ? 'Ya puedes publicar este evento solo para la red.' : 'Completa la revisión para publicar este evento.'}</small> : <><span className="summary-missing-caption">Falta:</span><ul>{summaryMilestoneMissing.slice(0, 4).map((label) => <li key={label}>{label}</li>)}</ul></>}{summaryMilestoneMissing.length > 4 && <small>+{summaryMilestoneMissing.length - 4} campos más</small>}</div>
+            <div className="summary-visibility"><span>{form.visibility === 'public' ? <Globe2 size={16} aria-hidden="true" /> : <LockKeyhole size={16} aria-hidden="true" />} Visibilidad</span><strong>{form.visibility === 'public' ? 'Público' : 'Solo Comunidades'}</strong></div>
+              <button className="primary-button full" type="button" disabled={saving} onClick={requestPublish}>{publishReady ? 'Revisar publicación' : 'Ver qué falta'} <ChevronRight size={17} /></button>
+            </div>
+            <p className="editor-summary-help">Los borradores solo necesitan una comunidad, un título y una fecha. Podrás completar el resto cuando quieras.</p>
+          </aside>
+        </div>
       </div>
-      <button ref={previewToggleRef} className="editor-preview-toggle" type="button" aria-expanded={previewOpen} aria-controls="event-editor-preview" onClick={() => setPreviewOpen((current) => !current)}>
-        <Eye size={17} aria-hidden="true" /> {previewOpen ? 'Ocultar vista previa' : 'Vista previa'}
-      </button>
-      <aside className="editor-live-preview" id="event-editor-preview" aria-label="Vista previa pública del evento" hidden={!previewOpen}>
-        <div className="editor-live-preview-heading"><div><span className="dashboard-kicker">Vista pública</span><strong>Así se verá tu evento</strong></div><button className="icon-button" type="button" aria-label="Cerrar vista previa" onClick={() => { setPreviewOpen(false); previewToggleRef.current?.focus() }}><X size={17} aria-hidden="true" /></button></div>
-        <div className="editor-live-preview-state"><span className={`status-label ${currentEvent?.status || 'draft'}`}>{statusLabel}</span>{dirty && <span className="unsaved-label">Cambios sin guardar</span>}</div>
-        <div className="editor-live-preview-card"><EventCard event={previewEvent} compact showCover /><p className="editor-live-preview-description">{form.description.trim() || 'La descripción del evento aparecerá aquí.'}</p></div>
-        <div className="summary-progress"><div className="summary-progress-top"><span>Listo para publicar</span><strong>{summaryProgressPercent}%</strong></div><div className="summary-progress-track"><span style={{ width: `${summaryProgressPercent}%` }} /></div></div>
-        <div className={`summary-missing ${summaryMilestoneReady ? 'summary-missing-ready' : ''}`}><strong>{summaryMilestoneLabel}{summaryMilestoneReady ? ' listo' : ''}</strong>{summaryMilestoneReady ? <small>{form.visibility === 'network' ? 'Ya puedes publicar este evento solo para la red.' : 'Completa la revisión para publicar este evento.'}</small> : <><span className="summary-missing-caption">Falta:</span><ul>{summaryMilestoneMissing.slice(0, 4).map((label) => <li key={label}>{label}</li>)}</ul></>}{summaryMilestoneMissing.length > 4 && <small>+{summaryMilestoneMissing.length - 4} campos más</small>}</div>
-        <div className="summary-visibility"><span>{form.visibility === 'public' ? <Globe2 size={16} aria-hidden="true" /> : <LockKeyhole size={16} aria-hidden="true" />} Visibilidad</span><strong>{form.visibility === 'public' ? 'Público' : 'Solo Comunidades'}</strong></div>
-        <button className="primary-button full" type="button" disabled={saving} onClick={requestPublish}>{publishReady ? 'Revisar publicación' : 'Ver qué falta'} <ChevronRight size={17} /></button>
-      </aside>
       {bannerCropSource && <BannerCropDialog key={bannerCropSource.url} sourceUrl={bannerCropSource.url} fileName={bannerCropSource.file.name} processing={bannerProcessing} error={bannerError} onCancel={closeBannerCrop} onConfirm={confirmBannerCrop} />}
       <PublicationReviewModal open={publicationOpen} form={form} bannerPreview={bannerPreview} missingLabels={publishMissingLabels} ready={publishReady} visibility={publicationVisibility} onVisibilityChange={setPublicationVisibility} onClose={() => setPublicationOpen(false)} onConfirm={() => void confirmPublish()} saving={saving} />
       <LeaveEditorModal open={leaveOpen} onClose={() => setLeaveOpen(false)} onDiscard={discardAndLeave} onSaveDraft={() => void persist('draft')} saving={saving} />
@@ -807,8 +756,8 @@ export function EventEditorPage() {
   )
 }
 
-function EditorProgressStep({ id, label, active, onClick }: { id: EditorSectionId; label: string; active: boolean; onClick: () => void }) {
-  return <button className={`editor-progress-step ${active ? 'active' : ''}`} type="button" role="tab" aria-selected={active} aria-controls="editor-active-panel" aria-label={label} tabIndex={active ? 0 : -1} id={`editor-tab-${id}`} onClick={onClick}>{label}</button>
+function EditorProgressStep({ id, number, label, active, complete, onClick }: { id: EditorSectionId; number: string; label: string; active: boolean; complete: boolean; onClick: () => void }) {
+  return <button className={`editor-progress-step ${active ? 'active' : ''} ${complete ? 'complete' : ''}`} type="button" role="tab" aria-selected={active} aria-controls={`editor-${id}`} id={`editor-tab-${id}`} onClick={onClick}><span>{complete ? <Check size={14} aria-hidden="true" /> : number}</span><strong>{label}</strong></button>
 }
 
 function ChoiceCard({ name, value, checked, onChange, icon, label, description }: { name: string; value: string; checked: boolean; onChange: () => void; icon: ReactNode; label: string; description: string }) {
