@@ -73,20 +73,10 @@ export const onRequestGet = async ({ request, env, params, waitUntil }: PagesCon
 
     const legacyPath = LEGACY_BANNERS.get(slug)
     if (legacyPath && bannerPath === `https://igda.pe${legacyPath}`) {
-      const legacyResponse = await fetch(bannerPath, { redirect: 'error' })
-      if (!legacyResponse.ok) {
-        return legacyResponse.status === 404
-          ? errorResponse('El archivo del banner no existe.', 404)
-          : errorResponse('No pudimos cargar el archivo del banner.', 502)
-      }
-
-      const contentType = legacyResponse.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase()
-      if (contentType !== 'image/png') return errorResponse('El archivo del banner no es válido.', 502)
-
-      const response = new Response(legacyResponse.body, {
-        status: 200,
+      const response = new Response(null, {
+        status: 302,
         headers: {
-          'content-type': 'image/png',
+          location: bannerPath,
           'cache-control': CACHE_CONTROL,
           'x-content-type-options': 'nosniff',
         },
