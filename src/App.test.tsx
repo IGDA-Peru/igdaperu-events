@@ -901,6 +901,10 @@ describe('public events', () => {
     expect(screen.queryByRole('heading', { name: 'Información principal' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Siguiente/ }))
+    expect(screen.getByRole('tab', { name: /Colaboración/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('heading', { name: 'Colaboración' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Revisar y publicar/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Siguiente/ }))
     expect(screen.queryByRole('heading', { name: 'Publicación' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Revisar y publicar/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Siguiente/ })).not.toBeInTheDocument()

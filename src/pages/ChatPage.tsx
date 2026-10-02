@@ -1,4 +1,4 @@
-import { Archive, Check, ChevronRight, Clock3, LockKeyhole, MessageCircle, Plus, Send, Shield, X } from 'lucide-react'
+import { Archive, CalendarDays, Check, ChevronRight, Clock3, LockKeyhole, MessageCircle, Plus, Send, Shield, Users, X } from 'lucide-react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -6,7 +6,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useAuth } from '../auth/useAuth'
 import { CommunityLogo } from '../components/CommunityLogo'
 import { ErrorState, LoadingState } from '../components/Feedback'
-import { archiveConversation, createConversation, getConversationMessages, listCommunities, listConversations, markConversationRead, respondToConversation, sendMessage } from '../lib/data'
+import { archiveConversation, createConversation, getConversationMessages, listCommunities, listConversations, markConversationRead, respondToConversation, respondToEventCollaboration, sendMessage } from '../lib/data'
 import { supabase } from '../lib/supabase'
 import type { ChatIdentity, ChatMessage, Community, CommunityConversation, Membership } from '../types'
 
@@ -92,7 +92,22 @@ function NewConversationDialog({ open, identities, communities, onClose, onCreat
   </section></div>
 }
 
-function ChatThread({ conversation, canAccept, onChanged, onArchived }: { conversation: CommunityConversation | null; canAccept: boolean; onChanged: () => void; onArchived: () => void }) {
+export function EventCollaborationMessage({ message, incoming, canRespond, responding, onRespond }: { message: ChatMessage; incoming: boolean; canRespond: boolean; responding: boolean; onRespond: (accept: boolean) => void }) {
+  const collaboration = message.eventCollaboration
+  if (!collaboration) return <article className="chat-message"><p>{message.body}</p></article>
+  const pending = collaboration.status === 'pending'
+  return <article className="chat-collaboration-card">
+    <header><Users size={16} aria-hidden="true" /> Invitación a colaborar</header>
+    <strong>{collaboration.eventTitle}</strong>
+    {collaboration.startsAt && <small><CalendarDays size={14} aria-hidden="true" /> {formatChatDate(collaboration.startsAt)}</small>}
+    <small>Organiza {collaboration.hostCommunityName}</small>
+    {pending && incoming && canRespond
+      ? <div className="chat-collaboration-card-actions"><button className="primary-button" type="button" disabled={responding} onClick={() => onRespond(true)}><Check size={16} aria-hidden="true" /> Aceptar colaboración</button><button className="secondary-button" type="button" disabled={responding} onClick={() => onRespond(false)}>Rechazar</button></div>
+      : <span className="chat-collaboration-card-state">{collaboration.status === 'accepted' ? 'Colaboración aceptada' : collaboration.status === 'rejected' ? 'Invitación rechazada' : 'Esperando respuesta'}</span>}
+  </article>
+}
+
+function ChatThread({ conversation, canAccept, canRespondCollaboration, onChanged, onArchived }: { conversation: CommunityConversation | null; canAccept: boolean; canRespondCollaboration: boolean; onChanged: () => void; onArchived: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
@@ -101,6 +116,7 @@ function ChatThread({ conversation, canAccept, onChanged, onArchived }: { conver
   const [draft, setDraft] = useState('')
   const [error, setError] = useState('')
   const [responding, setResponding] = useState(false)
+  const [respondingCollaborationId, setRespondingCollaborationId] = useState<string | null>(null)
   const conversationId = conversation?.id || null
   const conversationStatus = conversation?.status || null
 
@@ -138,6 +154,7 @@ function ChatThread({ conversation, canAccept, onChanged, onArchived }: { conver
   if (!conversation) return <section className="chat-thread chat-thread-empty"><MessageCircle size={34} aria-hidden="true" /><h2>Selecciona una conversación</h2><p>Elige una conversación de la lista o inicia una nueva con otra comunidad.</p></section>
 
   const isIncoming = conversation.requestedByCommunityId !== conversation.myCommunity.communityId
+  const hasEventCollaborationMessages = messages.some((message) => message.kind === 'event_collaboration' || message.kind === 'event_collaboration_response')
   const loadOlder = async () => {
     const cursor = messages[0]?.createdAt
     if (!conversationId || !cursor || loadingOlder || !hasMore) return
@@ -176,6 +193,20 @@ function ChatThread({ conversation, canAccept, onChanged, onArchived }: { conver
     setError('')
     try { await respondToConversation(conversation.id, accept); onChanged() } catch (reason: unknown) { setError(reason instanceof Error ? reason.message : 'No pudimos actualizar la solicitud.') } finally { setResponding(false) }
   }
+  const respondCollaboration = async (collaborationId: string, accept: boolean) => {
+    setRespondingCollaborationId(collaborationId)
+    setError('')
+    try {
+      await respondToEventCollaboration(collaborationId, accept)
+      const updatedMessages = await getConversationMessages(conversation.id)
+      setMessages(updatedMessages)
+      onChanged()
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'No pudimos responder la invitación.')
+    } finally {
+      setRespondingCollaborationId(null)
+    }
+  }
   const archive = async () => {
     try { await archiveConversation(conversation.id, conversation.myCommunity.communityId); onArchived() } catch (reason: unknown) { setError(reason instanceof Error ? reason.message : 'No pudimos archivar la conversación.') }
   }
@@ -186,9 +217,18 @@ function ChatThread({ conversation, canAccept, onChanged, onArchived }: { conver
   return <section className="chat-thread" aria-labelledby="chat-thread-title">
     <header className="chat-thread-header"><div className="chat-thread-identity"><CommunityLogo path={conversation.otherCommunity.communityLogoPath} name={conversation.otherCommunity.communityName} size="large" decorative /><div><span className="dashboard-kicker">Conversación privada</span><h2 id="chat-thread-title">{conversation.otherCommunity.communityName}</h2><small>{conversationStatusLabel(conversation)}</small></div></div>{conversation.status === 'active' && <button className="secondary-button compact-button" type="button" onClick={() => void archive()}><Archive size={16} aria-hidden="true" /> Archivar</button>}</header>
     <div className="chat-privacy-note"><LockKeyhole size={16} aria-hidden="true" /><span>Solo los miembros autorizados de ambas comunidades pueden ver esta conversación.</span></div>
-    {conversation.status === 'pending' && <div className={`chat-request-state ${isIncoming ? 'incoming' : 'outgoing'}`}><Clock3 size={18} aria-hidden="true" /><div><strong>{isIncoming ? `${conversation.otherCommunity.communityName} quiere conversar contigo` : 'Solicitud enviada'}</strong><p>{isIncoming ? 'Un administrador puede aceptar o rechazar esta conversación.' : 'La comunidad destino debe aceptar antes de que puedan enviarse mensajes.'}</p>{isIncoming && canAccept && <div className="chat-request-actions"><button className="primary-button" type="button" disabled={responding} onClick={() => void respond(true)}><Check size={16} aria-hidden="true" /> Aceptar</button><button className="secondary-button" type="button" disabled={responding} onClick={() => void respond(false)}>Rechazar</button></div>}</div></div>}
-    {conversation.status === 'rejected' && <div className="chat-request-state rejected"><Shield size={18} aria-hidden="true" /><div><strong>Solicitud rechazada</strong><p>Puedes iniciar una nueva solicitud más adelante si necesitas coordinar con esta comunidad.</p></div></div>}
-    {conversation.status === 'active' && <>{loading ? <LoadingState label="Cargando mensajes" /> : <div className="chat-messages" aria-live="polite">{hasMore && <button className="chat-load-more" type="button" onClick={() => void loadOlder()} disabled={loadingOlder}>{loadingOlder ? 'Cargando…' : 'Cargar mensajes anteriores'}</button>}{messages.length ? messages.map((message) => { const mine = message.authorCommunity.communityId === conversation.myCommunity.communityId; return <article className={`chat-message ${mine ? 'mine' : 'theirs'}`} key={message.id}><div className="chat-message-author"><CommunityLogo path={message.authorCommunity.communityLogoPath} name={message.authorCommunity.communityName} size="small" decorative /><span><strong>{message.authorDisplayName}</strong><small>{message.authorCommunity.communityName} · {formatChatDate(message.createdAt)}</small></span></div><p>{message.body}</p></article> }) : <div className="chat-empty-messages"><MessageCircle size={28} aria-hidden="true" /><p>Aún no hay mensajes.</p><small>Escribe para iniciar la coordinación.</small></div>}</div>}{error && <p className="form-message error" role="alert">{error}</p>}<form className="chat-composer" onSubmit={(event) => void submit(event)}><textarea value={draft} maxLength={2000} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleKeyDown} placeholder="Escribe un mensaje…" aria-label="Mensaje" rows={2} /><div className="chat-composer-bottom"><small>{draft.length}/2000 · Enter para enviar</small><button className="primary-button" type="submit" disabled={sending || !draft.trim()}>{sending ? 'Enviando…' : 'Enviar'} <Send size={16} aria-hidden="true" /></button></div></form></>}
+    {conversation.status === 'pending' && !hasEventCollaborationMessages && <div className={`chat-request-state ${isIncoming ? 'incoming' : 'outgoing'}`}><Clock3 size={18} aria-hidden="true" /><div><strong>{isIncoming ? `${conversation.otherCommunity.communityName} quiere conversar contigo` : 'Solicitud enviada'}</strong><p>{isIncoming ? 'Un administrador puede aceptar o rechazar esta conversación.' : 'La comunidad destino debe aceptar antes de que puedan enviarse mensajes.'}</p>{isIncoming && canAccept && <div className="chat-request-actions"><button className="primary-button" type="button" disabled={responding} onClick={() => void respond(true)}><Check size={16} aria-hidden="true" /> Aceptar</button><button className="secondary-button" type="button" disabled={responding} onClick={() => void respond(false)}>Rechazar</button></div>}</div></div>}
+    {conversation.status === 'rejected' && !hasEventCollaborationMessages && <div className="chat-request-state rejected"><Shield size={18} aria-hidden="true" /><div><strong>Solicitud rechazada</strong><p>Puedes iniciar una nueva solicitud más adelante si necesitas coordinar con esta comunidad.</p></div></div>}
+    {(conversation.status === 'active' || hasEventCollaborationMessages) && <>{loading ? <LoadingState label="Cargando mensajes" /> : <div className="chat-messages" aria-live="polite">{conversation.status === 'active' && hasMore && <button className="chat-load-more" type="button" onClick={() => void loadOlder()} disabled={loadingOlder}>{loadingOlder ? 'Cargando…' : 'Cargar mensajes anteriores'}</button>}{messages.length ? messages.map((message) => {
+      if (message.kind === 'event_collaboration') {
+        const collaboration = message.eventCollaboration
+        const incoming = Boolean(collaboration && collaboration.partnerCommunityId === conversation.myCommunity.communityId)
+        return <EventCollaborationMessage key={message.id} message={message} incoming={incoming} canRespond={canRespondCollaboration} responding={respondingCollaborationId === collaboration?.id} onRespond={(accept) => { if (collaboration) void respondCollaboration(collaboration.id, accept) }} />
+      }
+      if (message.kind === 'event_collaboration_response') return <article className="chat-collaboration-response" key={message.id}>{message.body}</article>
+      const mine = message.authorCommunity.communityId === conversation.myCommunity.communityId
+      return <article className={`chat-message ${mine ? 'mine' : 'theirs'}`} key={message.id}><div className="chat-message-author"><CommunityLogo path={message.authorCommunity.communityLogoPath} name={message.authorCommunity.communityName} size="small" decorative /><span><strong>{message.authorDisplayName}</strong><small>{message.authorCommunity.communityName} · {formatChatDate(message.createdAt)}</small></span></div><p>{message.body}</p></article>
+    }) : <div className="chat-empty-messages"><MessageCircle size={28} aria-hidden="true" /><p>Aún no hay mensajes.</p><small>Escribe para iniciar la coordinación.</small></div>}</div>}{error && <p className="form-message error" role="alert">{error}</p>}{conversation.status === 'active' && <form className="chat-composer" onSubmit={(event) => void submit(event)}><textarea value={draft} maxLength={2000} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleKeyDown} placeholder="Escribe un mensaje…" aria-label="Mensaje" rows={2} /><div className="chat-composer-bottom"><small>{draft.length}/2000 · Enter para enviar</small><button className="primary-button" type="submit" disabled={sending || !draft.trim()}>{sending ? 'Enviando…' : 'Enviar'} <Send size={16} aria-hidden="true" /></button></div></form>}</>}
   </section>
 }
 
@@ -210,6 +250,7 @@ export function ConversationsPage() {
   const selectedConversation = conversations.find((conversation) => conversation.id === selectedId) || null
   const selectedRole = selectedConversation ? memberships.find((membership) => membership.communityId === selectedConversation.myCommunity.communityId)?.role : undefined
   const canAccept = Boolean(selectedConversation && selectedConversation.requestedByCommunityId !== selectedConversation.myCommunity.communityId && (isPlatformAdmin || selectedRole === 'community_admin'))
+  const canRespondCollaboration = Boolean(selectedConversation && (selectedRole === 'community_admin' || (isPlatformAdmin && selectedConversation.myCommunity.communitySlug === 'igda-peru')))
 
   useEffect(() => {
     if (!canChat) { setLoading(false); return }
@@ -231,7 +272,7 @@ export function ConversationsPage() {
 
   return <div className="dashboard-page conversations-page">
     <div className="panel-title"><div><h1>Conversaciones</h1><p>Coordina actividades directamente con otras comunidades de la red.</p></div>{canChat && <button className="primary-button" type="button" onClick={() => setNewConversationOpen(true)}><Plus size={17} aria-hidden="true" /> Nueva conversación</button>}</div>
-    {!canChat ? <div className="chat-access-block"><LockKeyhole size={27} aria-hidden="true" /><h2>Conversaciones entre comunidades</h2><p>Necesitas ser administrador o editor de una comunidad para iniciar y responder conversaciones.</p></div> : error ? <ErrorState message={error} /> : loading ? <LoadingState label="Cargando conversaciones" /> : <div className="chat-workspace"><ConversationList conversations={conversations} selectedId={selectedId} onSelect={setSelectedId} /><ChatThread conversation={selectedConversation} canAccept={canAccept} onChanged={reload} onArchived={handleArchived} /></div>}
+    {!canChat ? <div className="chat-access-block"><LockKeyhole size={27} aria-hidden="true" /><h2>Conversaciones entre comunidades</h2><p>Necesitas ser administrador o editor de una comunidad para iniciar y responder conversaciones.</p></div> : error ? <ErrorState message={error} /> : loading ? <LoadingState label="Cargando conversaciones" /> : <div className="chat-workspace"><ConversationList conversations={conversations} selectedId={selectedId} onSelect={setSelectedId} /><ChatThread conversation={selectedConversation} canAccept={canAccept} canRespondCollaboration={canRespondCollaboration} onChanged={reload} onArchived={handleArchived} /></div>}
     <NewConversationDialog open={newConversationOpen} identities={identities} communities={communities} onClose={() => setNewConversationOpen(false)} onCreated={handleCreated} />
   </div>
 }

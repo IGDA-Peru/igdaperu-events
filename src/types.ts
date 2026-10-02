@@ -9,6 +9,26 @@ export type EventAccessMode = 'registration_only' | 'location_access'
 export type MeetingProvider = 'google_meet' | 'zoom' | 'discord' | 'other'
 export type MeetingLinkVisibility = 'shared' | 'none'
 export type ConversationStatus = 'pending' | 'active' | 'rejected'
+export type EventCollaborationStatus = 'pending' | 'accepted' | 'rejected'
+
+export type ExternalEventCollaboratorInput = {
+  id?: string
+  name: string
+  contactUrl: string
+}
+
+export type EventCollaborator = {
+  id: string
+  kind: 'community' | 'external'
+  status: EventCollaborationStatus
+  name: string
+  communityId?: string | null
+  communitySlug?: string | null
+  logoPath?: string | null
+  color?: string | null
+  contactUrl?: string | null
+  conversationId?: string | null
+}
 
 export type Community = {
   id: string
@@ -59,6 +79,7 @@ export type EventItem = {
   coverPath?: string | null
   visibility: EventVisibility
   status: EventStatus
+  collaborators?: EventCollaborator[]
 }
 
 export type EventInput = {
@@ -90,6 +111,8 @@ export type EventInput = {
   coverPath?: string | null
   visibility: EventVisibility
   status: EventStatus
+  collaborationCommunityIds: string[]
+  externalCollaborators: ExternalEventCollaboratorInput[]
 }
 
 export type EventConflict = {
@@ -243,4 +266,15 @@ export type ChatMessage = {
   authorDisplayName: string
   body: string
   createdAt: string
+  kind?: 'text' | 'event_collaboration' | 'event_collaboration_response'
+  eventCollaboration?: {
+    id: string
+    eventId: string
+    eventTitle: string
+    eventSlug: string
+    status: EventCollaborationStatus
+    hostCommunityName: string
+    partnerCommunityId: string
+    startsAt?: string | null
+  } | null
 }

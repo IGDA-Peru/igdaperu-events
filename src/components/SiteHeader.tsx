@@ -165,7 +165,7 @@ export function SiteHeader({ embed = false }: { embed?: boolean }) {
     const closeOnWideViewport = (event: MediaQueryListEvent) => {
       if (event.matches) setMenuOpen(false)
     }
-    const wideViewport = window.matchMedia('(min-width: 821px)')
+    const wideViewport = window.matchMedia('(min-width: 1025px)')
 
     document.addEventListener('keydown', closeOnEscape)
     wideViewport.addEventListener('change', closeOnWideViewport)

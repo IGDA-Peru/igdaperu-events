@@ -7,6 +7,7 @@ import { EventCard, EmptyEvents } from '../components/EventCard'
 import { DemoNotice, ErrorState, LoadingState, PageLoadingState } from '../components/Feedback'
 import { EventPreviewDrawer } from '../components/EventPreviewDrawer'
 import { CommunityLogo } from '../components/CommunityLogo'
+import { EventCollaborators } from '../components/EventCollaborators'
 import { EventFiltersPopover, EventSearchField } from '../components/EventFilters'
 import { PageIndex } from '../components/PageIndex'
 import { TurnstileWidget } from '../components/TurnstileWidget'
@@ -812,6 +813,7 @@ function SpotlightFeature({ event, onOpen, happeningNow = false }: { event: Even
         <SpotlightEventLocation event={event} />
         <SpotlightEventTime event={event} />
         <div className="spotlight-feature-community"><CommunityLogo path={event.communityLogoPath} name={event.communityName} color={event.communityColor} size="small" decorative /><span>Organiza {event.communityName}</span></div>
+        <EventCollaborators collaborators={event.collaborators} />
       </div>
       {participationUrl ? <a className="primary-button spotlight-feature-action spotlight-feature-action--registration" href={participationUrl} target="_blank" rel="noreferrer">{actionLabel} <ExternalLink size={16} aria-hidden="true" /></a> : <button className="spotlight-feature-action spotlight-feature-action--icon" aria-label="Ver evento" type="button" onClick={onOpen}><ChevronRight size={24} aria-hidden="true" /></button>}
     </div>
@@ -827,6 +829,7 @@ function SpotlightUpcomingItem({ event, onOpen, happeningNow = false }: { event:
       <strong>{event.title}</strong>
       <SpotlightEventLocation event={event} />
       <SpotlightEventTime event={event} />
+      <EventCollaborators collaborators={event.collaborators} variant="compact" interactive={false} />
     </span>
     <ChevronRight size={20} aria-hidden="true" />
   </button>

@@ -1,7 +1,7 @@
 import { demoCommunities, demoConversations, demoEvents, demoMessages } from './demo-data'
 import { isSupabaseConfigured, supabase } from './supabase'
 import { eventIntervalsOverlap } from './eventConflicts'
-import type { ChatIdentity, ChatMessage, Community, CommunityConversation, CommunityMember, CommunityMemberEmail, CommunitySyncResult, EventConflict, EventInput, EventItem, EventProposal, EventProposalStatus, EventReport, GoogleCalendarSyncResult, Membership, Profile, Role } from '../types'
+import type { ChatIdentity, ChatMessage, Community, CommunityConversation, CommunityMember, CommunityMemberEmail, CommunitySyncResult, EventCollaborator, EventConflict, EventInput, EventItem, EventProposal, EventProposalStatus, EventReport, GoogleCalendarSyncResult, Membership, Profile, Role } from '../types'
 import { isEventPast } from './format'
 import { communityLogoOptimization, eventBannerOptimization, optimizeImageForUpload } from './imageOptimization'
 
@@ -25,7 +25,7 @@ function invalidatePublicCommunitiesCache() {
 
 const COMMUNITY_SELECT = 'id,slug,name,description,logo_path,banner_path,brand_color,website_url,discord_url,status'
 const PROFILE_SELECT = 'id,display_name,first_name,last_name,avatar_path'
-const EVENT_SELECT = 'id,slug,community_id,organizer_name,title,description,type,starts_at,ends_at,is_all_day,timezone,location_type,access_mode,location_precision,location_department,location_province,venue_name,address,map_url,place_id,formatted_address,latitude,longitude,meeting_url,meeting_provider,meeting_link_visibility,registration_url,cover_path,visibility,status,community:communities(name,slug,status,logo_path,brand_color)'
+const EVENT_SELECT = 'id,slug,community_id,organizer_name,title,description,type,starts_at,ends_at,is_all_day,timezone,location_type,access_mode,location_precision,location_department,location_province,venue_name,address,map_url,place_id,formatted_address,latitude,longitude,meeting_url,meeting_provider,meeting_link_visibility,registration_url,cover_path,visibility,status,community:communities(name,slug,status,logo_path,brand_color),collaborators:event_collaborations(id,partner_community_id,external_name,external_contact_url,status,community:communities(id,slug,name,logo_path,brand_color))'
 const PROPOSAL_SELECT = 'id,organizer_name,contact_email,title,description,type,starts_at,ends_at,is_all_day,timezone,location_type,access_mode,location_precision,location_department,location_province,venue_name,address,map_url,place_id,formatted_address,latitude,longitude,meeting_url,meeting_provider,registration_url,community_id,status,review_notes,rejection_reason,reviewed_at,approved_event_id,created_at,community:communities(name)'
 
 function getPublicEventsCacheKey(options: EventQueryOptions) {
@@ -62,6 +62,20 @@ const mapCommunity = (row: any): Community => ({
 const mapEvent = (row: any): EventItem => {
   const community = Array.isArray(row.community) ? row.community[0] : row.community
   const accessMode = row.access_mode || 'location_access'
+  const collaborators: EventCollaborator[] = (Array.isArray(row.collaborators) ? row.collaborators : []).map((collaboration: any) => {
+    const partner = Array.isArray(collaboration.community) ? collaboration.community[0] : collaboration.community
+    return {
+      id: collaboration.id,
+      kind: collaboration.partner_community_id ? 'community' : 'external',
+      status: collaboration.status,
+      name: partner?.name || collaboration.external_name || 'Comunidad colaboradora',
+      communityId: collaboration.partner_community_id || null,
+      communitySlug: partner?.slug || null,
+      logoPath: partner?.logo_path || null,
+      color: partner?.brand_color || null,
+      contactUrl: collaboration.external_contact_url || null,
+    }
+  })
   return {
     id: row.id,
     slug: row.slug,
@@ -98,6 +112,7 @@ const mapEvent = (row: any): EventItem => {
     coverPath: row.cover_path,
     visibility: row.visibility,
     status: row.status,
+    collaborators,
   }
 }
 
@@ -169,6 +184,17 @@ const mapChatMessage = (row: any): ChatMessage => ({
   authorDisplayName: row.author_display_name || 'Miembro de la comunidad',
   body: row.body,
   createdAt: row.created_at,
+  kind: row.message_kind || 'text',
+  eventCollaboration: row.event_collaboration_id ? {
+    id: row.event_collaboration_id,
+    eventId: row.event_id,
+    eventTitle: row.event_title,
+    eventSlug: row.event_slug,
+    status: row.collaboration_status,
+    hostCommunityName: row.host_community_name || 'Comunidad anfitriona',
+    partnerCommunityId: row.partner_community_id,
+    startsAt: row.event_starts_at,
+  } : null,
 })
 
 export async function listCommunities(includeUnapproved = false, forceRefresh = false): Promise<Community[]> {
@@ -786,6 +812,15 @@ export async function respondToConversation(conversationId: string, accept: bool
   if (error) throw error
 }
 
+export async function respondToEventCollaboration(collaborationId: string, accept: boolean) {
+  if (!supabase) throw new Error('Supabase no está configurado.')
+  const { error } = await supabase.rpc('respond_to_event_collaboration', {
+    p_collaboration_id: collaborationId,
+    p_accept: accept,
+  })
+  if (error) throw error
+}
+
 export async function sendMessage(conversationId: string, communityId: string, body: string): Promise<ChatMessage> {
   if (!supabase) {
     const now = new Date().toISOString()
@@ -859,12 +894,22 @@ export async function saveEvent(input: EventInput, eventId?: string): Promise<Ev
     status: input.status,
   }
   const request = eventId ? supabase.from('events').update(payload).eq('id', eventId) : supabase.from('events').insert(payload)
-  const { data, error } = await request.select(EVENT_SELECT).single()
+  const { data, error } = await request.select('id').single()
   if (error) {
     const details = [error.message, error.details, error.hint].filter(Boolean).join(' · ')
     throw new Error(details || 'No pudimos guardar el evento.')
   }
-  return mapEvent(data)
+  const { error: collaborationError } = await supabase.rpc('sync_event_collaborators', {
+    p_event_id: data.id,
+    p_community_ids: input.collaborationCommunityIds || [],
+    p_external_collaborators: (input.externalCollaborators || []).map(({ name, contactUrl }) => ({ name, contact_url: contactUrl })),
+  })
+  if (collaborationError) {
+    throw new Error(`El evento se guardó, pero no pudimos actualizar sus colaboraciones. ${collaborationError.message}`)
+  }
+  const { data: savedEvent, error: readError } = await supabase.from('events').select(EVENT_SELECT).eq('id', data.id).single()
+  if (readError) throw new Error(`El evento se guardó, pero no pudimos volver a cargarlo. ${readError.message}`)
+  return mapEvent(savedEvent)
 }
 
 export async function archiveEvent(eventId: string) {

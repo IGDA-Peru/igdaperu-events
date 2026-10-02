@@ -6,6 +6,7 @@ import { useAuth } from '../auth/useAuth'
 import { EmptyEvents, EventCard } from '../components/EventCard'
 import { BannerCropDialog } from '../components/BannerCropDialog'
 import { CommunityLogo } from '../components/CommunityLogo'
+import { EventCollaborationEditor } from '../components/EventCollaborationEditor'
 import { EventConflictNotice, type EventConflictStatus } from '../components/EventConflictNotice'
 import { EventFiltersPopover, EventSearchField } from '../components/EventFilters'
 import { EventPreviewDrawer } from '../components/EventPreviewDrawer'
@@ -248,16 +249,17 @@ export function CommunityEventsPage() {
   </div>
 }
 
-const emptyEvent: EventInput = { communityId: '', organizerName: '', title: '', slug: '', description: '', type: 'CHARLA', startsAt: '', endsAt: '', isAllDay: false, locationType: 'venue', accessMode: 'registration_only', locationPrecision: 'none', locationDepartment: '', locationProvince: '', venueName: '', address: '', mapUrl: '', placeId: '', formattedAddress: '', latitude: null, longitude: null, meetingUrl: '', meetingProvider: 'google_meet', meetingLinkVisibility: 'none', registrationUrl: '', coverPath: null, visibility: 'public', status: 'draft' }
+const emptyEvent: EventInput = { communityId: '', organizerName: '', title: '', slug: '', description: '', type: 'CHARLA', startsAt: '', endsAt: '', isAllDay: false, locationType: 'venue', accessMode: 'registration_only', locationPrecision: 'none', locationDepartment: '', locationProvince: '', venueName: '', address: '', mapUrl: '', placeId: '', formattedAddress: '', latitude: null, longitude: null, meetingUrl: '', meetingProvider: 'google_meet', meetingLinkVisibility: 'none', registrationUrl: '', coverPath: null, visibility: 'public', status: 'draft', collaborationCommunityIds: [], externalCollaborators: [] }
 
-type EditorSectionId = 'information' | 'datetime' | 'registration' | 'location' | 'publication'
+type EditorSectionId = 'information' | 'datetime' | 'registration' | 'location' | 'collaboration' | 'publication'
 
 const editorSections = [
   { id: 'information', number: '01', label: 'Información principal' },
   { id: 'datetime', number: '02', label: 'Fecha y hora' },
   { id: 'registration', number: '03', label: 'Inscripción' },
   { id: 'location', number: '04', label: 'Ubicación y Acceso' },
-  { id: 'publication', number: '05', label: 'Publicación' },
+  { id: 'collaboration', number: '05', label: 'Colaboración' },
+  { id: 'publication', number: '06', label: 'Publicación' },
 ] as const satisfies Array<{ id: EditorSectionId; number: string; label: string }>
 
 function toLimaIso(value: string) {
@@ -283,6 +285,7 @@ export function EventEditorPage() {
   const scopedCommunityName = scopedCommunity?.communityName || ''
   const scopedCommunitySlug = scopedCommunity?.communitySlug || ''
   const [availableCommunities, setAvailableCommunities] = useState<Community[]>([])
+  const [collaborationCommunities, setCollaborationCommunities] = useState<Community[]>([])
   const [managedEvents, setManagedEvents] = useState<EventItem[]>([])
   const [form, setForm] = useState<EventInput>(emptyEvent)
   const [schedule, setSchedule] = useState<EventSchedule>(emptyEventSchedule)
@@ -320,7 +323,13 @@ export function EventEditorPage() {
     }
     setAvailableCommunities(scopedCommunityId ? [{ id: scopedCommunityId, slug: scopedCommunitySlug, name: scopedCommunityName, description: '', status: 'approved' }] : [])
   }, [isPlatformAdmin, scopedCommunityId, scopedCommunityName, scopedCommunitySlug])
-  useEffect(() => { if (!eventId) return; setSavedEventId(eventId); if (!manageable.length && !isPlatformAdmin) { setLoading(false); return } void listManagedEvents(manageableIds ? manageableIds.split(',') : [], isPlatformAdmin).then((items) => { setManagedEvents(items); const item = items.find((event) => event.id === eventId); if (item) { const nextSchedule = { ...eventScheduleFromLocalDateTimes(item.startsAt, item.endsAt, item.isAllDay), isAllDay: false }; const localTimes = eventScheduleToLocalDateTimes(nextSchedule); setSchedule(nextSchedule); setForm({ communityId: item.communityId, organizerName: item.organizerName || '', title: item.title, slug: item.slug, description: item.description || '', type: item.type, startsAt: localTimes.startsAt, endsAt: localTimes.endsAt, isAllDay: false, locationType: item.locationType, accessMode: item.accessMode || 'location_access', locationPrecision: item.locationPrecision || 'none', locationDepartment: item.locationDepartment || '', locationProvince: item.locationProvince || '', venueName: item.venueName || '', address: item.address || '', mapUrl: item.mapUrl || '', placeId: item.placeId || '', formattedAddress: item.formattedAddress || '', latitude: item.latitude ?? null, longitude: item.longitude ?? null, meetingUrl: item.meetingUrl || '', meetingProvider: item.meetingProvider === 'google_meet' ? 'google_meet' : 'other', meetingLinkVisibility: item.meetingLinkVisibility || (item.meetingUrl ? 'shared' : 'none'), registrationUrl: item.registrationUrl || '', coverPath: item.coverPath || null, visibility: item.visibility, status: item.status }); setBannerPreview(getEventCoverUrl(item.coverPath) || ''); setDirty(false) } }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'No pudimos cargar el evento.')).finally(() => setLoading(false)) }, [eventId, manageableIds, isPlatformAdmin])
+  useEffect(() => {
+    let active = true
+    void listCommunities().then((items) => { if (active) setCollaborationCommunities(items.filter((community) => community.status === 'approved')) })
+      .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : 'No pudimos cargar las comunidades para colaborar.') })
+    return () => { active = false }
+  }, [])
+  useEffect(() => { if (!eventId) return; setSavedEventId(eventId); if (!manageable.length && !isPlatformAdmin) { setLoading(false); return } void listManagedEvents(manageableIds ? manageableIds.split(',') : [], isPlatformAdmin).then((items) => { setManagedEvents(items); const item = items.find((event) => event.id === eventId); if (item) { const nextSchedule = { ...eventScheduleFromLocalDateTimes(item.startsAt, item.endsAt, item.isAllDay), isAllDay: false }; const localTimes = eventScheduleToLocalDateTimes(nextSchedule); const collaborators = item.collaborators || []; setSchedule(nextSchedule); setForm({ communityId: item.communityId, organizerName: item.organizerName || '', title: item.title, slug: item.slug, description: item.description || '', type: item.type, startsAt: localTimes.startsAt, endsAt: localTimes.endsAt, isAllDay: false, locationType: item.locationType, accessMode: item.accessMode || 'location_access', locationPrecision: item.locationPrecision || 'none', locationDepartment: item.locationDepartment || '', locationProvince: item.locationProvince || '', venueName: item.venueName || '', address: item.address || '', mapUrl: item.mapUrl || '', placeId: item.placeId || '', formattedAddress: item.formattedAddress || '', latitude: item.latitude ?? null, longitude: item.longitude ?? null, meetingUrl: item.meetingUrl || '', meetingProvider: item.meetingProvider === 'google_meet' ? 'google_meet' : 'other', meetingLinkVisibility: item.meetingLinkVisibility || (item.meetingUrl ? 'shared' : 'none'), registrationUrl: item.registrationUrl || '', coverPath: item.coverPath || null, visibility: item.visibility, status: item.status, collaborationCommunityIds: collaborators.filter((collaborator) => collaborator.kind === 'community' && collaborator.communityId).map((collaborator) => collaborator.communityId as string), externalCollaborators: collaborators.filter((collaborator) => collaborator.kind === 'external').map((collaborator) => ({ id: collaborator.id, name: collaborator.name, contactUrl: collaborator.contactUrl || '' })) }); setBannerPreview(getEventCoverUrl(item.coverPath) || ''); setDirty(false) } }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'No pudimos cargar el evento.')).finally(() => setLoading(false)) }, [eventId, manageableIds, isPlatformAdmin])
   useEffect(() => { if (!eventId && !isPlatformAdmin && !form.communityId && availableCommunities[0]) setForm((current) => ({ ...current, communityId: availableCommunities[0].id })) }, [eventId, form.communityId, availableCommunities, isPlatformAdmin])
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -561,7 +570,21 @@ export function EventEditorPage() {
   const nextSection = activeSectionIndex < visibleEditorSections.length - 1 ? visibleEditorSections[activeSectionIndex + 1] : undefined
 
   const persist = async (status: EventInput['status'], visibility = form.visibility) => {
-    const validationInput = { ...form, visibility }
+    const validationInput = { ...form, visibility, collaborationCommunityIds: form.communityId ? form.collaborationCommunityIds : [] }
+    const invalidExternal = form.externalCollaborators.some((collaborator) => {
+      if (collaborator.name.trim().length < 2 || collaborator.name.trim().length > 120) return true
+      try {
+        const url = new URL(collaborator.contactUrl.trim())
+        return !['http:', 'https:'].includes(url.protocol)
+      } catch {
+        return true
+      }
+    })
+    if (invalidExternal) {
+      setActiveSection('collaboration')
+      setError('Completa el nombre y un enlace de contacto válido para cada comunidad externa.')
+      return false
+    }
     const validation = validateEvent(validationInput, status === 'draft' ? 'draft' : 'publish', validationOptions)
     setFieldErrors(validation.errors)
     if (!validation.valid) {
@@ -704,6 +727,20 @@ export function EventEditorPage() {
                 {form.meetingProvider === 'google_meet' ? <div className="meeting-connection-panel" aria-label="Enlace para unirse" aria-live="polite"><div><strong>Google Meet</strong><small>{googleMeetConnection.status === 'loading' ? 'Verificando la cuenta conectada…' : googleMeetConnection.status === 'connected' ? `Cuenta conectada: ${googleMeetConnection.email || 'Google'}` : googleMeetConnection.error || 'Puedes conectar Google para crear un enlace.'}</small></div><div className="meeting-connection-actions">{googleMeetConnection.status === 'connected' ? <button className="secondary-button" type="button" disabled={googleMeetAction !== null} onClick={() => void generateGoogleMeet()}>{googleMeetAction === 'creating' ? 'Creando enlace…' : form.meetingUrl ? 'Regenerar enlace' : 'Generar enlace'}</button> : <button className="secondary-button" type="button" disabled={googleMeetAction !== null || googleMeetConnection.status === 'loading'} onClick={() => void connectGoogleMeet()}>{googleMeetAction === 'connecting' ? 'Conectando…' : 'Conectar Google Meet'}</button>}</div>{!eventId && googleMeetConnection.status === 'connected' && <small className="field-help">Guarda el borrador y vuelve a abrirlo para generar el enlace.</small>}{form.meetingUrl && <a className="meeting-link-preview" href={form.meetingUrl} target="_blank" rel="noreferrer">{form.meetingUrl}</a>}{googleMeetConnection.status === 'error' && <FieldError id="event-meeting-error" message={googleMeetConnection.error} />}</div> : <label className="editor-field"><FieldLabel required>Enlace para unirse</FieldLabel><input type="url" aria-invalid={Boolean(fieldErrors.meetingUrl)} aria-describedby="event-meeting-help event-meeting-error" value={form.meetingUrl} onChange={(event) => update('meetingUrl', event.target.value)} placeholder="https://…" /><small className="field-help" id="event-meeting-help">Necesario para publicar cuando eliges compartirlo.</small><FieldError id="event-meeting-error" message={fieldErrors.meetingUrl} /></label>}
               </> : <p className="editor-inline-note"><Link2Off size={16} aria-hidden="true" /> El enlace de la sesión no se publicará en el evento.</p>}
             </div>}
+          </section>}
+
+          {activeSection === 'collaboration' && <section className="editor-section" id="editor-collaboration" role="tabpanel" aria-labelledby="editor-tab-collaboration" tabIndex={-1}>
+            <div className="registration-editor-intro"><h2>Colaboración</h2><p>Invita a comunidades de la plataforma o añade comunidades externas que ya confirmaron su participación.</p></div>
+            <EventCollaborationEditor
+              hostCommunityId={form.communityId}
+              registeredInvitesAllowed={manageable.some((membership) => membership.communityId === form.communityId) || (isPlatformAdmin && collaborationCommunities.find((community) => community.id === form.communityId)?.slug === 'igda-peru')}
+              communities={collaborationCommunities}
+              communityIds={form.collaborationCommunityIds}
+              externalCollaborators={form.externalCollaborators}
+              collaborators={currentEvent?.collaborators || []}
+              onCommunityIdsChange={(value) => update('collaborationCommunityIds', value)}
+              onExternalCollaboratorsChange={(value) => update('externalCollaborators', value)}
+            />
           </section>}
 
           {activeSection === 'publication' && <section className="editor-section" id="editor-publication" role="tabpanel" aria-labelledby="editor-tab-publication" tabIndex={-1}>

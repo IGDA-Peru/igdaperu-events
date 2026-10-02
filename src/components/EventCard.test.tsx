@@ -13,8 +13,8 @@ const event: EventItem = {
   title: 'Evento de prueba',
   description: 'Descripción del evento.',
   type: 'CHARLA',
-  startsAt: '2026-09-19T19:00:00-05:00',
-  endsAt: '2026-09-19T21:00:00-05:00',
+  startsAt: '2027-09-19T19:00:00-05:00',
+  endsAt: '2027-09-19T21:00:00-05:00',
   isAllDay: false,
   timezone: 'America/Lima',
   locationType: 'venue',
@@ -98,6 +98,27 @@ describe('EventCard visibility', () => {
 
     expect(container.querySelector('.event-row.compact.has-cover')).toBeInTheDocument()
     expect(container.querySelector('.event-card-cover')).toHaveAttribute('src', '/banners/event-1.jpg')
+  })
+
+  it('shows only confirmed collaborators on full and compact cards', () => {
+    const collaborationEvent = {
+      ...event,
+      collaborators: [
+        { id: 'community-collab', kind: 'community' as const, status: 'accepted' as const, name: 'Comunidad aliada', communityId: 'community-2', communitySlug: 'comunidad-aliada' },
+        { id: 'external-collab', kind: 'external' as const, status: 'accepted' as const, name: 'Colectivo externo', contactUrl: 'https://example.org/contacto' },
+        { id: 'pending-collab', kind: 'community' as const, status: 'pending' as const, name: 'Invitación pendiente', communityId: 'community-3', communitySlug: 'pendiente' },
+      ],
+    }
+    const { rerender } = render(<MemoryRouter><EventCard event={collaborationEvent} /></MemoryRouter>)
+
+    expect(screen.getByText('En colaboración con')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Comunidad aliada/ })).toHaveAttribute('href', '/comunidades/comunidad-aliada')
+    expect(screen.getByRole('link', { name: /Colectivo externo/ })).toHaveAttribute('href', 'https://example.org/contacto')
+    expect(screen.queryByText('Invitación pendiente')).not.toBeInTheDocument()
+
+    rerender(<MemoryRouter><EventCard event={collaborationEvent} compact /></MemoryRouter>)
+    expect(screen.getByText('Comunidad aliada')).toBeInTheDocument()
+    expect(screen.queryByText('Invitación pendiente')).not.toBeInTheDocument()
   })
 
   it('calls archive and delete actions from the panel card', () => {

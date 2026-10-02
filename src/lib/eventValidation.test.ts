@@ -30,6 +30,8 @@ const baseEvent: EventInput = {
   registrationUrl: '',
   visibility: 'public',
   status: 'draft',
+  collaborationCommunityIds: [],
+  externalCollaborators: [],
 }
 
 describe('event validation', () => {

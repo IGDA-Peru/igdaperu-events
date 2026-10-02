@@ -7,6 +7,7 @@ import { formatEventDateRange, formatEventLocation, formatTimeRange, isEventPast
 import type { EventItem } from '../types'
 import { VisibilityBadge } from './EventCard'
 import { CommunityLogo } from './CommunityLogo'
+import { EventCollaborators } from './EventCollaborators'
 import { localeTags, useLocale, withLocale } from '../i18n'
 
 type EventPreviewPresentation = 'drawer' | 'modal'
@@ -148,6 +149,7 @@ export function EventPreviewDrawer({
                 <span className="event-preview-meta-value">{event.communityId ? <a href={publicCommunityUrl} target="_blank" rel="noreferrer">{event.communityName}</a> : (event.organizerName || event.communityName || t('event.independent'))}</span>
               </div>
             </div>
+            {event.collaborators?.some((collaborator) => collaborator.status === 'accepted') && <div className="event-preview-meta-item event-preview-collaborator-meta"><EventCollaborators collaborators={event.collaborators} variant="detail" /></div>}
           </div>
           <div className="event-preview-actions">
             {!isPast && event.registrationUrl && <a className="primary-button event-preview-link" href={event.registrationUrl} target="_blank" rel="noreferrer">{t('event.register')} <ExternalLink size={17} /></a>}

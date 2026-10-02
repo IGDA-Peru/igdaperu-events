@@ -5,6 +5,7 @@ import type { EventItem, EventVisibility } from '../types'
 import { getEventCoverUrl } from '../lib/data'
 import { formatDateParts, formatEventLocation, formatEventSchedule, isEventPast } from '../lib/format'
 import { CommunityLogo } from './CommunityLogo'
+import { EventCollaborators } from './EventCollaborators'
 import { localeTags, useLocale } from '../i18n'
 
 export function VisibilityBadge({ visibility }: { visibility: EventVisibility }) {
@@ -60,6 +61,7 @@ export function EventCard({ event, compact = false, showCover = false, showVisib
           <span className="event-time-meta"><Clock3 size={15} aria-hidden="true" />{formatEventSchedule(event.startsAt, event.endsAt, event.isAllDay, dateLocale)}</span>
           {managed && event.creatorEmail && <span className="event-creator-meta" title={t('event.emailCreator')}><Mail size={15} aria-hidden="true" />{t('event.createdBy', { email: event.creatorEmail })}</span>}
         </div>
+        <EventCollaborators collaborators={event.collaborators} />
       </div>
       {hasCover && <img className="event-card-cover" src={coverUrl || undefined} alt="" />}
       {panelActions ? <div className="event-card-actions" role="group" aria-label={t('event.actionsFor', { event: event.title })}>
