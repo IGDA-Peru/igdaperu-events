@@ -1,7 +1,7 @@
 type PagesContext<Env> = {
   request: Request
   env: Env
-  params: { sourceId?: string }
+  params: { slug?: string }
   waitUntil: (promise: Promise<unknown>) => void
 }
 
@@ -11,11 +11,11 @@ type CommunityBannerEnv = {
 }
 
 const CACHE_CONTROL = 'public, max-age=0, s-maxage=60'
-const SOURCE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const COMMUNITY_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const LEGACY_BANNERS = new Map<string, string>([
-  ['3c025d44-53e0-81dc-a305-db168dca8432', '/images/communities/divgames.png'],
-  ['3c025d44-53e0-817a-b5b8-d2acb03bcc9d', '/images/communities/game-dev-friends.png'],
-  ['3d025d44-53e0-81e2-a1ba-e1806e4c6c53', '/images/communities/igda-peru.png'],
+  ['divgames', '/images/communities/divgames.png'],
+  ['game-dev-friends', '/images/communities/game-dev-friends.png'],
+  ['igda-peru', '/images/communities/igda-peru.png'],
 ])
 
 function errorResponse(message: string, status: number) {
@@ -36,14 +36,14 @@ function cacheResponse(response: Response, status: 'HIT' | 'MISS') {
 }
 
 export const onRequestGet = async ({ request, env, params, waitUntil }: PagesContext<CommunityBannerEnv>) => {
-  const sourceId = params.sourceId?.toLowerCase() || ''
-  if (!SOURCE_ID_PATTERN.test(sourceId)) return errorResponse('La comunidad no es válida.', 400)
+  const slug = params.slug?.toLowerCase() || ''
+  if (!COMMUNITY_SLUG_PATTERN.test(slug)) return errorResponse('La comunidad no es válida.', 400)
   if (!env.SUPABASE_URL || !env.SUPABASE_PUBLISHABLE_KEY) {
     return errorResponse('El servicio de banners de comunidades no está configurado.', 500)
   }
 
   const supabaseUrl = env.SUPABASE_URL.replace(/\/$/, '')
-  const cacheKey = new Request(new URL(`/api/community-banner/${sourceId}`, request.url), { method: 'GET' })
+  const cacheKey = new Request(new URL(`/api/community-banner/${slug}`, request.url), { method: 'GET' })
   const cacheStorage = (globalThis as unknown as { caches?: { default?: Cache } }).caches
   const cache = cacheStorage?.default
   const cached = cache ? await cache.match(cacheKey) : undefined
@@ -53,7 +53,7 @@ export const onRequestGet = async ({ request, env, params, waitUntil }: PagesCon
     const communityUrl = new URL(`${supabaseUrl}/rest/v1/communities`)
     communityUrl.search = new URLSearchParams({
       select: 'id,banner_path',
-      source_id: `eq.${sourceId}`,
+      slug: `eq.${slug}`,
       status: 'eq.approved',
       limit: '1',
     }).toString()
@@ -71,7 +71,7 @@ export const onRequestGet = async ({ request, env, params, waitUntil }: PagesCon
     const bannerPath = community?.banner_path
     if (!community?.id || !bannerPath) return errorResponse('La comunidad no tiene un banner publicado.', 404)
 
-    const legacyPath = LEGACY_BANNERS.get(sourceId)
+    const legacyPath = LEGACY_BANNERS.get(slug)
     if (legacyPath && bannerPath === `https://igda.pe${legacyPath}`) {
       const legacyResponse = await fetch(bannerPath, { redirect: 'error' })
       if (!legacyResponse.ok) {

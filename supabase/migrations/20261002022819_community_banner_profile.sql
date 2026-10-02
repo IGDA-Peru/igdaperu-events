@@ -10,11 +10,11 @@ comment on column public.communities.banner_path is
 update public.communities as communities
    set banner_path = legacy.banner_url
   from (values
-    ('3c025d44-53e0-81dc-a305-db168dca8432', 'https://igda.pe/images/communities/divgames.png'),
-    ('3c025d44-53e0-817a-b5b8-d2acb03bcc9d', 'https://igda.pe/images/communities/game-dev-friends.png'),
-    ('3d025d44-53e0-81e2-a1ba-e1806e4c6c53', 'https://igda.pe/images/communities/igda-peru.png')
-  ) as legacy(source_id, banner_url)
- where communities.source_id = legacy.source_id
+    ('divgames', 'https://igda.pe/images/communities/divgames.png'),
+    ('game-dev-friends', 'https://igda.pe/images/communities/game-dev-friends.png'),
+    ('igda-peru', 'https://igda.pe/images/communities/igda-peru.png')
+  ) as legacy(slug, banner_url)
+ where communities.slug = legacy.slug
    and communities.status = 'approved'
    and communities.banner_path is null;
 
