@@ -1,5 +1,5 @@
 {
   "version": 1,
-  "include": ["/api/home-events*", "/api/public-events*", "/api/public-communities*", "/api/community-branding*", "/api/community-banner/*"],
+  "include": ["/api/home-events*", "/api/public-events*", "/api/public-communities*", "/api/community-branding*", "/api/community-activity*", "/api/community-banner/*"],
   "exclude": []
 }
