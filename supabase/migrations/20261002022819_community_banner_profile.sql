@@ -3,21 +3,20 @@ alter table public.communities
   add column if not exists banner_path text;
 
 comment on column public.communities.banner_path is
-  'Ruta del banner público de la comunidad en el bucket community-assets.';
+  'Ruta de community-assets o URL legado del banner público de la comunidad.';
 
--- igda.pe consume únicamente el identificador compartido y la ruta del banner.
--- security_invoker conserva la política RLS de communities (solo aprobadas).
-create or replace view public.igda_site_community_banners
-with (security_invoker = true)
-as
-select source_id, banner_path
-  from public.communities
- where status = 'approved'
-   and source_id is not null
-   and banner_path is not null;
-
-revoke all on public.igda_site_community_banners from public, anon, authenticated;
-grant select on public.igda_site_community_banners to anon, authenticated;
+-- Conserva en eventos los tres banners que ya publica el directorio de igda.pe.
+-- Se reemplazan por una ruta de Storage cuando cada comunidad suba su siguiente banner.
+update public.communities as communities
+   set banner_path = legacy.banner_url
+  from (values
+    ('3c025d44-53e0-81dc-a305-db168dca8432', 'https://igda.pe/images/communities/divgames.png'),
+    ('3c025d44-53e0-817a-b5b8-d2acb03bcc9d', 'https://igda.pe/images/communities/game-dev-friends.png'),
+    ('3d025d44-53e0-81e2-a1ba-e1806e4c6c53', 'https://igda.pe/images/communities/igda-peru.png')
+  ) as legacy(source_id, banner_url)
+ where communities.source_id = legacy.source_id
+   and communities.status = 'approved'
+   and communities.banner_path is null;
 
 -- Conserva los banners de comunidad durante la limpieza de archivos huérfanos.
 create or replace function public.list_orphaned_asset_paths(
