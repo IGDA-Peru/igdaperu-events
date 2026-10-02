@@ -9,7 +9,6 @@ import { EventPreviewDrawer } from '../components/EventPreviewDrawer'
 import { CommunityLogo } from '../components/CommunityLogo'
 import { EventCollaborators } from '../components/EventCollaborators'
 import { EventFiltersPopover, EventSearchField } from '../components/EventFilters'
-import { PageIndex } from '../components/PageIndex'
 import { TurnstileWidget } from '../components/TurnstileWidget'
 import { EventResults, EventViewSwitcher, type EventFocusRequest } from '../components/EventViews'
 import type { EventViewMode } from '../components/eventViewModes'
@@ -543,13 +542,6 @@ export function PublicAgendaPage({ onLiveNoticeChange }: { onLiveNoticeChange?: 
 
   return (
     <div className="page-wrap page-wrap--events">
-      <PageIndex
-        label={t('nav.pageIndex')}
-        links={[
-          { label: t('agenda.upcomingEvents'), href: '#public-agenda-section' },
-          { label: t('agenda.communityTitle'), href: '#public-communities-section' },
-        ]}
-      />
       {!configured && <DemoNotice />}
       <div className="content-grid">
         <section id="public-agenda-section" className="events-section" aria-label={t('agenda.upcomingEvents')}>
