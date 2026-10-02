@@ -58,7 +58,7 @@ function cropImage(image: HTMLImageElement, frame: FrameSize, zoom: number, offs
   if (!context) return Promise.reject(new Error('Este navegador no permite recortar la imagen.'))
   context.imageSmoothingEnabled = true
   context.imageSmoothingQuality = 'high'
-  context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT)
+  context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height)
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (!blob) {
