@@ -16,6 +16,7 @@ export type Community = {
   name: string
   description: string
   logoPath?: string | null
+  bannerPath?: string | null
   brandColor?: string | null
   websiteUrl?: string | null
   discordUrl?: string | null

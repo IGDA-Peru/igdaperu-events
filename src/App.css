@@ -1605,6 +1605,13 @@ html:has(.embed-page), body:has(.embed-page) { background: var(--surface); }
 .logo-save-button { margin-top: 10px; min-height: 38px; font-size: .78rem; }
 .community-logo-copy .form-message { margin-top: 10px; }
 .community-logo-copy .field-help { display: block; margin-top: 10px; }
+.community-banner-editor { display: grid; gap: 12px; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--line); }
+.community-banner-editor h3 { margin: 0 0 7px; font-family: 'Museo Sans Rounded', var(--font-sans); font-size: 1.08rem; letter-spacing: -.025em; }
+.community-banner-editor .muted-copy { margin: 0; }
+.community-banner-preview, .community-banner-placeholder { display: grid; width: min(100%, 720px); aspect-ratio: 1024 / 410; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--muted); background: color-mix(in srgb, var(--surface) 70%, var(--bone)); font-size: .82rem; font-weight: 800; }
+.community-banner-preview { object-fit: cover; }
+.community-banner-editor .field-help { display: block; color: var(--muted); font-size: .7rem; }
+.community-banner-editor .form-message { margin: 0; }
 .community-color-editor { display: grid; gap: 14px; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--line); }
 .community-color-editor h3 { margin: 0 0 7px; font-family: 'Museo Sans Rounded', var(--font-sans); font-size: 1.08rem; letter-spacing: -.025em; }
 .community-color-editor .muted-copy { margin: 0; }

@@ -19,7 +19,7 @@ let publicCommunitiesRequest: Promise<Community[]> | null = null
 const publicEventsCache = new Map<string, PublicCacheEntry<EventItem[]>>()
 const publicEventsRequests = new Map<string, Promise<EventItem[]>>()
 
-const COMMUNITY_SELECT = 'id,slug,name,description,logo_path,brand_color,website_url,discord_url,status'
+const COMMUNITY_SELECT = 'id,slug,name,description,logo_path,banner_path,brand_color,website_url,discord_url,status'
 const PROFILE_SELECT = 'id,display_name,first_name,last_name,avatar_path'
 const EVENT_SELECT = 'id,slug,community_id,organizer_name,title,description,type,starts_at,ends_at,is_all_day,timezone,location_type,access_mode,location_precision,location_department,location_province,venue_name,address,map_url,place_id,formatted_address,latitude,longitude,meeting_url,meeting_provider,meeting_link_visibility,registration_url,cover_path,visibility,status,community:communities(name,slug,status,logo_path,brand_color)'
 const PROPOSAL_SELECT = 'id,organizer_name,contact_email,title,description,type,starts_at,ends_at,is_all_day,timezone,location_type,access_mode,location_precision,location_department,location_province,venue_name,address,map_url,place_id,formatted_address,latitude,longitude,meeting_url,meeting_provider,registration_url,community_id,status,review_notes,rejection_reason,reviewed_at,approved_event_id,created_at,community:communities(name)'
@@ -48,6 +48,7 @@ const mapCommunity = (row: any): Community => ({
   name: row.name,
   description: row.description || '',
   logoPath: row.logo_path,
+  bannerPath: row.banner_path,
   brandColor: row.brand_color,
   websiteUrl: row.website_url,
   discordUrl: row.discord_url,
@@ -202,6 +203,10 @@ export function getCommunityLogoUrl(path?: string | null) {
   return supabase?.storage.from('community-assets').getPublicUrl(path).data.publicUrl || null
 }
 
+export function getCommunityBannerUrl(path?: string | null) {
+  return getCommunityLogoUrl(path)
+}
+
 export function getEventCoverUrl(path?: string | null) {
   if (!path) return null
   if (path.startsWith('/') || /^https?:\/\//i.test(path) || path.startsWith('blob:')) return path
@@ -219,6 +224,24 @@ export async function uploadCommunityLogo(communityId: string, file: File, previ
   const { error: uploadError } = await storage.upload(path, optimizedFile, { cacheControl: '31536000', contentType: optimizedFile.type, upsert: false })
   if (uploadError) throw uploadError
   const { error: updateError } = await supabase.from('communities').update({ logo_path: path }).eq('id', communityId)
+  if (updateError) {
+    await storage.remove([path])
+    throw updateError
+  }
+  if (previousPath && !previousPath.startsWith('/') && !/^https?:\/\//i.test(previousPath)) await storage.remove([previousPath])
+  return path
+}
+
+export async function uploadCommunityBanner(communityId: string, file: File, previousPath?: string | null, alreadyOptimized = false) {
+  if (!supabase) throw new Error('Supabase no está configurado.')
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('El banner debe estar en formato JPG, PNG o WebP.')
+  if (file.size > 8 * 1024 * 1024) throw new Error('El banner no puede superar los 8 MB.')
+  const optimizedFile = alreadyOptimized ? file : await optimizeImageForUpload(file, eventBannerOptimization)
+  const path = `${communityId}/banner-${crypto.randomUUID()}.webp`
+  const storage = supabase.storage.from('community-assets')
+  const { error: uploadError } = await storage.upload(path, optimizedFile, { cacheControl: '31536000', contentType: optimizedFile.type, upsert: false })
+  if (uploadError) throw uploadError
+  const { error: updateError } = await supabase.from('communities').update({ banner_path: path }).eq('id', communityId)
   if (updateError) {
     await storage.remove([path])
     throw updateError
@@ -266,7 +289,7 @@ export type AssetMigrationResult = {
 }
 
 type ExistingAsset = {
-  kind: 'logo' | 'banner'
+  kind: 'logo' | 'community_banner' | 'event_banner'
   id: string
   label: string
   path: string
@@ -281,14 +304,16 @@ async function listExistingAssets(): Promise<ExistingAsset[]> {
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await supabase
       .from('communities')
-      .select('id,name,logo_path')
-      .not('logo_path', 'is', null)
+      .select('id,name,logo_path,banner_path')
       .range(from, from + pageSize - 1)
     if (error) throw error
 
     for (const row of data || []) {
       if (typeof row.logo_path === 'string' && row.logo_path.trim()) {
         assets.push({ kind: 'logo', id: row.id, label: row.name || row.id, path: row.logo_path })
+      }
+      if (typeof row.banner_path === 'string' && row.banner_path.trim()) {
+        assets.push({ kind: 'community_banner', id: row.id, label: `${row.name || row.id} · banner`, path: row.banner_path })
       }
     }
     if (!data || data.length < pageSize) break
@@ -304,7 +329,7 @@ async function listExistingAssets(): Promise<ExistingAsset[]> {
 
     for (const row of data || []) {
       if (typeof row.cover_path === 'string' && row.cover_path.trim()) {
-        assets.push({ kind: 'banner', id: row.id, label: row.title || row.id, path: row.cover_path })
+        assets.push({ kind: 'event_banner', id: row.id, label: row.title || row.id, path: row.cover_path })
       }
     }
     if (!data || data.length < pageSize) break
@@ -332,7 +357,7 @@ export async function migrateExistingAssets(onProgress?: (progress: AssetMigrati
     }
 
     try {
-      const sourceUrl = asset.kind === 'logo' ? getCommunityLogoUrl(asset.path) : getEventCoverUrl(asset.path)
+      const sourceUrl = asset.kind === 'event_banner' ? getEventCoverUrl(asset.path) : getCommunityLogoUrl(asset.path)
       if (!sourceUrl) throw new Error('No se pudo resolver la URL pública del archivo.')
 
       const response = await fetch(sourceUrl, { cache: 'no-store' })
@@ -344,6 +369,7 @@ export async function migrateExistingAssets(onProgress?: (progress: AssetMigrati
       const file = new File([blob], assetFileName(asset.path), { type })
 
       if (asset.kind === 'logo') await uploadCommunityLogo(asset.id, file, asset.path)
+      else if (asset.kind === 'community_banner') await uploadCommunityBanner(asset.id, file, asset.path)
       else await uploadEventBanner(asset.id, file, asset.path)
       result.migrated += 1
     } catch (reason) {

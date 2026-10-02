@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 type BannerCropDialogProps = {
   sourceUrl: string
   fileName: string
+  aspectRatio?: number
   processing?: boolean
   error?: string
   onCancel: () => void
@@ -42,7 +43,7 @@ function clampPoint(point: Point, layout: ReturnType<typeof cropLayout>) {
   }
 }
 
-function cropImage(image: HTMLImageElement, frame: FrameSize, zoom: number, offset: Point, fileName: string): Promise<File> {
+function cropImage(image: HTMLImageElement, frame: FrameSize, zoom: number, offset: Point, fileName: string, aspectRatio: number): Promise<File> {
   const layout = cropLayout(image, frame, zoom)
   const sourceWidth = frame.width / layout.scale
   const sourceHeight = frame.height / layout.scale
@@ -52,7 +53,7 @@ function cropImage(image: HTMLImageElement, frame: FrameSize, zoom: number, offs
   const sourceY = clamp(sourceCenterY - sourceHeight / 2, 0, image.naturalHeight - sourceHeight)
   const canvas = document.createElement('canvas')
   canvas.width = OUTPUT_WIDTH
-  canvas.height = OUTPUT_HEIGHT
+  canvas.height = Math.round(OUTPUT_WIDTH / aspectRatio)
   const context = canvas.getContext('2d')
   if (!context) return Promise.reject(new Error('Este navegador no permite recortar la imagen.'))
   context.imageSmoothingEnabled = true
@@ -70,7 +71,7 @@ function cropImage(image: HTMLImageElement, frame: FrameSize, zoom: number, offs
   })
 }
 
-export function BannerCropDialog({ sourceUrl, fileName, processing = false, error, onCancel, onConfirm }: BannerCropDialogProps) {
+export function BannerCropDialog({ sourceUrl, fileName, aspectRatio = OUTPUT_WIDTH / OUTPUT_HEIGHT, processing = false, error, onCancel, onConfirm }: BannerCropDialogProps) {
   const frameRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<{ pointerId: number; start: Point; origin: Point } | null>(null)
   const [image, setImage] = useState<HTMLImageElement | null>(null)
@@ -132,7 +133,7 @@ export function BannerCropDialog({ sourceUrl, fileName, processing = false, erro
     if (!image || !layout || processing) return
     setCropError('')
     try {
-      await onConfirm(await cropImage(image, frame, zoom, safeOffset, fileName))
+      await onConfirm(await cropImage(image, frame, zoom, safeOffset, fileName, aspectRatio))
     } catch (reason: unknown) {
       setCropError(reason instanceof Error ? reason.message : 'No pudimos generar el recorte del banner.')
     }
@@ -144,8 +145,8 @@ export function BannerCropDialog({ sourceUrl, fileName, processing = false, erro
         <div><span className="dashboard-kicker"><Crop size={14} aria-hidden="true" /> Ajustar banner</span><h2 id="banner-crop-title">Confirma el recorte</h2></div>
         <button className="icon-button" type="button" onClick={onCancel} disabled={processing} aria-label="Cancelar recorte"><X size={18} /></button>
       </div>
-      <p className="banner-crop-description" id="banner-crop-description">El banner se guardará en formato horizontal 16:9. Arrastra la imagen para ajustar el encuadre.</p>
-      <div ref={frameRef} className={`banner-crop-frame ${layout ? 'is-ready' : ''}`} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerEnd} onPointerCancel={handlePointerEnd} role="img" aria-label="Vista previa del recorte del banner">
+      <p className="banner-crop-description" id="banner-crop-description">El banner se guardará en formato horizontal. Arrastra la imagen para ajustar el encuadre.</p>
+      <div ref={frameRef} className={`banner-crop-frame ${layout ? 'is-ready' : ''}`} style={{ aspectRatio }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerEnd} onPointerCancel={handlePointerEnd} role="img" aria-label="Vista previa del recorte del banner">
         {image && layout ? <img className="banner-crop-image" src={sourceUrl} alt="" draggable={false} style={imageStyle} /> : <span className="banner-crop-loading">Cargando vista previa…</span>}
       </div>
       <div className="banner-crop-controls">

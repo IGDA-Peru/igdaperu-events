@@ -14,7 +14,7 @@ import { LoadingState } from '../components/Feedback'
 import { GooglePlacePicker } from '../components/GooglePlacePicker'
 import { TurnstileWidget } from '../components/TurnstileWidget'
 import { ConversationSummary } from './ChatPage'
-import { approveEventProposal, archiveEvent, cancelCommunityInvitation, createCommunity, createGoogleMeetLink, createInvitation, deleteEvent, getEventCoverUrl, getGoogleMeetConnection, listCommunities, listCommunityEvents, listCommunityMembers, listEventConflicts, listEventProposals, listEventReports, listManagedEvents, migrateExistingAssets, rejectEventProposal, removeEventBanner, resolveEventReport, revokeCommunityMember, saveEvent, startGoogleMeetConnection, syncCommunitiesFromSheet, syncEventsToGoogleCalendar, updateCommunityBranding, updateCommunityStatus, updateEventProposal, uploadCommunityLogo, uploadEventBanner } from '../lib/data'
+import { approveEventProposal, archiveEvent, cancelCommunityInvitation, createCommunity, createGoogleMeetLink, createInvitation, deleteEvent, getCommunityBannerUrl, getEventCoverUrl, getGoogleMeetConnection, listCommunities, listCommunityEvents, listCommunityMembers, listEventConflicts, listEventProposals, listEventReports, listManagedEvents, migrateExistingAssets, rejectEventProposal, removeEventBanner, resolveEventReport, revokeCommunityMember, saveEvent, startGoogleMeetConnection, syncCommunitiesFromSheet, syncEventsToGoogleCalendar, updateCommunityBranding, updateCommunityStatus, updateEventProposal, uploadCommunityBanner, uploadCommunityLogo, uploadEventBanner } from '../lib/data'
 import { eventFieldLabels, validateEvent, type EventField } from '../lib/eventValidation'
 import { eventTypeOptions, isStandardEventType } from '../lib/eventTypes'
 import { filterEvents, type CommunityFilterOption, type ModalityFilter, type TimeFilter } from '../lib/eventFilters'
@@ -1023,6 +1023,12 @@ export function CommunitySettingsPage() {
   const [logoUploading, setLogoUploading] = useState(false)
   const [logoMessage, setLogoMessage] = useState('')
   const [logoError, setLogoError] = useState('')
+  const [communityBannerCropSource, setCommunityBannerCropSource] = useState<{ file: File; url: string } | null>(null)
+  const [communityBannerFile, setCommunityBannerFile] = useState<File | null>(null)
+  const [communityBannerPreview, setCommunityBannerPreview] = useState('')
+  const [communityBannerUploading, setCommunityBannerUploading] = useState(false)
+  const [communityBannerMessage, setCommunityBannerMessage] = useState('')
+  const [communityBannerError, setCommunityBannerError] = useState('')
   const [brandColorDraft, setBrandColorDraft] = useState(DEFAULT_COMMUNITY_COLOR)
   const [brandColorSaving, setBrandColorSaving] = useState(false)
   const [brandColorMessage, setBrandColorMessage] = useState('')
@@ -1052,10 +1058,21 @@ export function CommunitySettingsPage() {
     setLogoPreview('')
     setLogoMessage('')
     setLogoError('')
+    setCommunityBannerFile(null)
+    setCommunityBannerPreview('')
+    setCommunityBannerMessage('')
+    setCommunityBannerError('')
+    setCommunityBannerCropSource((current) => {
+      if (current?.url.startsWith('blob:')) URL.revokeObjectURL(current.url)
+      return null
+    })
   }, [communityId])
   useEffect(() => () => {
     if (logoPreview) URL.revokeObjectURL(logoPreview)
   }, [logoPreview])
+  useEffect(() => () => {
+    if (communityBannerPreview) URL.revokeObjectURL(communityBannerPreview)
+  }, [communityBannerPreview])
   useEffect(() => {
     if (!communityId) { setMemberLoading(false); setMemberError(''); return }
     let cancelled = false
@@ -1110,6 +1127,63 @@ export function CommunitySettingsPage() {
       setLogoError(reason instanceof Error ? reason.message : 'No pudimos leer la imagen.')
     }
   }
+  const setCommunityBannerPreviewUrl = (url: string) => {
+    setCommunityBannerPreview((current) => {
+      if (current.startsWith('blob:')) URL.revokeObjectURL(current)
+      return url
+    })
+  }
+  const closeCommunityBannerCrop = () => {
+    setCommunityBannerCropSource((current) => {
+      if (current?.url.startsWith('blob:')) URL.revokeObjectURL(current.url)
+      return null
+    })
+    setCommunityBannerError('')
+  }
+  const handleCommunityBannerChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    setCommunityBannerError('')
+    setCommunityBannerMessage('')
+    setCommunityBannerFile(null)
+    setCommunityBannerPreviewUrl('')
+    if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { setCommunityBannerError('El banner debe estar en formato JPG, PNG o WebP.'); return }
+    if (file.size > 8 * 1024 * 1024) { setCommunityBannerError('El banner no puede superar los 8 MB.'); return }
+    setCommunityBannerCropSource({ file, url: URL.createObjectURL(file) })
+  }
+  const confirmCommunityBannerCrop = async (croppedFile: File) => {
+    setCommunityBannerUploading(true)
+    setCommunityBannerError('')
+    try {
+      const optimizedFile = await optimizeImageForUpload(croppedFile, eventBannerOptimization)
+      setCommunityBannerFile(optimizedFile)
+      setCommunityBannerPreviewUrl(URL.createObjectURL(optimizedFile))
+      closeCommunityBannerCrop()
+    } catch (reason: unknown) {
+      setCommunityBannerError(reason instanceof Error ? reason.message : 'No pudimos optimizar el banner.')
+    } finally {
+      setCommunityBannerUploading(false)
+    }
+  }
+  const saveCommunityBanner = async () => {
+    if (!communityBannerFile || !community) return
+    if (!supabase) { setCommunityBannerError('Supabase no está configurado.'); return }
+    setCommunityBannerUploading(true)
+    setCommunityBannerError('')
+    setCommunityBannerMessage('')
+    try {
+      const path = await uploadCommunityBanner(community.id, communityBannerFile, community.bannerPath, true)
+      setCommunities((current) => current.map((item) => item.id === community.id ? { ...item, bannerPath: path } : item))
+      setCommunityBannerFile(null)
+      setCommunityBannerPreviewUrl('')
+      setCommunityBannerMessage('Banner actualizado. Ya se mostrará en igda.pe.')
+    } catch (reason: unknown) {
+      setCommunityBannerError(reason instanceof Error ? reason.message : 'No pudimos actualizar el banner.')
+    } finally {
+      setCommunityBannerUploading(false)
+    }
+  }
   const saveLogo = async () => {
     if (!logoFile || !community) return
     if (!supabase) { setLogoError('Supabase no está configurado.'); return }
@@ -1148,6 +1222,7 @@ export function CommunitySettingsPage() {
   const calendarEmbedCode = buildCommunityEmbedCode(community, 'calendar')
   const cardsEmbedCode = buildCommunityEmbedCode(community, 'cards')
   const spotlightEmbedCode = buildCommunityEmbedCode(community, 'spotlight')
+  const savedCommunityBannerUrl = getCommunityBannerUrl(community.bannerPath)
   return <div className="dashboard-page narrow-page community-settings-page">
     <div className="community-settings-page-actions">
       <Link className="secondary-button" to="/app"><ChevronLeft size={16} /> Volver al panel</Link>
@@ -1176,10 +1251,21 @@ export function CommunitySettingsPage() {
          </div>
          <p className="community-embed-admin-note"><Shield size={17} aria-hidden="true" /><span>Comparte el código elegido con el administrador de IGDA Perú. Debe habilitar el dominio de la página donde se insertará el embed para que pueda mostrarse correctamente.</span></p>
        </div> : <div className="community-tab-content" id="community-public-panel" role="tabpanel" aria-label="Información pública">
-        <div className="community-panel-heading"><div><h2>Información pública</h2><p className="muted-copy">Estos datos vienen heredados desde Google Sheets y son de solo lectura, excepto el logo y el color visual.</p></div><span className="readonly-badge">Solo lectura</span></div>
+        <div className="community-panel-heading"><div><h2>Información pública</h2><p className="muted-copy">Estos datos vienen heredados desde Google Sheets. Puedes actualizar el logo, el banner y el color visual.</p></div><span className="readonly-badge">Datos base de solo lectura</span></div>
         <div className="community-logo-editor">
           <CommunityLogo path={logoPreview || community.logoPath} name={community.name} color={brandColorDraft} size="large" />
-          <div className="community-logo-copy"><h3>Logo de la comunidad</h3><p className="muted-copy">Este es el único dato editable desde el panel. Usa una imagen cuadrada en formato JPG, PNG o WebP.</p><label className="logo-file-field">Seleccionar logo<input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Logo de la comunidad" onChange={(event) => void handleLogoChange(event)} /></label>{logoPreview && <button className="primary-button logo-save-button" type="button" disabled={logoUploading} onClick={() => void saveLogo()}>{logoUploading ? 'Actualizando…' : 'Actualizar logo'}</button>}{logoError && <FormError message={logoError} />}{logoMessage && <p className="form-message success" role="status">{logoMessage}</p>}<small className="field-help">Proporción obligatoria 1:1 · se optimiza automáticamente · máximo 1024 × 1024 px.</small></div>
+          <div className="community-logo-copy"><h3>Logo de la comunidad</h3><p className="muted-copy">Usa una imagen cuadrada en formato JPG, PNG o WebP.</p><label className="logo-file-field">Seleccionar logo<input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Logo de la comunidad" onChange={(event) => void handleLogoChange(event)} /></label>{logoPreview && <button className="primary-button logo-save-button" type="button" disabled={logoUploading} onClick={() => void saveLogo()}>{logoUploading ? 'Actualizando…' : 'Actualizar logo'}</button>}{logoError && <FormError message={logoError} />}{logoMessage && <p className="form-message success" role="status">{logoMessage}</p>}<small className="field-help">Proporción obligatoria 1:1 · se optimiza automáticamente · máximo 1024 × 1024 px.</small></div>
+        </div>
+        <div className="community-banner-editor">
+          <div><h3>Banner de la comunidad</h3><p className="muted-copy">Al guardarlo, el banner se actualizará también en el directorio de igda.pe. Usa una imagen JPG, PNG o WebP.</p></div>
+          {(communityBannerPreview || savedCommunityBannerUrl)
+            ? <img className="community-banner-preview" src={communityBannerPreview || savedCommunityBannerUrl || undefined} alt={`Banner de ${community.name}`} />
+            : <div className="community-banner-placeholder" aria-label="Sin banner configurado">Aún no hay un banner</div>}
+          <label className="logo-file-field">Seleccionar banner<input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Banner de la comunidad" onChange={handleCommunityBannerChange} /></label>
+          {communityBannerFile && <button className="primary-button logo-save-button" type="button" disabled={communityBannerUploading} onClick={() => void saveCommunityBanner()}>{communityBannerUploading ? 'Actualizando…' : 'Actualizar banner'}</button>}
+          {communityBannerError && <FormError message={communityBannerError} />}
+          {communityBannerMessage && <p className="form-message success" role="status">{communityBannerMessage}</p>}
+          <small className="field-help">Proporción 2.5:1 · se recorta y optimiza automáticamente · máximo 8 MB.</small>
         </div>
         <div className="community-color-editor">
           <div><h3>Color de la comunidad</h3><p className="muted-copy">Se usará para identificar tus eventos en la agenda, el calendario y la vista previa.</p></div>
@@ -1199,6 +1285,7 @@ export function CommunitySettingsPage() {
         </dl>
        </div>}
     </section>
+    {communityBannerCropSource && <BannerCropDialog key={communityBannerCropSource.url} sourceUrl={communityBannerCropSource.url} fileName={communityBannerCropSource.file.name} aspectRatio={1024 / 410} processing={communityBannerUploading} error={communityBannerError} onCancel={closeCommunityBannerCrop} onConfirm={confirmCommunityBannerCrop} />}
     {memberToRemove && <MemberRemovalDialog member={memberToRemove} loading={memberActionId === communityMemberActionId(memberToRemove)} error={memberError} onClose={() => { if (!memberActionId) setMemberToRemove(null) }} onConfirm={() => void removeMember()} />}
   </div>
 }
