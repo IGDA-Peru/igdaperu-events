@@ -9,8 +9,8 @@ type PublicCommunitiesEnv = {
   SUPABASE_PUBLISHABLE_KEY?: string
 }
 
-const CACHE_CONTROL = 'public, max-age=300, s-maxage=600'
-const communitySelect = 'id,slug,name,description,logo_path,brand_color,website_url,discord_url,status'
+const CACHE_CONTROL = 'public, max-age=0, s-maxage=60'
+const communitySelect = 'id,slug,name,description,logo_path,banner_path,brand_color,website_url,discord_url,status'
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {

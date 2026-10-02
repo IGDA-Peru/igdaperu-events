@@ -1035,7 +1035,7 @@ export function CommunitySettingsPage() {
   const [brandColorError, setBrandColorError] = useState('')
   useEffect(() => {
     if (!isPlatformAdmin && !manageableIds) { setCommunities([]); return }
-    void listCommunities(isPlatformAdmin).then((items) => {
+    void listCommunities(isPlatformAdmin, true).then((items) => {
       const allowedIds = new Set(manageableIds ? manageableIds.split(',') : [])
       const next = isPlatformAdmin ? items.filter((item) => item.status === 'approved') : items.filter((item) => allowedIds.has(item.id))
       setCommunities(next)
@@ -1195,7 +1195,7 @@ export function CommunitySettingsPage() {
       setCommunities((current) => current.map((item) => item.id === community.id ? { ...item, logoPath: path } : item))
       setLogoFile(null)
       setLogoPreview('')
-      setLogoMessage('Logo actualizado.')
+      setLogoMessage('Logo actualizado. Ya se mostrará en igda.pe.')
     } catch (reason: unknown) {
       setLogoError(reason instanceof Error ? reason.message : 'No pudimos actualizar el logo.')
     } finally {
@@ -1257,7 +1257,7 @@ export function CommunitySettingsPage() {
           <div className="community-logo-copy"><h3>Logo de la comunidad</h3><p className="muted-copy">Usa una imagen cuadrada en formato JPG, PNG o WebP.</p><label className="logo-file-field">Seleccionar logo<input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Logo de la comunidad" onChange={(event) => void handleLogoChange(event)} /></label>{logoPreview && <button className="primary-button logo-save-button" type="button" disabled={logoUploading} onClick={() => void saveLogo()}>{logoUploading ? 'Actualizando…' : 'Actualizar logo'}</button>}{logoError && <FormError message={logoError} />}{logoMessage && <p className="form-message success" role="status">{logoMessage}</p>}<small className="field-help">Proporción obligatoria 1:1 · se optimiza automáticamente · máximo 1024 × 1024 px.</small></div>
         </div>
         <div className="community-banner-editor">
-          <div><h3>Banner de la comunidad</h3><p className="muted-copy">Al guardarlo, el banner se actualizará también en el directorio de igda.pe. Usa una imagen JPG, PNG o WebP.</p></div>
+          <div><h3>Banner de la comunidad</h3><p className="muted-copy">Al guardar el logo o el banner, también se actualizará el directorio de igda.pe. Usa una imagen JPG, PNG o WebP.</p></div>
           {(communityBannerPreview || savedCommunityBannerUrl)
             ? <img className="community-banner-preview" src={communityBannerPreview || savedCommunityBannerUrl || undefined} alt={`Banner de ${community.name}`} />
             : <div className="community-banner-placeholder" aria-label="Sin banner configurado">Aún no hay un banner</div>}

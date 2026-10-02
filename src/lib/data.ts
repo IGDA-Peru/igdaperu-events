@@ -19,6 +19,10 @@ let publicCommunitiesRequest: Promise<Community[]> | null = null
 const publicEventsCache = new Map<string, PublicCacheEntry<EventItem[]>>()
 const publicEventsRequests = new Map<string, Promise<EventItem[]>>()
 
+function invalidatePublicCommunitiesCache() {
+  publicCommunitiesCache = null
+}
+
 const COMMUNITY_SELECT = 'id,slug,name,description,logo_path,banner_path,brand_color,website_url,discord_url,status'
 const PROFILE_SELECT = 'id,display_name,first_name,last_name,avatar_path'
 const EVENT_SELECT = 'id,slug,community_id,organizer_name,title,description,type,starts_at,ends_at,is_all_day,timezone,location_type,access_mode,location_precision,location_department,location_province,venue_name,address,map_url,place_id,formatted_address,latitude,longitude,meeting_url,meeting_provider,meeting_link_visibility,registration_url,cover_path,visibility,status,community:communities(name,slug,status,logo_path,brand_color)'
@@ -167,11 +171,11 @@ const mapChatMessage = (row: any): ChatMessage => ({
   createdAt: row.created_at,
 })
 
-export async function listCommunities(includeUnapproved = false): Promise<Community[]> {
+export async function listCommunities(includeUnapproved = false, forceRefresh = false): Promise<Community[]> {
   if (!isSupabaseConfigured || !supabase) return demoCommunities
   const hostname = typeof window === 'undefined' ? '' : window.location.hostname
   const localHost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
-  if (!includeUnapproved && import.meta.env.PROD && !localHost) {
+  if (!includeUnapproved && !forceRefresh && import.meta.env.PROD && !localHost) {
     const cached = publicCommunitiesCache
     if (cached && cached.expiresAt > Date.now()) return cached.value
     if (publicCommunitiesRequest) return publicCommunitiesRequest
@@ -194,7 +198,9 @@ export async function listCommunities(includeUnapproved = false): Promise<Commun
   if (!includeUnapproved) query = query.eq('status', 'approved')
   const { data, error } = await query
   if (error) throw error
-  return (data || []).map(mapCommunity)
+  const communities = (data || []).map(mapCommunity)
+  if (!includeUnapproved) publicCommunitiesCache = { value: communities, expiresAt: Date.now() + PUBLIC_COMMUNITIES_CACHE_TTL }
+  return communities
 }
 
 export function getCommunityLogoUrl(path?: string | null) {
@@ -223,11 +229,13 @@ export async function uploadCommunityLogo(communityId: string, file: File, previ
   const storage = supabase.storage.from('community-assets')
   const { error: uploadError } = await storage.upload(path, optimizedFile, { cacheControl: '31536000', contentType: optimizedFile.type, upsert: false })
   if (uploadError) throw uploadError
-  const { error: updateError } = await supabase.from('communities').update({ logo_path: path }).eq('id', communityId)
+  const { error: updateError } = await supabase.from('communities').update({ logo_path: path }).eq('id', communityId).select('id').single()
   if (updateError) {
     await storage.remove([path])
+    if (updateError.code === 'PGRST116') throw new Error('No se guardó el logo. Recarga la página y verifica que sigues teniendo acceso de administración a esta comunidad.')
     throw updateError
   }
+  invalidatePublicCommunitiesCache()
   if (previousPath && !previousPath.startsWith('/') && !/^https?:\/\//i.test(previousPath)) await storage.remove([previousPath])
   return path
 }
@@ -241,11 +249,13 @@ export async function uploadCommunityBanner(communityId: string, file: File, pre
   const storage = supabase.storage.from('community-assets')
   const { error: uploadError } = await storage.upload(path, optimizedFile, { cacheControl: '31536000', contentType: optimizedFile.type, upsert: false })
   if (uploadError) throw uploadError
-  const { error: updateError } = await supabase.from('communities').update({ banner_path: path }).eq('id', communityId)
+  const { error: updateError } = await supabase.from('communities').update({ banner_path: path }).eq('id', communityId).select('id').single()
   if (updateError) {
     await storage.remove([path])
+    if (updateError.code === 'PGRST116') throw new Error('No se guardó el banner. Recarga la página y verifica que sigues teniendo acceso de administración a esta comunidad.')
     throw updateError
   }
+  invalidatePublicCommunitiesCache()
   if (previousPath && !previousPath.startsWith('/') && !/^https?:\/\//i.test(previousPath)) await storage.remove([previousPath])
   return path
 }
@@ -908,6 +918,7 @@ export async function updateCommunityBranding(communityId: string, brandColor: s
   if (!supabase) throw new Error('Supabase no está configurado.')
   const { data, error } = await supabase.from('communities').update({ brand_color: brandColor }).eq('id', communityId).select(COMMUNITY_SELECT).single()
   if (error) throw error
+  invalidatePublicCommunitiesCache()
   return mapCommunity(data)
 }
 
